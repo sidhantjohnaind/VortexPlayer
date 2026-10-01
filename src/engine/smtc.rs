@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+#[cfg(windows)]
 use souvlaki::{
     MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, MediaPosition, PlatformConfig,
 };
@@ -18,6 +19,7 @@ pub enum SmtcCommand {
 }
 
 pub struct SmtcEngine {
+    #[cfg(windows)]
     controls: Option<MediaControls>,
     rx: Receiver<SmtcCommand>,
     tx: Sender<SmtcCommand>,
@@ -33,6 +35,7 @@ impl Default for SmtcEngine {
     fn default() -> Self {
         let (tx, rx) = channel();
         Self {
+            #[cfg(windows)]
             controls: None,
             rx,
             tx,
@@ -51,19 +54,17 @@ impl SmtcEngine {
         Self::default()
     }
 
+    #[cfg(windows)]
     pub fn init(&mut self, _hwnd: isize) {
         if self.is_initialized {
             return;
         }
 
-        #[cfg(target_os = "windows")]
         let hwnd_ptr = if _hwnd != 0 {
             Some(_hwnd as *mut std::ffi::c_void)
         } else {
             None
         };
-        #[cfg(not(target_os = "windows"))]
-        let hwnd_ptr = None;
 
         let config = PlatformConfig {
             dbus_name: "vortex_player",
@@ -91,6 +92,9 @@ impl SmtcEngine {
         }
     }
 
+    #[cfg(not(windows))]
+    pub fn init(&mut self, _hwnd: isize) {}
+
     pub fn poll_events(&self) -> Vec<SmtcCommand> {
         let mut events = Vec::new();
         while let Ok(cmd) = self.rx.try_recv() {
@@ -99,6 +103,7 @@ impl SmtcEngine {
         events
     }
 
+    #[cfg(windows)]
     pub fn update_metadata(
         &mut self,
         title: &str,
@@ -179,4 +184,17 @@ impl SmtcEngine {
             }
         }
     }
+
+    #[cfg(not(windows))]
+    pub fn update_metadata(
+        &mut self,
+        _title: &str,
+        _artist: Option<&str>,
+        _album: Option<&str>,
+        _cover_url: Option<&str>,
+        _duration_sec: f64,
+        _time_pos_sec: f64,
+        _is_paused: bool,
+        _is_idle: bool,
+    ) {}
 }

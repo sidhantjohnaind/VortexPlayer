@@ -136,7 +136,7 @@ jobs:
             zig_target: aarch64-unknown-linux-gnu
             arch_name: arm64
           - target: riscv64gc-unknown-linux-gnu
-            zig_target: riscv64gc-unknown-linux-gnu.2.31
+            zig_target: riscv64gc-unknown-linux-gnu
             arch_name: riscv64
           - target: armv7-unknown-linux-gnueabihf
             zig_target: armv7-unknown-linux-gnueabihf
@@ -154,6 +154,15 @@ jobs:
         uses: korandoru/setup-zig@v1
         with:
           zig-version: 0.13.0
+
+      - name: Patch Zig RISC-V libc assembler compatibility
+        if: matrix.arch_name == 'riscv64'
+        run: |
+          ZIG_BIN=$(which zig)
+          ZIG_DIR=$(dirname $(dirname "$ZIG_BIN"))
+          echo "Patching Zig glibc files in $ZIG_DIR"
+          sudo find "$ZIG_DIR" -type f -name "start-2.33.S" -exec sed -i 's/.*\.cfi_label.*/\/* .cfi_label *\//g' {} + 2>/dev/null || true
+          sudo find "$ZIG_DIR" -type f -path "*/riscv/*" -name "*.S" -exec sed -i 's/.*\.cfi_label.*/\/* .cfi_label *\//g' {} + 2>/dev/null || true
 
       - name: Install cargo-zigbuild
         uses: taiki-e/install-action@cargo-zigbuild
@@ -292,6 +301,7 @@ jobs:
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name || 'v1.0.0' }}
           files: release-packages/*
-          overwrite: true
+          overwrite_files: true
+          fail_on_unmatched_files: false
           draft: false
           prerelease: false

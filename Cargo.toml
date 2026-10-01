@@ -1,0 +1,56 @@
+[package]
+name = "vortex-player-egui"
+version = "1.0.0"
+edition = "2024"
+default-run = "vortex-player-egui"
+description = "VertexPlayer - High-Quality Modern Rust Media Player (egui Edition)"
+
+[lib]
+name = "vortex_player"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vortex-player-egui"
+path = "src/main.rs"
+
+[dependencies]
+chrono = "0.4.45"
+dirs = "6.0.0"
+eframe = { version = "0.36.1", features = ["glow", "wgpu", "default"] }
+image = "0.25.10"
+libloading = "0.9.0"
+natord = "1.0.9"
+rand = "0.10.2"
+raw-window-handle = "0.6.2"
+rayon = "1.10"
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+souvlaki = "0.8.3"
+walkdir = "2.5.0"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Shell",
+    "Win32_System_Threading",
+    "Win32_System_SystemInformation",
+    "Win32_System_Pipes",
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Controls",
+] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = false
+codegen-units = 16
+panic = "unwind"
+strip = true

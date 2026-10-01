@@ -1,0 +1,17 @@
+/target
+target/
+dist/
+*.exe
+*.dll
+*.7z
+*.res
+*.obj
+*.pdb
+*.log
+build_err.txt
+launch_test.bat
+*.ps1
+C:
+/C:
+libmpv-2.dll
+mpv-dev/

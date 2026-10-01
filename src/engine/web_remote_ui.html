@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d0e15">
+<title>VertexPlayer Touch Remote</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #1c1833 0%, #0c0d14 60%, #06070a 100%);
+    color: #f2f3f8;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 14px 40px 14px;
+    overflow-x: hidden;
+  }
+  .container {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 18px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: 0.6px;
+    background: linear-gradient(135deg, #ffd700, #ff9100, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .badge {
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(192, 132, 252, 0.15);
+    color: #e9d5ff;
+    border: 1px solid rgba(192, 132, 252, 0.3);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+  }
+  .badge.online {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+  .badge.offline {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+  .card {
+    background: rgba(20, 21, 31, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 24px;
+    padding: 20px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .track-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    padding: 4px 0;
+  }
+  .now-playing-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #ffffff;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+  }
+  .track-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .track-pill {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+  }
+  .seek-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .seek-timestamps {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+  }
+  .seekbar-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 7px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffd700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 215, 0, 0.4);
+    border: 2px solid #ffffff;
+    transition: transform 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(1.25);
+  }
+  .controls-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 6px 0;
+  }
+  .btn {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #f1f5f9;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    user-select: none;
+  }
+  .btn:active {
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .btn-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 1.15rem;
+  }
+  .btn-play-hero {
+    width: 74px;
+    height: 74px;
+    border-radius: 50%;
+    font-size: 2rem;
+    background: linear-gradient(135deg, #ffd700 0%, #f59e0b 50%, #ea580c 100%);
+    color: #0f172a;
+    box-shadow: 0 8px 28px rgba(245, 158, 11, 0.45);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-play-hero:active {
+    transform: scale(0.90);
+    box-shadow: 0 2px 14px rgba(245, 158, 11, 0.6);
+  }
+  .seek-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .btn-seek {
+    padding: 10px 4px;
+    font-size: 0.82rem;
+    border-radius: 12px;
+  }
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+  .vol-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-mute {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .chips-row {
+    display: flex;
+    gap: 6px;
+    justify-content: space-between;
+  }
+  .chip {
+    flex: 1;
+    padding: 8px 0;
+    font-size: 0.76rem;
+    text-align: center;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+    font-weight: 600;
+  }
+  .chip.active {
+    background: rgba(192, 132, 252, 0.25);
+    border-color: #c084fc;
+    color: #ffffff;
+    font-weight: 800;
+  }
+  .action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .btn-action {
+    padding: 12px;
+    font-size: 0.88rem;
+    gap: 8px;
+    border-radius: 16px;
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    background: rgba(24, 20, 36, 0.95);
+    border: 1px solid rgba(192, 132, 252, 0.5);
+    color: #ffffff;
+    padding: 10px 22px;
+    border-radius: 30px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    z-index: 1000;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <span>🌌</span> VertexPlayer
+    </div>
+    <div class="badge online" id="status-badge">ONLINE</div>
+  </div>
+
+  <div class="card">
+    <div class="track-info">
+      <div class="now-playing-title" id="track-title">VertexPlayer Ready</div>
+      <div class="track-badges">
+        <span class="track-pill" id="audio-track-pill">🔊 Audio: Default</span>
+        <span class="track-pill" id="sub-track-pill">💬 Sub: Off</span>
+      </div>
+    </div>
+
+    <!-- Live Draggable Seekbar -->
+    <div class="seek-container">
+      <div class="seek-timestamps">
+        <span id="time-curr">00:00</span>
+        <span id="time-dur">00:00</span>
+      </div>
+      <div class="seekbar-wrapper">
+        <input type="range" id="seek-slider" min="0" max="100" step="0.1" value="0">
+      </div>
+    </div>
+
+    <!-- Hero Playback Controls -->
+    <div class="controls-hero">
+      <button class="btn btn-circle" onclick="sendCmd('prev', 'Previous Track')">⏮</button>
+      <button class="btn btn-circle" onclick="sendCmd('seek_back', 'Seek -10s')">⏪</button>
+      <button class="btn btn-play-hero" id="btn-play-hero" onclick="sendCmd('play_pause')">▶</button>
+      <button class="btn btn-circle" onclick="sendCmd('seek_fwd', 'Seek +10s')">⏩</button>
+      <button class="btn btn-circle" onclick="sendCmd('next', 'Next Track')">⏭</button>
+    </div>
+
+    <!-- Quick Seek Buttons -->
+    <div class="seek-group">
+      <button class="btn btn-seek" onclick="sendCmd('seek_back_30', '-30s')">-30s</button>
+      <button class="btn btn-seek" onclick="sendCmd('seek_back', '-10s')">-10s</button>
+      <button class="btn btn-seek" onclick="sendCmd('seek_fwd', '+10s')">+10s</button>
+      <button class="btn btn-seek" onclick="sendCmd('seek_fwd_30', '+30s')">+30s</button>
+    </div>
+
+    <!-- Volume Controller with Mute Toggle -->
+    <div class="slider-row">
+      <div class="slider-header">
+        <span>Volume</span>
+        <span id="vol-label">100%</span>
+      </div>
+      <div class="vol-controls">
+        <button class="btn btn-mute" id="btn-mute" onclick="sendCmd('toggle_mute')">🔊</button>
+        <input type="range" id="vol-slider" min="0" max="150" value="100" oninput="onVolInput(this.value)" onchange="sendVol(this.value)">
+      </div>
+    </div>
+
+    <!-- Speed Chips -->
+    <div class="slider-header">
+      <span>Playback Speed</span>
+    </div>
+    <div class="chips-row">
+      <button class="btn chip" data-speed="0.5" onclick="sendSpeed(0.5, this)">0.5x</button>
+      <button class="btn chip" data-speed="0.75" onclick="sendSpeed(0.75, this)">0.75x</button>
+      <button class="btn chip active" data-speed="1.0" onclick="sendSpeed(1.0, this)">1.0x</button>
+      <button class="btn chip" data-speed="1.25" onclick="sendSpeed(1.25, this)">1.25x</button>
+      <button class="btn chip" data-speed="1.5" onclick="sendSpeed(1.5, this)">1.5x</button>
+      <button class="btn chip" data-speed="2.0" onclick="sendSpeed(2.0, this)">2.0x</button>
+    </div>
+  </div>
+
+  <!-- Extended Action Buttons -->
+  <div class="action-grid">
+    <button class="btn btn-action" onclick="sendCmd('cycle_audio', 'Cycled Audio Track')">🔊 Audio Track</button>
+    <button class="btn btn-action" onclick="sendCmd('cycle_sub', 'Cycled Subtitles')">💬 Subtitles</button>
+    <button class="btn btn-action" onclick="sendCmd('fullscreen', 'Toggled Fullscreen')">⛶ Fullscreen</button>
+    <button class="btn btn-action" onclick="sendCmd('screenshot', 'Snapshot Saved')">📸 Snapshot</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">Command Sent</div>
+
+<script>
+let isUserSeeking = false;
+let currentDuration = 0;
+
+function haptic() {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(12); } catch (e) {}
+  }
+}
+
+function formatTime(secs) {
+  if (isNaN(secs) || secs < 0) return '00:00';
+  const total = Math.floor(secs);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (h > 0) {
+    return `${h}:${remM < 10 ? '0' : ''}${remM}:${s < 10 ? '0' : ''}${s}`;
+  }
+  return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.innerText = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+}
+
+function sendCmd(action, label) {
+  haptic();
+  fetch(`/api/command?action=${encodeURIComponent(action)}`)
+    .then(() => {
+      if (label) showToast(label);
+      pollStatus();
+    })
+    .catch(() => showToast('Connection Error'));
+}
+
+function onVolInput(val) {
+  document.getElementById('vol-label').innerText = Math.round(val) + '%';
+}
+
+function sendVol(val) {
+  haptic();
+  fetch(`/api/command?action=volume&val=${encodeURIComponent(val)}`)
+    .then(() => showToast(`Volume: ${Math.round(val)}%`));
+}
+
+function sendSpeed(spd, btn) {
+  haptic();
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  fetch(`/api/command?action=speed&val=${encodeURIComponent(spd)}`)
+    .then(() => showToast(`Speed: ${spd}x`));
+}
+
+// Scrubber Events
+const seekSlider = document.getElementById('seek-slider');
+seekSlider.addEventListener('mousedown', () => { isUserSeeking = true; });
+seekSlider.addEventListener('touchstart', () => { isUserSeeking = true; }, { passive: true });
+
+seekSlider.addEventListener('input', (e) => {
+  if (currentDuration > 0) {
+    const targetSecs = (parseFloat(e.target.value) / 100.0) * currentDuration;
+    document.getElementById('time-curr').innerText = formatTime(targetSecs);
+  }
+});
+
+seekSlider.addEventListener('change', (e) => {
+  isUserSeeking = false;
+  haptic();
+  const pct = parseFloat(e.target.value);
+  fetch(`/api/command?action=seek_pct&pct=${encodeURIComponent(pct)}`)
+    .then(() => {
+      if (currentDuration > 0) {
+        showToast(`Seek: ${formatTime((pct / 100.0) * currentDuration)}`);
+      }
+    });
+});
+
+seekSlider.addEventListener('mouseup', () => { setTimeout(() => { isUserSeeking = false; }, 100); });
+seekSlider.addEventListener('touchend', () => { setTimeout(() => { isUserSeeking = false; }, 100); });
+
+// Real-time Status Polling (every 600ms)
+function pollStatus() {
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.getElementById('status-badge');
+      badge.innerText = 'ONLINE';
+      badge.className = 'badge online';
+
+      // Title & Tracks
+      document.getElementById('track-title').innerText = data.title || 'VertexPlayer Ready';
+      document.getElementById('audio-track-pill').innerText = '🔊 Audio: ' + (data.audio_track || 'Default');
+      document.getElementById('sub-track-pill').innerText = '💬 Sub: ' + (data.subtitle_track || 'Off');
+
+      // Play / Pause Icon
+      const playBtn = document.getElementById('btn-play-hero');
+      playBtn.innerText = data.is_paused ? '▶' : '⏸';
+
+      // Timestamps & Seekbar
+      currentDuration = data.duration || 0;
+      document.getElementById('time-dur').innerText = formatTime(currentDuration);
+      if (!isUserSeeking) {
+        document.getElementById('time-curr').innerText = formatTime(data.time_pos || 0);
+        seekSlider.value = data.percent_pos || 0;
+      }
+
+      // Volume & Mute
+      const volSlider = document.getElementById('vol-slider');
+      if (document.activeElement !== volSlider) {
+        volSlider.value = data.volume || 100;
+        document.getElementById('vol-label').innerText = Math.round(data.volume || 100) + '%';
+      }
+      document.getElementById('btn-mute').innerText = data.is_muted ? '🔇' : '🔊';
+
+      // Speed Chips
+      const currentSpeed = data.speed || 1.0;
+      document.querySelectorAll('.chip').forEach(chip => {
+        const chipSpeed = parseFloat(chip.getAttribute('data-speed'));
+        if (Math.abs(chipSpeed - currentSpeed) < 0.05) {
+          chip.classList.add('active');
+        } else {
+          chip.classList.remove('active');
+        }
+      });
+    })
+    .catch(() => {
+      const badge = document.getElementById('status-badge');
+      badge.innerText = 'OFFLINE';
+      badge.className = 'badge offline';
+    });
+}
+
+pollStatus();
+setInterval(pollStatus, 600);
+</script>
+</body>
+</html>

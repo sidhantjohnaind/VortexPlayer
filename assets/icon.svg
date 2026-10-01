@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Outer Glow -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Metallic Edge Gradient -->
+    <linearGradient id="metalRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe28a" />
+      <stop offset="35%" stop-color="#cca033" />
+      <stop offset="70%" stop-color="#554010" />
+      <stop offset="100%" stop-color="#ffd566" />
+    </linearGradient>
+
+    <!-- Deep Obsidian Body Gradient -->
+    <radialGradient id="bodyGrad" cx="45%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#2c303d" />
+      <stop offset="60%" stop-color="#15171e" />
+      <stop offset="100%" stop-color="#0b0c10" />
+    </radialGradient>
+
+    <!-- Glowing Play Vortex Gradient -->
+    <linearGradient id="vortexGold" x1="10%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stop-color="#fff2a3" />
+      <stop offset="40%" stop-color="#ffb81c" />
+      <stop offset="85%" stop-color="#e06a00" />
+      <stop offset="100%" stop-color="#b83800" />
+    </linearGradient>
+
+    <!-- Top Gloss Highlight -->
+    <linearGradient id="glassGloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Drop Shadow Base -->
+  <circle cx="256" cy="268" r="226" fill="#000000" opacity="0.65" filter="url(#glow)" />
+
+  <!-- Outer Metallic Ring -->
+  <circle cx="256" cy="256" r="230" fill="url(#metalRim)" />
+
+  <!-- Inner Dark Bevel -->
+  <circle cx="256" cy="256" r="220" fill="#0e1015" />
+
+  <!-- Main Body Disc -->
+  <circle cx="256" cy="256" r="212" fill="url(#bodyGrad)" />
+
+  <!-- Grooved Concentric Audio/Video Track Rings -->
+  <circle cx="256" cy="256" r="185" fill="none" stroke="#252a36" stroke-width="2.5" stroke-dasharray="12, 6" opacity="0.7" />
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#2e3544" stroke-width="1.8" opacity="0.5" />
+  <circle cx="256" cy="256" r="135" fill="none" stroke="#1d222d" stroke-width="2" opacity="0.8" />
+
+  <!-- Dynamic Swirling Vortex Waveform Accents -->
+  <path d="M 256,60 A 196,196 0 0,1 445,220 C 420,225 380,210 350,180 C 310,140 280,90 256,60 Z" fill="url(#vortexGold)" opacity="0.3" />
+  <path d="M 256,452 A 196,196 0 0,1 67,292 C 92,287 132,302 162,332 C 202,372 232,422 256,452 Z" fill="url(#vortexGold)" opacity="0.3" />
+
+  <!-- Center Golden Iris Glow -->
+  <circle cx="256" cy="256" r="115" fill="#e07b00" opacity="0.18" filter="url(#glow)" />
+
+  <!-- Sleek Center Media Play Vortex Symbol -->
+  <path d="M 205,155 C 205,142 220,134 231,141 L 356,236 C 367,244 367,260 356,268 L 231,363 C 220,370 205,362 205,349 Z" 
+        fill="url(#vortexGold)" 
+        stroke="#fff6c7" 
+        stroke-width="4" 
+        stroke-linejoin="round" />
+
+  <!-- Inner Swirl Cutout Detailing for Authentic Vortex Shape -->
+  <path d="M 205,256 C 240,256 275,230 295,200 C 270,230 240,242 205,246 Z" fill="#ffffff" opacity="0.6" />
+
+  <!-- Top Glass Highlight Dome -->
+  <path d="M 68,220 C 95,120 170,70 256,70 C 342,70 417,120 444,220 C 360,175 270,165 68,220 Z" fill="url(#glassGloss)" />
+</svg>

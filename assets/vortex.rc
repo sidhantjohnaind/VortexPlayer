@@ -1,0 +1,24 @@
+1 ICON "d:/Programming/VIDPLAYER-egui/assets/icon.ico"
+1 24 "d:/Programming/VIDPLAYER-egui/assets/vortex.manifest"
+1 VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Vortex Media"
+      VALUE "FileDescription", "VortexPlayer - Modern Media Player"
+      VALUE "FileVersion", "1.0.0.0"
+      VALUE "InternalName", "VortexPlayer"
+      VALUE "OriginalFilename", "vortex-player-egui.exe"
+      VALUE "ProductName", "VortexPlayer"
+      VALUE "ProductVersion", "1.0.0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 0x04B0
+  END
+END

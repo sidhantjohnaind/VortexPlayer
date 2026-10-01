@@ -10,7 +10,8 @@
 <p align="center">
   <a href="https://github.com/sidhantjohnaind/VortexPlayer/releases"><img src="https://img.shields.io/github/v/release/sidhantjohnaind/VortexPlayer?color=goldenrod&style=for-the-badge" alt="Release"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/rust-2024%20edition-orange?style=for-the-badge&logo=rust" alt="Rust"></a>
-  <a href="https://github.com/sidhantjohnaind/VortexPlayer"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue?style=for-the-badge&logo=windows" alt="Platform"></a>
+  <a href="https://github.com/sidhantjohnaind/VortexPlayer"><img src="https://img.shields.io/badge/arch-x86__64%20%7C%20ARM64%20%7C%20RISC--V-purple?style=for-the-badge" alt="Architectures"></a>
+  <a href="https://github.com/sidhantjohnaind/VortexPlayer"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue?style=for-the-badge" alt="Platform"></a>
   <a href="https://github.com/sidhantjohnaind/VortexPlayer/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
 </p>
 

@@ -27,6 +27,15 @@ pub static mut NvOptimusEnablement: u32 = 0x00000000;
 #[unsafe(no_mangle)]
 pub static mut AmdPowerXpressRequestHighPerformance: i32 = 0;
 
+// RISC-V 64 Linux glibc CRT compatibility stubs for cross-compilation
+#[cfg(all(target_os = "linux", target_arch = "riscv64"))]
+#[unsafe(no_mangle)]
+pub extern "C" fn _init() {}
+
+#[cfg(all(target_os = "linux", target_arch = "riscv64"))]
+#[unsafe(no_mangle)]
+pub extern "C" fn _fini() {}
+
 fn main() {
     log_step("1. main entered");
 

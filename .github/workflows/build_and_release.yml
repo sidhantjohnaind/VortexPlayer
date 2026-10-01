@@ -165,6 +165,8 @@ jobs:
           sudo find "$ZIG_DIR" -type f -path "*/riscv/*" -name "*.S" -exec sed -i 's/.*\.cfi_label.*/\/* .cfi_label *\//g' {} + 2>/dev/null || true
           sudo find "$ZIG_DIR" -type d -name "gnu" -exec touch "{}/stubs-lp64d.h" "{}/stubs-lp64.h" \; 2>/dev/null || true
           sudo find "$ZIG_DIR" -type f -name "stubs.h" -exec sed -i 's/.*stubs-lp64d\.h.*/\/* & *\//g' {} + 2>/dev/null || true
+          sudo find "$ZIG_DIR" -type f -name "*elf-init*" -exec sed -i 's/_init ();/\/* _init (); *\//g' {} + 2>/dev/null || true
+          sudo find "$ZIG_DIR" -type f -name "*elf-init*" -exec sed -i 's/_fini ();/\/* _fini (); *\//g' {} + 2>/dev/null || true
 
       - name: Install cargo-zigbuild
         uses: taiki-e/install-action@cargo-zigbuild

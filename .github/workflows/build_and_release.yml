@@ -155,7 +155,7 @@ jobs:
         with:
           zig-version: 0.13.0
 
-      - name: Patch Zig RISC-V libc assembler compatibility
+      - name: Patch Zig RISC-V libc assembler and headers compatibility
         if: matrix.arch_name == 'riscv64'
         run: |
           ZIG_BIN=$(which zig)
@@ -163,6 +163,8 @@ jobs:
           echo "Patching Zig glibc files in $ZIG_DIR"
           sudo find "$ZIG_DIR" -type f -name "start-2.33.S" -exec sed -i 's/.*\.cfi_label.*/\/* .cfi_label *\//g' {} + 2>/dev/null || true
           sudo find "$ZIG_DIR" -type f -path "*/riscv/*" -name "*.S" -exec sed -i 's/.*\.cfi_label.*/\/* .cfi_label *\//g' {} + 2>/dev/null || true
+          sudo find "$ZIG_DIR" -type d -name "gnu" -exec touch "{}/stubs-lp64d.h" "{}/stubs-lp64.h" \; 2>/dev/null || true
+          sudo find "$ZIG_DIR" -type f -name "stubs.h" -exec sed -i 's/.*stubs-lp64d\.h.*/\/* & *\//g' {} + 2>/dev/null || true
 
       - name: Install cargo-zigbuild
         uses: taiki-e/install-action@cargo-zigbuild

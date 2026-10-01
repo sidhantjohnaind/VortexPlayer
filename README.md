@@ -3,6 +3,52 @@
 > **High-Quality, Modern Media Player built with Rust, egui, and libmpv / Direct3D 11.**  
 > Blazing fast performance, native HDR10/HLG color accuracy, 18-band audio DSP, pixel shader studio, and seamless Windows 10/11 integration with zero bloatware or telemetry.
 
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="VortexPlayer Logo">
+</p>
+
+<p align="center">
+  <a href="https://github.com/sidhantjohnaind/VortexPlayer/releases"><img src="https://img.shields.io/github/v/release/sidhantjohnaind/VortexPlayer?color=goldenrod&style=for-the-badge" alt="Release"></a>
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/rust-2024%20edition-orange?style=for-the-badge&logo=rust" alt="Rust"></a>
+  <a href="https://github.com/sidhantjohnaind/VortexPlayer"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue?style=for-the-badge&logo=windows" alt="Platform"></a>
+  <a href="https://github.com/sidhantjohnaind/VortexPlayer/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License"></a>
+</p>
+
+---
+
+## 📸 Screenshots & Showcase
+
+### 🎬 Cinema Video Playback & Real-Time HDR
+![VortexPlayer Video Playback](assets/screenshots/video_playback.png)
+*Ultra-smooth video rendering with Direct3D 11 hardware decoding (`d3d11va`), multi-format audio codec badges (`HEVC`, `FLAC 5.1`), chapter navigation markers, and sleek floating controls.*
+
+---
+
+### 🎵 High-Fidelity Music Player & Ambient Canvas
+![VortexPlayer Music Playback](assets/screenshots/music_playback.png)
+*Audio playback mode featuring dynamic ambient glow, pure-Rust embedded album art extractor, instant codec statistics (`FLAC 24-bit / 48kHz`), and clean titlebar controls.*
+
+---
+
+### 🌌 Minimalist Startup & Quick-Resume Dashboard
+![VortexPlayer Landing Page](assets/screenshots/landing_page.png)
+*Clean dark landing interface with recently played tracks, instant resume playback percentages, stream URL opener, and drag-and-drop file support.*
+
+---
+
+### 🎛️ Real-Time 5.1 Audio Meter & Hardware Diagnostics
+| 5.1 Surround DSP & Audio Meters | Comprehensive Stream MediaInfo |
+| :---: | :---: |
+| ![Playback Diagnostics](assets/screenshots/playback_info_audio_meter.png) | ![MediaInfo Stream Inspector](assets/screenshots/file_mediainfo.png) |
+| *Real-time decibel meter for 5.1 channels (L, R, C, LFE, SL, SR) and GPU/WASAPI sync diagnostics* | *Deep format analysis (HEVC 10-bit, audio channels, bitrates, container metadata)* |
+
+---
+
+### ⚡ Deep Context Menu & Power-User Controls
+<p align="center">
+  <img src="assets/screenshots/context_menu.png" alt="Context Menu" width="480">
+</p>
+
 ---
 
 ## 📊 PotPlayer vs. VortexPlayer Feature Comparison

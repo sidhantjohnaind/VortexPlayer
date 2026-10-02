@@ -198,6 +198,10 @@ pub struct PotApp {
     pub drawer_browser_dir: PathBuf,
     pub drawer_browser_search: String,
     pub drawer_sub_search: String,
+    intro_segment_key: Option<String>,
+    intro_btn_shown_at: Option<std::time::Instant>,
+    intro_last_time_pos: f64,
+    last_skipped_chapter_index: Option<i64>,
 }
 
 
@@ -237,77 +241,61 @@ fn get_window_client_rect(ctx: &egui::Context) -> Rect {
 // egui's panel layout prevents revealing either edge bar from changing the
 // video/music canvas size or aspect ratio.
 fn show_top_control_surface(
-    ui: &mut egui::Ui,
+    _ui: &mut egui::Ui,
     ctx: &egui::Context,
-    fullscreen: bool,
+    _fullscreen: bool,
     screen_w: f32,
     _screen_h: f32,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
-    if fullscreen {
-        egui::Area::new(egui::Id::new("vortex_fullscreen_top_controls"))
-            .fixed_pos(Pos2::ZERO)
-            .order(egui::Order::Foreground)
-            .show(ctx, |ui| {
-                ui.set_min_size(Vec2::new(screen_w, 32.0));
-                ui.set_max_size(Vec2::new(screen_w, 32.0));
+    // Always use Foreground Area so panels paint ON TOP of the mpv video render
+    // (mpv_render_context_render writes directly to fbo=0, overwriting normal Background layers)
+    egui::Area::new(egui::Id::new("vortex_top_controls"))
+        .fixed_pos(Pos2::ZERO)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            ui.allocate_ui(Vec2::new(screen_w, 32.0), |ui| {
+                ui.set_width(screen_w);
                 egui::Frame::new()
                     .fill(Color32::from_rgb(18, 18, 20))
                     .stroke(Stroke::NONE)
                     .corner_radius(CornerRadius::ZERO)
                     .inner_margin(Margin::ZERO)
-                    .show(ui, add_contents);
+                    .show(ui, |ui| {
+                        ui.set_width(screen_w);
+                        add_contents(ui);
+                    });
             });
-    } else {
-        egui::Panel::top("vortex_top_titlebar")
-            .exact_size(32.0)
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(18, 18, 20))
-                    .stroke(Stroke::NONE)
-                    .corner_radius(CornerRadius::ZERO)
-                    .inner_margin(Margin::ZERO),
-            )
-            .show(ui, add_contents);
-    }
+        });
 }
 
 fn show_bottom_control_surface(
-    ui: &mut egui::Ui,
+    _ui: &mut egui::Ui,
     ctx: &egui::Context,
-    fullscreen: bool,
+    _fullscreen: bool,
     screen_w: f32,
     screen_h: f32,
     bar_height: f32,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
-    if fullscreen {
-        let top_y = (screen_h - bar_height).max(0.0);
-        egui::Area::new(egui::Id::new("vortex_fullscreen_bottom_controls"))
-            .fixed_pos(Pos2::new(0.0, top_y))
-            .order(egui::Order::Foreground)
-            .show(ctx, |ui| {
-                ui.set_min_size(Vec2::new(screen_w, bar_height));
+    // Always use Foreground Area so panels paint ON TOP of the mpv video render
+    let top_y = (screen_h - bar_height).max(0.0);
+    egui::Area::new(egui::Id::new("vortex_bottom_controls"))
+        .fixed_pos(Pos2::new(0.0, top_y))
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            ui.allocate_ui(Vec2::new(screen_w, bar_height), |ui| {
+                ui.set_width(screen_w);
                 egui::Frame::new()
                     .fill(Color32::from_rgb(20, 21, 26))
                     .stroke(Stroke::NONE)
                     .inner_margin(Margin::ZERO)
                     .show(ui, |ui| {
-                        ui.set_min_size(Vec2::new(screen_w, bar_height));
+                        ui.set_width(screen_w);
                         add_contents(ui);
                     });
             });
-    } else {
-        egui::Panel::bottom("vortex_bottom_controls")
-            .exact_size(bar_height)
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(22, 23, 28))
-                    .stroke(Stroke::NONE)
-                    .inner_margin(Margin::ZERO),
-            )
-            .show(ui, add_contents);
-    }
+        });
 }
 
 impl PotApp {
@@ -330,14 +318,13 @@ impl PotApp {
                 p.set_wasapi_exclusive(config.wasapi_exclusive);
                 p.set_aspect_ratio(&config.aspect_ratio);
                 p.set_video_align_y(&config.video_align_y);
-                p.set_subtitle_font_size(config.subtitle_font_size);
-                p.set_subtitle_pos(config.subtitle_vertical_pos);
+                p.apply_all_subtitle_settings(&config);
                 p.set_hdr_tone_mapping(&config.hdr_tone_mapping);
-                p.set_hdr_compute_peak(config.hdr_compute_peak);
                 p.set_hdr_colorspace_hint(config.hdr_target_colorspace_hint);
                 p.set_gamut_mapping(&config.gamut_mapping_mode);
                 p.set_speed(config.playback_speed);
                 p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                let _ = p.ensure_render_context(&cc.egui_ctx);
                 Ok(p)
             }
             Err(e) => {
@@ -533,6 +520,10 @@ impl PotApp {
             drawer_browser_dir: dirs::video_dir().unwrap_or_else(|| PathBuf::from("C:\\")),
             drawer_browser_search: String::new(),
             drawer_sub_search: String::new(),
+            intro_segment_key: None,
+            intro_btn_shown_at: None,
+            intro_last_time_pos: 0.0,
+            last_skipped_chapter_index: None,
             queue_repaint_active: {
                 let active = Arc::new(AtomicBool::new(false));
                 let repaint_ctx = cc.egui_ctx.clone();
@@ -646,12 +637,11 @@ impl PotApp {
                         bg_player.set_property_string("vid", "no");
                         bg_player.set_property_string("audio-display", "no");
                         bg_player.set_property_string("video", "no");
-                        bg_player.set_property_string("vo", "null");
                     } else {
                         bg_player.set_property_string("vid", "auto");
-                        bg_player.set_property_string("audio-display", "auto");
+                        bg_player.set_property_string("audio-display", "no");
                         bg_player.set_property_string("video", "auto");
-                        bg_player.set_property_string("vo", "gpu");
+                        bg_player.set_property_string("vo", "libmpv");
                     }
 
                     bg_player.load_file(&path_str);
@@ -736,12 +726,11 @@ impl PotApp {
                 player.set_property_string("vid", "no");
                 player.set_property_string("audio-display", "no");
                 player.set_property_string("video", "no");
-                player.set_property_string("vo", "null");
             } else {
                 player.set_property_string("vid", "auto");
-                player.set_property_string("audio-display", "auto");
+                player.set_property_string("audio-display", "no");
                 player.set_property_string("video", "auto");
-                player.set_property_string("vo", "gpu");
+                player.set_property_string("vo", "libmpv");
             }
 
 
@@ -752,9 +741,7 @@ impl PotApp {
                 player.play();
                 self.pending_resume = Some((path_str.clone(), pos));
                 let msg = format!("Resumed at {}", format_time(pos));
-                self.osd.show(msg.clone(), 2000);
-                self.toast.info(msg.clone());
-                player.command(&["show-text", &msg, "2000"]);
+                self.osd.show(msg, 2000);
             } else {
                 crate::log_step(&format!("23. calling player.load_file for {}", path_str));
                 player.load_file(&path_str);
@@ -788,6 +775,7 @@ impl PotApp {
             if self.config.eq_enabled {
                 player.set_equalizer(true, &self.config.eq_bands);
             }
+            player.apply_all_subtitle_settings(&self.config);
 
             // Restore last used soundtrack (audio track) and subtitle track for this file
             if let Some(pfc) = self.config.get_per_file(&path_str).cloned() {
@@ -822,7 +810,6 @@ impl PotApp {
 
             let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
             self.osd.show(format!("Playing: {}", filename), 2000);
-            self.toast.success(format!("Playing: {}", filename));
 
             if self.config.auto_load_next_episode {
                 let scan_path = path.clone();
@@ -855,7 +842,6 @@ impl PotApp {
     pub fn open_folder(&mut self, folder: PathBuf) {
         let (tx, rx) = std::sync::mpsc::channel();
         self.folder_scan_receiver = Some(rx);
-        self.toast.info("Scanning folder in background...");
         self.osd.show("📂 Scanning folder...".to_string(), 1500);
 
         std::thread::spawn(move || {
@@ -1032,7 +1018,6 @@ impl PotApp {
                     crate::playlist::RepeatMode::Off => "Repeat: Off",
                 };
                 self.osd.show(msg.to_string(), 1500);
-                self.toast.info(msg);
             }
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::S) && !input.modifiers.shift && !input.modifiers.alt {
                 self.show_capture_dialog = !self.show_capture_dialog;
@@ -1041,8 +1026,7 @@ impl PotApp {
                 if let Some(pic_dir) = dirs::picture_dir() {
                     let path = pic_dir.join(format!("VertexPlayer_{}.jpg", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
                     player.take_screenshot(&path);
-                    self.osd.show("Screenshot saved to Pictures".to_string(), 2000);
-                    self.toast.success("Screenshot saved");
+                    self.toast.success("Screenshot saved to Pictures");
                 }
             }
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::G) && !input.modifiers.shift && !input.modifiers.alt {
@@ -1115,7 +1099,6 @@ impl PotApp {
                         match crate::bookmark::PbfFile::save_for_video(path, &self.bookmark_mgr.bookmarks) {
                             Ok(pbf_path) => {
                                 let msg = format!("Exported PBF: {}", pbf_path.file_name().unwrap_or_default().to_string_lossy());
-                                self.osd.show(msg.clone(), 2000);
                                 self.toast.success(msg);
                             }
                             Err(e) => {
@@ -1170,7 +1153,6 @@ impl PotApp {
                     if let Some(path) = path {
                         let _ = std::fs::remove_file(&path);
                         self.toast.warning(format!("Deleted from disk: {}", path.file_name().unwrap_or_default().to_string_lossy()));
-                        self.osd.show("File Deleted from Disk".to_string(), 1500);
                         if let Some(next) = next_path {
                             open_file_path = Some(next);
                         } else {
@@ -1273,8 +1255,7 @@ impl PotApp {
                         fx.flip_horizontal = self.config.video_flip_horizontal;
                         fx.flip_vertical = self.config.video_flip_vertical;
                         player.set_video_filter(&fx.build_video_filter_string());
-                        self.toast.success("3D LUT Applied");
-                        self.osd.show("3D LUT: Loaded".to_string(), 1500);
+                        self.osd.show("🎨 3D LUT: Applied".to_string(), 1500);
                     }
                 }
             }
@@ -1396,7 +1377,6 @@ impl PotApp {
                     player.set_video_filter(&fx.build_video_filter_string());
                     let state = if self.config.video_deband { "ON" } else { "OFF" };
                     self.osd.show(format!("Deband Filter: {}", state), 1200);
-                    self.toast.info(format!("Deband: {}", state));
                 }
                 if input.key_pressed(egui::Key::C) {
                     self.config.auto_crop_black_bars = !self.config.auto_crop_black_bars;
@@ -1427,7 +1407,6 @@ impl PotApp {
                 if input.key_pressed(egui::Key::P) && !wants_kb {
                     self.bookmark_mgr.add_bookmark(stats.time_pos, Some(format!("[SKIP] Marker at {}", format_time(stats.time_pos))));
                     self.osd.show(format!("Skip Bookmark Added at {}", format_time(stats.time_pos)), 1800);
-                    self.toast.success("Skip Bookmark added");
                 }
                 if (input.key_pressed(egui::Key::H) || input.key_pressed(egui::Key::B)) && !wants_kb {
                     if let Some(target) = self.bookmark_mgr.prev_bookmark(stats.time_pos) {
@@ -1454,7 +1433,6 @@ impl PotApp {
                     if let Some(path) = path {
                         let _ = std::fs::remove_file(&path);
                         self.toast.warning(format!("Deleted from disk: {}", path.file_name().unwrap_or_default().to_string_lossy()));
-                        self.osd.show("File Deleted from Disk".to_string(), 1500);
                         if let Some(next) = next_path {
                             open_file_path = Some(next);
                         } else {
@@ -1570,7 +1548,6 @@ impl PotApp {
                 if input.key_pressed(egui::Key::P) && !input.modifiers.shift {
                     self.bookmark_mgr.add_bookmark(stats.time_pos, None);
                     self.osd.show(format!("Bookmark Added at {}", format_time(stats.time_pos)), 1500);
-                    self.toast.success("Bookmark added");
                 }
 
                 // L: Toggle Bookmark Overlay
@@ -1589,7 +1566,6 @@ impl PotApp {
                     let _ = self.config.save();
                     VortexTheme::apply(ctx, self.config.theme_mode);
                     self.osd.show(format!("Skin: {}", self.config.theme_mode.display_name()), 1500);
-                    self.toast.info(format!("Skin: {}", self.config.theme_mode.display_name()));
                 }
 
                 // Chapter Navigation: H or ] (Next Chapter), Shift+H or [ (Previous Chapter)
@@ -1619,7 +1595,6 @@ impl PotApp {
                 if input.key_pressed(egui::Key::S) && input.modifiers.shift && !input.modifiers.command {
                     self.playlist.lock().unwrap().shuffle_items();
                     self.osd.show("🔀 Playlist Shuffled".to_string(), 1200);
-                    self.toast.info("Playlist shuffled");
                 }
 
                 // Ctrl+Alt+S: Toggle Auto-Skip Engine
@@ -1628,7 +1603,6 @@ impl PotApp {
                     let _ = self.config.save();
                     let st = if self.config.skip_intro_enabled { "ON" } else { "OFF" };
                     self.osd.show(format!("Auto-Skip Intro: {}", st), 1500);
-                    self.toast.info(format!("Auto-Skip Intro: {}", st));
                 }
 
                 // Frame Step (when paused): F (Forward), D (Backward)
@@ -1727,8 +1701,7 @@ impl PotApp {
                         }
                     };
                     if let Some(title) = title {
-                        self.toast.info(format!("Removed from playlist: {}", title));
-                        self.osd.show("Removed from Playlist".to_string(), 1200);
+                        self.osd.show(format!("Removed from playlist: {}", title), 1500);
                         if let Some(next_path) = next_path {
                             open_file_path = Some(next_path);
                         } else {
@@ -1863,51 +1836,133 @@ impl PotApp {
             if let Some((target_time, label)) = self.bookmark_mgr.should_skip(stats.time_pos) {
                 player.seek_absolute(target_time);
                 self.osd.show(format!("[Auto-Skip] Skipped: {} ⏭", label), 2000);
-                self.toast.info(format!("Auto-Skipped {}", label));
             }
 
             // Anime OP/ED & Intro/Outro Auto-Skip Engine
-            if self.config.skip_intro_enabled && stats.duration > 30.0 {
-                // 1. Check if entering an OP or Intro chapter
-                let ch_match = stats.chapters.iter().find(|c| {
-                    let u = c.title.to_uppercase();
-                    (u.contains("OP") || u.contains("OPENING") || u.contains("INTRO") || u.contains("PROLOGUE") || u.contains("RECAP"))
-                        && stats.time_pos >= c.time_pos && stats.time_pos < c.time_pos + 1.2
-                }).cloned();
+            if self.config.skip_intro_enabled && stats.duration > 0.0 {
+                // If playback sought backwards by > 2.0s, reset skip throttle so re-entered skip zones can fire again
+                if stats.time_pos < self.intro_last_time_pos - 2.0 {
+                    self.bookmark_mgr.last_skipped_time = -100.0;
+                    self.last_skipped_chapter_index = None;
+                }
 
-                if let Some(ch) = ch_match {
-                    if let Some(next_c) = stats.chapters.iter().find(|n| n.index == ch.index + 1) {
-                        if (self.bookmark_mgr.last_skipped_time - next_c.time_pos).abs() > 2.0 {
-                            self.bookmark_mgr.last_skipped_time = next_c.time_pos;
-                            player.seek_absolute(next_c.time_pos);
-                            let msg = format!("[Auto-Skip] Skipped {}: jumped to {} ⏭", ch.title, next_c.title);
-                            self.osd.show(msg.clone(), 2000);
-                            self.toast.info(msg);
+                // 1. Chapter-based auto-skip using saved chapter title keywords
+                if self.config.skip_chapters_enabled && !stats.chapters.is_empty() {
+                    let mut found_skip = None;
+                    for (i, c) in stats.chapters.iter().enumerate() {
+                        let c_start = c.time_pos;
+                        let c_end = if let Some(next_c) = stats.chapters.get(i + 1) {
+                            next_c.time_pos
+                        } else if stats.duration > c_start {
+                            stats.duration
+                        } else {
+                            c_start + 90.0
+                        };
+
+                        if c_end <= c_start {
+                            continue;
+                        }
+
+                        if self.config.matches_skip_chapter(&c.title) {
+                            let in_chapter = stats.time_pos >= c_start && stats.time_pos < c_end;
+                            if in_chapter {
+                                let crossed_into = self.intro_last_time_pos < c_start && stats.time_pos >= c_start;
+                                let near_start = stats.time_pos < (c_start + 2.5).min(c_end - 0.2);
+                                let not_yet_skipped = self.last_skipped_chapter_index != Some(c.index);
+
+                                if (crossed_into || near_start) && not_yet_skipped {
+                                    found_skip = Some((i, c.clone(), c_end));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some((idx, ch, _)) = found_skip {
+                        // Find next chapter that is NOT marked for skipping
+                        let mut target_ch = None;
+                        for next_c in stats.chapters.iter().skip(idx + 1) {
+                            if !self.config.matches_skip_chapter(&next_c.title) {
+                                target_ch = Some(next_c);
+                                break;
+                            }
+                        }
+
+                        let (target_pos, label) = if let Some(target) = target_ch {
+                            (target.time_pos, target.title.clone())
+                        } else {
+                            // Last chapter or all remaining chapters are skippable (e.g. ED + Credits)
+                            ((stats.duration - 0.5).max(0.0), "End of File".to_string())
+                        };
+
+                        if (self.bookmark_mgr.last_skipped_time - target_pos).abs() > 1.5 {
+                            self.last_skipped_chapter_index = Some(ch.index);
+                            self.bookmark_mgr.last_skipped_time = target_pos;
+                            player.seek_absolute(target_pos);
+                            let msg = if label == "End of File" {
+                                format!("[Auto-Skip] Skipped {}: reached end of file ⏭", ch.title)
+                            } else {
+                                format!("[Auto-Skip] Skipped {}: jumped to {} ⏭", ch.title, label)
+                            };
+                            self.osd.show(msg, 2000);
+                        }
+                    } else {
+                        // Reset tracked skip chapter once playback has moved outside it
+                        if let Some(skipped_idx) = self.last_skipped_chapter_index {
+                            if let Some(ch) = stats.chapters.iter().find(|c| c.index == skipped_idx) {
+                                let c_end = stats.chapters.iter().find(|n| n.index == ch.index + 1)
+                                    .map(|n| n.time_pos)
+                                    .unwrap_or(stats.duration);
+                                if stats.time_pos < ch.time_pos - 1.0 || stats.time_pos >= c_end {
+                                    self.last_skipped_chapter_index = None;
+                                }
+                            } else {
+                                self.last_skipped_chapter_index = None;
+                            }
                         }
                     }
                 }
 
-                // 2. Fixed intro duration skip (e.g. first N seconds)
-                if self.config.skip_intro_sec > 0.0 && stats.time_pos < 1.0 {
+                // 2. Fixed intro duration skip at start (skip_intro_at_start flag)
+                if self.config.skip_intro_at_start && self.config.skip_intro_sec > 0.0 && stats.time_pos < 1.0 {
                     if (self.bookmark_mgr.last_skipped_time - self.config.skip_intro_sec).abs() > 2.0 {
                         self.bookmark_mgr.last_skipped_time = self.config.skip_intro_sec;
                         player.seek_absolute(self.config.skip_intro_sec);
                         let msg = format!("[Auto-Skip] Skipped Intro ({:.0}s) ⏭", self.config.skip_intro_sec);
-                        self.osd.show(msg.clone(), 2000);
-                        self.toast.info(msg);
+                        self.osd.show(msg, 2000);
                     }
                 }
 
-                // 3. Fixed outro duration skip (e.g. last N seconds)
-                if self.config.skip_outro_sec > 0.0 && stats.duration > self.config.skip_outro_sec + 5.0 {
+                // 3. Fixed ending/outro duration skip at end (skip_ending_at_end flag)
+                if self.config.skip_ending_at_end && self.config.skip_outro_sec > 0.0 && stats.duration > self.config.skip_outro_sec + 5.0 {
                     let outro_start = stats.duration - self.config.skip_outro_sec;
-                    if stats.time_pos >= outro_start && stats.time_pos < outro_start + 1.2 {
+                    let crossed_outro = self.intro_last_time_pos < outro_start && stats.time_pos >= outro_start;
+                    let near_outro_start = stats.time_pos >= outro_start && stats.time_pos < outro_start + 2.5;
+                    if crossed_outro || near_outro_start {
                         if (self.bookmark_mgr.last_skipped_time - stats.duration).abs() > 2.0 {
                             self.bookmark_mgr.last_skipped_time = stats.duration;
                             player.seek_absolute((stats.duration - 0.5).max(0.0));
                             let msg = format!("[Auto-Skip] Skipped Outro ({:.0}s) ⏭", self.config.skip_outro_sec);
-                            self.osd.show(msg.clone(), 2000);
-                            self.toast.info(msg);
+                            self.osd.show(msg, 2000);
+                        }
+                    }
+                }
+
+                // 4. Config-saved skip intervals (from Skip Setup table)
+                for item in &self.config.skip_intervals {
+                    if item.enabled && item.interval_type == "Skip" {
+                        let end = item.start + item.length;
+                        let crossed = self.intro_last_time_pos < item.start && stats.time_pos >= item.start;
+                        let near = stats.time_pos >= item.start && stats.time_pos < (item.start + 2.5).min(end - 0.2);
+                        if crossed || near {
+                            if (self.bookmark_mgr.last_skipped_time - end).abs() > 2.0 {
+                                self.bookmark_mgr.last_skipped_time = end;
+                                player.seek_absolute(end);
+                                let msg = format!("[Auto-Skip] Skipped interval ({} → {}) ⏭",
+                                    crate::bookmark::format_time(item.start),
+                                    crate::bookmark::format_time(end));
+                                self.osd.show(msg, 2000);
+                            }
                         }
                     }
                 }
@@ -2047,6 +2102,25 @@ impl PotApp {
             || self.playback_history.is_open
             || self.media_tag_editor.is_open
             || self.auto_skip_dialog.is_open
+    }
+
+    #[allow(dead_code)]
+    pub fn has_modal_dialog(&self) -> bool {
+        self.show_preferences
+            || self.show_mediainfo_dialog
+            || self.show_about_dialog
+            || self.show_stream_url_dialog
+            || self.show_jump_time_dialog
+            || self.show_capture_dialog
+            || self.show_peq_dialog
+            || self.chain_editor.is_open
+            || self.channel_matrix_dialog.is_open
+            || self.auto_skip_dialog.is_open
+            || self.media_tag_editor.is_open
+            || self.playback_history.is_open
+            || self.damaged_file_repair.is_open
+            || self.boss_key_dialog.is_open
+            || self.broadcast_dialog.is_open
     }
 }
 
@@ -2269,7 +2343,7 @@ impl PotApp {
                 #[cfg(windows)]
                 if self.parent_hwnd != 0 {
                     reset_child_geom_cache();
-                    set_native_fullscreen(self.parent_hwnd, true, false, self.pre_fullscreen_win32_rect, self.config.always_on_top);
+                    set_native_fullscreen(self.parent_hwnd, self.child_hwnd, true, false, self.pre_fullscreen_win32_rect, self.config.always_on_top);
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
                 }
@@ -2281,16 +2355,28 @@ impl PotApp {
                 #[cfg(windows)]
                 if self.parent_hwnd != 0 {
                     reset_child_geom_cache();
-                    set_native_fullscreen(self.parent_hwnd, false, self.pre_fullscreen_maximized, self.pre_fullscreen_win32_rect, self.config.always_on_top);
+                    set_native_fullscreen(self.parent_hwnd, self.child_hwnd, false, self.pre_fullscreen_maximized, self.pre_fullscreen_win32_rect, self.config.always_on_top);
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
                 }
                 self.restore_frames_pending = 0;
-                if self.pre_fullscreen_maximized {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-                } else if let Some(target) = self.pre_fullscreen_rect.or(self.last_windowed_rect) {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target.min.into()));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target.size()));
+                #[cfg(not(windows))]
+                {
+                    if self.pre_fullscreen_maximized {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+                    } else if let Some(target) = self.pre_fullscreen_rect.or(self.last_windowed_rect) {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target.min.into()));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target.size()));
+                    }
+                }
+                #[cfg(windows)]
+                if self.parent_hwnd == 0 {
+                    if self.pre_fullscreen_maximized {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+                    } else if let Some(target) = self.pre_fullscreen_rect.or(self.last_windowed_rect) {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target.min.into()));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target.size()));
+                    }
                 }
             }
 
@@ -2317,7 +2403,6 @@ impl PotApp {
             if is_pip { egui::WindowLevel::AlwaysOnTop } else { egui::WindowLevel::Normal }
         ));
         self.osd.show(if is_pip { "Picture-in-Picture: ON".to_string() } else { "Picture-in-Picture: OFF".to_string() }, 1200);
-        self.toast.info(if is_pip { "Floating Window Mode" } else { "Standard Window Mode" });
     }
 
     pub fn close_current_media(&mut self, stats: &mut MediaStats, ctx: &egui::Context) {
@@ -2346,29 +2431,54 @@ impl PotApp {
             stats.video_width = 0;
             stats.video_height = 0;
             stats.chapters.clear();
+            self.intro_segment_key = None;
+            self.intro_btn_shown_at = None;
+            self.intro_last_time_pos = 0.0;
+            self.last_skipped_chapter_index = None;
 
             ctx.request_repaint();
         }
     }
 
     pub fn skip_intro_or_op(&mut self, stats: &MediaStats) {
+        self.intro_btn_shown_at = None;
         if let Ok(ref player) = self.player {
-            // 1. If currently inside a chapter that has a next chapter, leap to next chapter!
-            let current_ch = stats.chapters.iter().find(|c| {
-                if let Some(next_c) = stats.chapters.iter().find(|n| n.index == c.index + 1) {
-                    stats.time_pos >= c.time_pos && stats.time_pos < next_c.time_pos
-                } else {
-                    stats.time_pos >= c.time_pos
-                }
-            });
+            // 1. If currently inside a chapter, skip forward to next non-skip chapter or end of video!
+            if !stats.chapters.is_empty() {
+                let current_ch_idx = stats.chapters.iter().position(|c| {
+                    if let Some(next_c) = stats.chapters.iter().find(|n| n.index == c.index + 1) {
+                        stats.time_pos >= c.time_pos && stats.time_pos < next_c.time_pos
+                    } else {
+                        stats.time_pos >= c.time_pos
+                    }
+                });
 
-            if let Some(_c) = current_ch {
-                if let Some(next_c) = stats.chapters.iter().find(|n| current_ch.as_ref().map_or(false, |cur| n.index == cur.index + 1)) {
-                    player.seek_absolute(next_c.time_pos);
-                    let msg = format!("Skipped to: {} ⏭", next_c.title);
-                    self.osd.show(msg.clone(), 1500);
-                    self.toast.info(msg);
-                    return;
+                if let Some(idx) = current_ch_idx {
+                    let cur = &stats.chapters[idx];
+                    // Look ahead for the next chapter that is NOT a skip chapter
+                    let mut target_ch = None;
+                    for n in stats.chapters.iter().skip(idx + 1) {
+                        if !self.config.matches_skip_chapter(&n.title) {
+                            target_ch = Some(n);
+                            break;
+                        }
+                    }
+
+                    if let Some(next_c) = target_ch {
+                        player.seek_absolute(next_c.time_pos);
+                        let msg = format!("Skipped to: {} ⏭", next_c.title);
+                        self.osd.show(msg, 1500);
+                        return;
+                    } else {
+                        // Current chapter is the last chapter or all subsequent are skip chapters
+                        let target_pos = (stats.duration - 0.5).max(0.0);
+                        if stats.time_pos < target_pos - 1.0 {
+                            player.seek_absolute(target_pos);
+                            let msg = format!("Skipped {}: jumped to end ⏭", cur.title);
+                            self.osd.show(msg, 1500);
+                            return;
+                        }
+                    }
                 }
             }
 
@@ -2376,15 +2486,13 @@ impl PotApp {
             if self.config.skip_intro_sec > 0.0 && stats.time_pos < self.config.skip_intro_sec {
                 player.seek_absolute(self.config.skip_intro_sec);
                 let msg = format!("Skipped Intro ({:.0}s) ⏭", self.config.skip_intro_sec);
-                self.osd.show(msg.clone(), 1500);
-                self.toast.info(msg);
+                self.osd.show(msg, 1500);
                 return;
             }
 
             // 3. Standard Anime OP duration (85s)
             player.seek_relative(85.0);
             self.osd.show("Skipped 85s (Anime OP) ⏭".to_string(), 1500);
-            self.toast.info("Skipped Anime OP (85s)");
         }
     }
 
@@ -2474,19 +2582,6 @@ impl PotApp {
         if let Some(last_size) = self.last_viewport_size {
             if (cur_size.x - last_size.x).abs() >= 1.0 || (cur_size.y - last_size.y).abs() >= 1.0 {
                 if !self.is_fullscreen && !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
-                    // Uses frame stats snapshot without cloning
-                    let _ = ();
-                    let ar_str = crate::ui::osd::format_aspect_ratio_str(phys_w, phys_h);
-                    let pct_str = if stats.video_width > 0 && stats.video_height > 0 {
-                        let pct = (phys_w as f64 / stats.video_width as f64) * 100.0;
-                        format!(" ({:.1}%)", pct)
-                    } else {
-                        String::new()
-                    };
-                    let msg = format!("📐 {} × {} [{}]{}", phys_w, phys_h, ar_str, pct_str);
-                    if let Ok(ref player) = self.player {
-                        player.show_osd_text(&msg, 1000);
-                    }
                     self.osd.show_resize(phys_w, phys_h, stats.video_width, stats.video_height);
                     ctx.request_repaint();
                 }
@@ -2566,6 +2661,7 @@ impl PotApp {
                 crate::engine::IpcCommand::TogglePause => {
                     if let Ok(ref p) = self.player {
                         p.toggle_pause();
+                        self.osd.show_play_pause(!stats.is_paused);
                     }
                 }
                 crate::engine::IpcCommand::Stop => {
@@ -2659,13 +2755,11 @@ impl PotApp {
                         let out_path = pic_dir.join(filename);
                         p.take_screenshot(&out_path);
                         self.toast.success("Snapshot saved");
-                        self.osd.show("📸 Snapshot Saved".to_string(), 1200);
                     }
                 }
                 crate::engine::IpcCommand::StartRecording(path_str) => {
                     if let Ok(ref p) = self.player {
                         p.start_stream_recording(&path_str);
-                        self.toast.info("Recording started");
                         self.osd.show("🔴 Recording Started".to_string(), 1500);
                     }
                 }
@@ -2673,7 +2767,6 @@ impl PotApp {
                     if let Ok(ref p) = self.player {
                         p.stop_stream_recording();
                         self.toast.info("Recording saved");
-                        self.osd.show("⏹ Recording Stopped".to_string(), 1500);
                     }
                 }
             }
@@ -2701,6 +2794,13 @@ impl PotApp {
 
 impl eframe::App for PotApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if let Ok(ref player) = self.player {
+            let stats = player.stats();
+            let is_song = MusicBackgroundView::is_song(&stats);
+            if !stats.is_idle && !stats.file_path.is_empty() && !is_song {
+                return [0.0, 0.0, 0.0, 1.0];
+            }
+        }
         [18.0 / 255.0, 19.0 / 255.0, 24.0 / 255.0, 1.0]
     }
 
@@ -2712,11 +2812,12 @@ impl eframe::App for PotApp {
         }
         let ctx = ui.ctx().clone();
 
-        // Attach MPV to dedicated window surface on initial render
+        // Setup single window handles and SMTC on initial render
         if !self.attached_hwnd {
             crate::log_step("10a. !self.attached_hwnd entered");
             if let Ok(ref player) = self.player {
                 crate::log_step("10b. player is Ok");
+                let _ = player.ensure_render_context(&ctx);
                 if let Ok(handle) = frame.window_handle() {
                     crate::log_step("10c. got window_handle");
                     match handle.as_raw() {
@@ -2724,20 +2825,11 @@ impl eframe::App for PotApp {
                             let parent_hwnd = win32_handle.hwnd.get();
                             crate::log_step(&format!("10d. parent_hwnd = {}", parent_hwnd));
                             self.parent_hwnd = parent_hwnd;
+                            self.child_hwnd = 0;
                             #[cfg(windows)]
                             PARENT_HWND.store(parent_hwnd, std::sync::atomic::Ordering::Relaxed);
                             enable_native_borderless_resizing(parent_hwnd);
                             crate::log_step("10e. enable_native_borderless_resizing done");
-
-                            let child_hwnd = create_child_video_window(parent_hwnd);
-                            crate::log_step(&format!("10f. child_hwnd = {}", child_hwnd));
-                            if child_hwnd != 0 {
-                                player.set_wid(child_hwnd);
-                                self.child_hwnd = child_hwnd;
-                            } else {
-                                player.set_wid(parent_hwnd);
-                            }
-                            crate::log_step("10g. set_wid done");
 
                             self.smtc.init(parent_hwnd);
                             crate::log_step("10h. smtc.init done");
@@ -2747,37 +2839,25 @@ impl eframe::App for PotApp {
                         RawWindowHandle::Xlib(xlib_handle) => {
                             let parent_wid = xlib_handle.window as isize;
                             self.parent_hwnd = parent_wid;
-                            let child_wid = create_child_video_window(parent_wid);
-                            if child_wid != 0 {
-                                player.set_wid(child_wid);
-                                self.child_hwnd = child_wid;
-                            } else {
-                                player.set_wid(parent_wid);
-                            }
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         RawWindowHandle::Xcb(xcb_handle) => {
                             let parent_wid = xcb_handle.window.get() as isize;
                             self.parent_hwnd = parent_wid;
-                            let child_wid = create_child_video_window(parent_wid);
-                            if child_wid != 0 {
-                                player.set_wid(child_wid);
-                                self.child_hwnd = child_wid;
-                            } else {
-                                player.set_wid(parent_wid);
-                            }
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         RawWindowHandle::Wayland(wayland_handle) => {
                             let wid = wayland_handle.surface.as_ptr() as isize;
                             self.parent_hwnd = wid;
-                            player.set_wid(wid);
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         RawWindowHandle::AppKit(appkit_handle) => {
                             let wid = appkit_handle.ns_view.as_ptr() as isize;
                             self.parent_hwnd = wid;
-                            player.set_wid(wid);
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         _ => {}
@@ -2804,11 +2884,9 @@ impl eframe::App for PotApp {
                     self.playlist.lock().unwrap().add_items(media_files);
                     file_to_open = Some(first);
                     let msg = format!("Loaded {} files from folder", count);
-                    self.osd.show(msg.clone(), 2500);
-                    self.toast.success(msg);
+                    self.osd.show(msg, 2500);
                 } else {
                     self.osd.show("No supported media files found in folder".to_string(), 2000);
-                    self.toast.warn("No media files found in folder");
                 }
                 self.folder_scan_receiver = None;
             }
@@ -2847,10 +2925,7 @@ impl eframe::App for PotApp {
                 match hk_evt {
                     crate::platform::GlobalHotkeyEvent::PlayPause => {
                         player.toggle_pause();
-                        let is_p = !stats.is_paused;
-                        let msg = if is_p { "Paused" } else { "Playing" };
-                        self.osd.show(msg.to_string(), 1200);
-                        self.toast.info(msg);
+                        self.osd.show_play_pause(!stats.is_paused);
                     }
                     crate::platform::GlobalHotkeyEvent::Next => {
                         if let Some(next_f) = self.playlist.lock().unwrap().next() {
@@ -2976,6 +3051,7 @@ impl eframe::App for PotApp {
                             }
                         } else if let Ok(ref player) = self.player {
                             player.toggle_pause();
+                            self.osd.show_play_pause(!stats.is_paused);
                         }
                     }
                     crate::platform::windows::taskbar::THUMB_CMD_FORWARD => {
@@ -3150,6 +3226,7 @@ impl eframe::App for PotApp {
 
             (show_top, show_bottom)
         };
+
 
         let mut titlebar_tooltip: Option<(Pos2, String)> = None;
 
@@ -3433,6 +3510,7 @@ impl eframe::App for PotApp {
                                 }
                             } else if let Ok(ref player) = self.player {
                                 player.toggle_pause();
+                                self.osd.show_play_pause(!stats.is_paused);
                             }
                         }
                         if actions.stop {
@@ -3504,8 +3582,7 @@ impl eframe::App for PotApp {
                                 player.set_hdr_tone_mapping(next_curve);
                             }
                             let msg = format!("HDR Tone Mapping: {}", next_curve.to_uppercase());
-                            self.osd.show(msg.clone(), 1500);
-                            self.toast.info(msg);
+                            self.osd.show(msg, 1500);
                         }
                                                 if actions.toggle_hwdec {
                             let curr = self.config.hardware_decoding.clone();
@@ -3525,7 +3602,6 @@ impl eframe::App for PotApp {
                                 "Hardware Decoding (S/W): Active (Software)"
                             };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.info(msg);
                         }
                         if actions.toggle_wasapi_exclusive {
                             self.config.wasapi_exclusive = !self.config.wasapi_exclusive;
@@ -3539,7 +3615,6 @@ impl eframe::App for PotApp {
                                 "WASAPI Exclusive: OFF (Windows Shared Mixer)"
                             };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.success(msg);
                         }
                         if actions.open_audio_channels {
                             self.show_audio_channels_popup = !self.show_audio_channels_popup;
@@ -3594,7 +3669,6 @@ impl eframe::App for PotApp {
                                 crate::playlist::RepeatMode::Off => "Repeat: Off",
                             };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.info(msg);
                         }
                         if actions.toggle_shuffle {
                             let is_shuf = self.playlist.lock().unwrap().toggle_shuffle();
@@ -3602,7 +3676,6 @@ impl eframe::App for PotApp {
                             let _ = self.config.save();
                             let msg = if is_shuf { "Shuffle: ON" } else { "Shuffle: OFF" };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.info(msg);
                         }
                         if actions.open_mediainfo {
                             self.show_mediainfo_dialog = true;
@@ -3614,7 +3687,6 @@ impl eframe::App for PotApp {
                                     let path = pic_dir.join(format!("VortexPlayer_{}.jpg", chrono::Utc::now().format("%Y%m%d_%H%M%S")));
                                     player.take_screenshot(&path);
                                     self.osd.show("📸 Snapshot saved to Pictures".to_string(), 1500);
-                                    self.toast.success("Snapshot saved");
                                 }
                             }
                         }
@@ -3663,7 +3735,7 @@ impl eframe::App for PotApp {
                 .exact_size(330.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(18, 19, 23))
+                        .fill(Color32::from_rgb(0, 0, 0))
                         .stroke(Stroke::new(1.0, Color32::from_rgb(32, 34, 42)))
                         .inner_margin(Margin::same(6)),
                 )
@@ -3741,7 +3813,6 @@ impl eframe::App for PotApp {
                             crate::playlist::RepeatMode::Off => "Repeat: Off",
                         };
                         self.osd.show(msg.to_string(), 1500);
-                        self.toast.info(msg);
                     }
                     if pl_actions.toggle_shuffle {
                         let is_shuf = self.playlist.lock().unwrap().is_shuffle();
@@ -3749,7 +3820,6 @@ impl eframe::App for PotApp {
                         let _ = self.config.save();
                         let msg = if is_shuf { "Shuffle: ON" } else { "Shuffle: OFF" };
                         self.osd.show(msg.to_string(), 1500);
-                        self.toast.info(msg);
                     }
                     if pl_actions.toggle_restore_prev {
                         self.config.restore_last_playlist = !self.config.restore_last_playlist;
@@ -3760,7 +3830,6 @@ impl eframe::App for PotApp {
                             "Restore Prev Playlist: Disabled"
                         };
                         self.osd.show(msg.to_string(), 1500);
-                        self.toast.info(msg);
                     }
                     if pl_actions.toggle_detach {
                         self.config.playlist_detached = true;
@@ -3818,20 +3887,51 @@ impl eframe::App for PotApp {
         // =========================================================================
         // 3. CENTRAL PANEL: VIDEO VIEWPORT
         // =========================================================================
+        let is_song_playback = MusicBackgroundView::is_song(&stats);
+        let is_active_video = !stats.is_idle && !stats.file_path.is_empty() && !is_song_playback;
+        let central_fill = if is_active_video {
+            Color32::from_rgb(0, 0, 0)
+        } else {
+            Color32::from_rgb(10, 11, 14)
+        };
+
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(Color32::from_rgb(10, 11, 14)).inner_margin(Margin::ZERO))
+            .frame(egui::Frame::new().fill(central_fill).inner_margin(Margin::ZERO))
             .show(ui, |ui| {
                 let rect = ui.available_rect_before_wrap();
                 let is_fullscreen_active = self.is_fullscreen;
+                // Since panels are now Foreground Areas (not consuming layout space),
+                // always use full client rect for the video viewport
+                let client_rect = get_window_client_rect(ui.ctx());
                 let effective_rect = if is_fullscreen_active {
-                    let sr = get_window_client_rect(ui.ctx());
-                    ui.set_clip_rect(sr);
-                    sr
+                    ui.set_clip_rect(client_rect);
+                    client_rect
                 } else {
-                    rect
+                    // In windowed mode, the CentralPanel still gets full space since panels are Areas
+                    client_rect
                 };
                 let response = ui.allocate_rect(effective_rect, Sense::click_and_drag());
                 self.last_video_rect = effective_rect;
+
+                // Render video into OpenGL framebuffer via mpv_render_context
+                // Panels use Order::Foreground so they paint ON TOP of this
+                if is_active_video {
+                    if let Ok(ref player) = self.player {
+
+                        let player_clone = Arc::clone(player);
+                        let egui_ctx = ui.ctx().clone();
+                        let callback = egui_glow::CallbackFn::new(move |info, _painter| {
+                            let _ = player_clone.ensure_render_context(&egui_ctx);
+                            let [w, h] = info.screen_size_px;
+                            player_clone.render_frame(0, w as i32, h as i32);
+                            player_clone.report_swap();
+                        });
+                        ui.painter().add(egui::PaintCallback {
+                            rect: effective_rect,
+                            callback: Arc::new(callback),
+                        });
+                    }
+                }
 
                 let pointer_pos = ui.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()));
                 let over_bars = if is_fullscreen_active {
@@ -3861,8 +3961,7 @@ impl eframe::App for PotApp {
                             DoubleClickAction::PlayPause => {
                                 if let Ok(ref player) = self.player {
                                     player.toggle_pause();
-                                    let msg = if stats.is_paused { "Play" } else { "Pause" };
-                                    self.osd.show(msg.to_string(), 1000);
+                                    self.osd.show_play_pause(!stats.is_paused);
                                 }
                             }
                             DoubleClickAction::MaximizeRestore => {
@@ -3906,14 +4005,14 @@ impl eframe::App for PotApp {
                             _ => {
                                 if let Ok(ref player) = self.player {
                                     player.toggle_pause();
-                                    let msg = if stats.is_paused { "Play" } else { "Pause" };
-                                    self.osd.show(msg.to_string(), 1000);
+                                    self.osd.show_play_pause(!stats.is_paused);
                                 }
                             }
                         }
                     }
 
                     // Mouse wheel over video canvas (Configurable: Volume, Seek, Speed, SubtitleDelay)
+                    // Only active during playback; disabled on idle screen so recent files list scrolls freely
                     let scroll_delta = ui.input(|i| {
                         if i.smooth_scroll_delta.y.abs() > 0.01 {
                             i.smooth_scroll_delta.y
@@ -3928,7 +4027,7 @@ impl eframe::App for PotApp {
                         }
                     });
 
-                    if !in_ui_overlay && response.hovered() && scroll_delta.abs() > 0.1 {
+                    if !stats.is_idle && !stats.file_path.is_empty() && !in_ui_overlay && response.hovered() && scroll_delta.abs() > 0.1 {
                         if self.is_vr_360 {
                             self.vr_zoom = (self.vr_zoom + (scroll_delta as f64) * 0.05).clamp(-2.0, 3.0);
                             if let Ok(ref player) = self.player {
@@ -3973,39 +4072,70 @@ impl eframe::App for PotApp {
 
                     // Ultra-Modern Vortex Glassmorphic Idle Screen & Media Launchpad
                     if stats.is_idle || stats.file_path.is_empty() {
-                        let center = effective_rect.center();
+                        let top_bar_h = if show_top_menu { 32.0 } else { 0.0 };
+                        let bottom_bar_h = if show_bottom_menu { bar_h } else { 0.0 };
+                        let usable_top = effective_rect.top() + top_bar_h;
+                        let usable_bottom = effective_rect.bottom() - bottom_bar_h;
+                        let usable_h = (usable_bottom - usable_top).max(200.0);
+                        let usable_center = Pos2::new(effective_rect.center().x, usable_top + usable_h * 0.5);
+
                         let has_recent = (!self.playback_history.entries.is_empty() || !self.config.recent_files.is_empty()) && self.config.show_recent_on_idle;
 
-                        // Guarantee generous clearance so the 32px circular hero logo and glow never clip at the top boundary
-                        let min_logo_y = effective_rect.top() + 56.0;
-                        let top_y = if has_recent {
-                            (center.y - 145.0).max(min_logo_y)
+                        let entry_count = if has_recent {
+                            if !self.playback_history.entries.is_empty() {
+                                self.playback_history.entries.len().min(40)
+                            } else {
+                                self.config.recent_files.len().min(40)
+                            }
                         } else {
-                            (center.y - 110.0).max(min_logo_y)
+                            0
                         };
+
+                        let header_h = 100.0_f32; // Crest logo (32 radius), Title (22), Subtitle (14)
+                        let gap = 14.0_f32;
+
+                        let (logo_center_y, content_top_y, shelf_h_opt, is_recent_shelf) = if has_recent && entry_count > 0 {
+                            let max_shelf_h = (usable_h * 0.74).clamp(380.0, 880.0);
+                            let needed_h = (entry_count * 52 + 56) as f32;
+                            let shelf_h = needed_h.clamp(160.0, max_shelf_h);
+                            let total_block_h = header_h + gap + shelf_h;
+                            let block_top = (usable_center.y - total_block_h * 0.5).max(usable_top + 16.0);
+                            let logo_y = block_top + 32.0;
+                            let shelf_top = block_top + header_h + gap;
+                            (logo_y, shelf_top, Some(shelf_h), true)
+                        } else {
+                            let grid_h = 136.0_f32;
+                            let total_block_h = header_h + gap + grid_h;
+                            let block_top = (usable_center.y - total_block_h * 0.5).max(usable_top + 16.0);
+                            let logo_y = block_top + 32.0;
+                            let grid_top = block_top + header_h + gap;
+                            (logo_y, grid_top, Some(grid_h), false)
+                        };
+
+                        let logo_pos = Pos2::new(usable_center.x, logo_center_y);
 
                         {
                             let painter = ui.painter();
 
-                            // 1. Ambient Background Glow Behind Center
-                            let glow_radius = 260.0_f32.min(rect.width() * 0.45);
+                            // 1. Ambient Background Glow Behind Center Logo
+                            let glow_radius = (usable_h * 0.35).min(rect.width() * 0.4).clamp(140.0, 260.0);
                             painter.circle_filled(
-                                center,
+                                logo_pos,
                                 glow_radius,
-                                Color32::from_rgba_unmultiplied(245, 166, 35, 10),
+                                Color32::from_rgba_unmultiplied(245, 166, 35, 12),
                             );
                             painter.circle_filled(
-                                center,
+                                logo_pos,
                                 glow_radius * 0.65,
-                                Color32::from_rgba_unmultiplied(60, 130, 240, 14),
+                                Color32::from_rgba_unmultiplied(60, 130, 240, 16),
                             );
 
                             // 2. Glowing Hero Vortex Crest
-                            Icons::draw_vortex_hero_logo(painter, Pos2::new(center.x, top_y), 32.0);
+                            Icons::draw_vortex_hero_logo(painter, logo_pos, 32.0);
 
                             // 3. Bold Futuristic Title & Tagline
                             painter.text(
-                                Pos2::new(center.x, top_y + 48.0),
+                                Pos2::new(usable_center.x, logo_center_y + 48.0),
                                 Align2::CENTER_CENTER,
                                 "VORTEX PLAYER",
                                 FontId::proportional(22.0),
@@ -4013,7 +4143,7 @@ impl eframe::App for PotApp {
                             );
 
                             painter.text(
-                                Pos2::new(center.x, top_y + 72.0),
+                                Pos2::new(usable_center.x, logo_center_y + 72.0),
                                 Align2::CENTER_CENTER,
                                 "Ultra High-Fidelity Hardware Accelerated Media Engine",
                                 FontId::proportional(12.0),
@@ -4021,29 +4151,28 @@ impl eframe::App for PotApp {
                             );
                         }
 
-                        if has_recent {
-                            let entry_count = if !self.playback_history.entries.is_empty() {
-                                self.playback_history.entries.len().min(10)
-                            } else {
-                                self.config.recent_files.len().min(10)
-                            };
-
-                            let shelf_w = 640.0_f32.min(rect.width() - 32.0);
-                            let shelf_top = top_y + 96.0;
-                            let max_shelf_h = (rect.bottom() - shelf_top - 36.0).max(110.0);
-                            let needed_h = (entry_count * 56 + 50) as f32;
-                            let shelf_h = needed_h.clamp(110.0, max_shelf_h);
+                        if is_recent_shelf {
+                            let shelf_h = shelf_h_opt.unwrap_or(240.0);
+                            let shelf_w = (rect.width() * 0.78).clamp(960.0, 1480.0).min(rect.width() - 48.0);
                             let shelf_rect = Rect::from_min_size(
-                                Pos2::new(center.x - shelf_w * 0.5, shelf_top),
+                                Pos2::new(usable_center.x - shelf_w * 0.5, content_top_y),
                                 Vec2::new(shelf_w, shelf_h),
                             );
 
-                            ui.painter().rect_filled(shelf_rect, CornerRadius::same(8), Color32::from_rgba_unmultiplied(16, 18, 24, 220));
+                            ui.painter().rect_filled(shelf_rect, CornerRadius::same(8), Color32::from_rgb(0, 0, 0));
                             ui.painter().rect_stroke(shelf_rect, CornerRadius::same(8), Stroke::new(1.0, Color32::from_rgb(38, 42, 56)), egui::StrokeKind::Inside);
 
                             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(shelf_rect.shrink(8.0)));
                             child_ui.horizontal(|ui| {
-                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(11.5).strong().color(VortexTheme::POT_YELLOW));
+                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(12.0).strong().color(VortexTheme::POT_YELLOW));
+                                let total_items = if !self.playback_history.entries.is_empty() {
+                                    self.playback_history.entries.len()
+                                } else {
+                                    self.config.recent_files.len()
+                                };
+                                if total_items > 0 {
+                                    ui.label(RichText::new(format!("({} items)", total_items)).size(11.0).color(Color32::from_rgb(140, 148, 170)));
+                                }
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button(RichText::new("🗑 Clear History").size(11.0)).clicked() {
                                         self.config.recent_files.clear();
@@ -4064,10 +4193,10 @@ impl eframe::App for PotApp {
                             child_ui.add_space(6.0);
 
                             egui::ScrollArea::vertical()
-                                .max_height(shelf_h - 48.0)
+                                .max_height(shelf_h - 44.0)
                                 .show(&mut child_ui, |ui| {
                                     if !self.playback_history.entries.is_empty() {
-                                        for entry in self.playback_history.entries.iter().take(10) {
+                                        for entry in self.playback_history.entries.iter().take(40) {
                                             let path_str = &entry.file_path;
                                             let pb = PathBuf::from(path_str);
                                             let file_name = &entry.file_name;
@@ -4077,8 +4206,8 @@ impl eframe::App for PotApp {
 
                                             let card = ui.group(|ui| {
                                                 let card_w = ui.available_width();
-                                                let action_w = 175.0;
-                                                let text_w = (card_w - action_w - 46.0).max(100.0);
+                                                let action_w = 330.0;
+                                                let text_w = (card_w - action_w - 75.0).max(180.0);
 
                                                 ui.horizontal(|ui| {
                                                     // 1. Progress Indicator Pill (Left)
@@ -4090,8 +4219,20 @@ impl eframe::App for PotApp {
                                                         ui.label(RichText::new("•").size(15.0).color(Color32::from_rgb(140, 145, 165)));
                                                     }
 
-                                                    // 2. Text Information (Constrained width with elide)
-                                                    ui.allocate_ui_with_layout(Vec2::new(text_w, 36.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                                    // Format badge
+                                                    let ext = pb.extension().and_then(|e| e.to_str()).unwrap_or("").to_uppercase();
+                                                    if !ext.is_empty() {
+                                                        ui.label(
+                                                            RichText::new(format!(" {} ", ext))
+                                                                .size(9.5)
+                                                                .strong()
+                                                                .color(Color32::from_rgb(175, 190, 220))
+                                                                .background_color(Color32::from_rgb(26, 30, 42)),
+                                                        );
+                                                    }
+
+                                                    // 2. Text Information (Wide space with title and path)
+                                                    ui.allocate_ui_with_layout(Vec2::new(text_w, 32.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                                         let max_chars = (text_w / 7.0) as usize;
                                                         let short_name = if file_name.chars().count() > max_chars {
                                                             let s: String = file_name.chars().take(max_chars.saturating_sub(3)).collect();
@@ -4099,7 +4240,7 @@ impl eframe::App for PotApp {
                                                         } else {
                                                             file_name.clone()
                                                         };
-                                                        ui.label(RichText::new(short_name).strong().size(12.0).color(Color32::from_rgb(235, 238, 248)));
+                                                        ui.label(RichText::new(short_name).strong().size(12.5).color(Color32::from_rgb(235, 238, 248)));
 
                                                         if !dir_str.is_empty() {
                                                             let max_dir_chars = (text_w / 6.5) as usize;
@@ -4109,7 +4250,7 @@ impl eframe::App for PotApp {
                                                             } else {
                                                                 dir_str.clone()
                                                             };
-                                                            ui.label(RichText::new(short_dir).size(10.0).color(Color32::from_rgb(130, 135, 150)));
+                                                            ui.label(RichText::new(short_dir).size(10.5).color(Color32::from_rgb(130, 135, 150)));
                                                         }
                                                     });
 
@@ -4118,11 +4259,18 @@ impl eframe::App for PotApp {
                                                         if ui.button(RichText::new("▶ Play").strong().color(Color32::BLACK)).clicked() {
                                                             file_to_open = Some(pb.clone());
                                                         }
-                                                        if resume_pos > 1.0 {
+                                                        if resume_pos > 1.0 && entry.duration > 0.0 {
+                                                            ui.label(RichText::new(format!("Resume {} / {}", format_time(resume_pos), format_time(entry.duration))).size(10.5).color(VortexTheme::POT_YELLOW));
+                                                        } else if resume_pos > 1.0 {
                                                             ui.label(RichText::new(format!("Resume {}", format_time(resume_pos))).size(10.5).color(VortexTheme::POT_YELLOW));
+                                                        } else if entry.duration > 0.0 {
+                                                            ui.label(RichText::new(format_time(entry.duration)).size(10.5).color(Color32::from_rgb(160, 170, 195)));
                                                         }
                                                         if entry.watch_count > 1 {
                                                             ui.label(RichText::new(format!("×{}", entry.watch_count)).small().color(Color32::from_rgb(180, 140, 255)));
+                                                        }
+                                                        if !entry.last_played.is_empty() {
+                                                            ui.label(RichText::new(&entry.last_played).size(10.0).color(Color32::from_rgb(115, 122, 140)));
                                                         }
                                                     });
                                                 });
@@ -4133,7 +4281,7 @@ impl eframe::App for PotApp {
                                             }
                                         }
                                     } else {
-                                        for path_str in self.config.recent_files.iter().take(10) {
+                                        for path_str in self.config.recent_files.iter().take(40) {
                                             let pb = PathBuf::from(path_str);
                                             let file_name = pb.file_name().and_then(|n| n.to_str()).unwrap_or(path_str).to_string();
                                             let dir_str = pb.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
@@ -4141,13 +4289,24 @@ impl eframe::App for PotApp {
 
                                             let card = ui.group(|ui| {
                                                 let card_w = ui.available_width();
-                                                let action_w = 175.0;
-                                                let text_w = (card_w - action_w - 46.0).max(100.0);
+                                                let action_w = 330.0;
+                                                let text_w = (card_w - action_w - 75.0).max(180.0);
 
                                                 ui.horizontal(|ui| {
                                                     ui.label(RichText::new("•").size(15.0).color(VortexTheme::POT_YELLOW));
 
-                                                    ui.allocate_ui_with_layout(Vec2::new(text_w, 36.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                                    let ext = pb.extension().and_then(|e| e.to_str()).unwrap_or("").to_uppercase();
+                                                    if !ext.is_empty() {
+                                                        ui.label(
+                                                            RichText::new(format!(" {} ", ext))
+                                                                .size(9.5)
+                                                                .strong()
+                                                                .color(Color32::from_rgb(175, 190, 220))
+                                                                .background_color(Color32::from_rgb(26, 30, 42)),
+                                                        );
+                                                    }
+
+                                                    ui.allocate_ui_with_layout(Vec2::new(text_w, 32.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                                         let max_chars = (text_w / 7.0) as usize;
                                                         let short_name = if file_name.chars().count() > max_chars {
                                                             let s: String = file_name.chars().take(max_chars.saturating_sub(3)).collect();
@@ -4155,7 +4314,7 @@ impl eframe::App for PotApp {
                                                         } else {
                                                             file_name.clone()
                                                         };
-                                                        ui.label(RichText::new(short_name).strong().size(12.0).color(Color32::from_rgb(235, 238, 248)));
+                                                        ui.label(RichText::new(short_name).strong().size(12.5).color(Color32::from_rgb(235, 238, 248)));
 
                                                         if !dir_str.is_empty() {
                                                             let max_dir_chars = (text_w / 6.5) as usize;
@@ -4165,7 +4324,7 @@ impl eframe::App for PotApp {
                                                             } else {
                                                                 dir_str.clone()
                                                             };
-                                                            ui.label(RichText::new(short_dir).size(10.0).color(Color32::from_rgb(130, 135, 150)));
+                                                            ui.label(RichText::new(short_dir).size(10.5).color(Color32::from_rgb(130, 135, 150)));
                                                         }
                                                     });
 
@@ -4189,18 +4348,19 @@ impl eframe::App for PotApp {
                         } else {
                             // 4 Modern Interactive Quick-Action Cards
                             let grid_w = 480.0_f32.min(rect.width() - 32.0);
-                            let grid_top = top_y + 105.0;
+                            let grid_top = content_top_y;
+                            let grid_h = shelf_h_opt.unwrap_or(136.0);
                             let grid_rect = Rect::from_min_size(
-                                Pos2::new(center.x - grid_w * 0.5, grid_top),
-                                Vec2::new(grid_w, 140.0),
+                                Pos2::new(usable_center.x - grid_w * 0.5, grid_top),
+                                Vec2::new(grid_w, grid_h),
                             );
 
                             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(grid_rect));
                             child_ui.columns(2, |cols| {
-                                // Card 1: Open Media File
+                                // Card 1: Open Media File & Playlist
                                 cols[0].vertical_centered(|ui| {
                                     if ui.add_sized(
-                                        Vec2::new(ui.available_width(), 60.0),
+                                        Vec2::new(ui.available_width(), 58.0),
                                         egui::Button::new(RichText::new("Open Media File\nCtrl + O").strong().size(12.5).color(Color32::from_rgb(255, 215, 80))),
                                     ).clicked() {
                                         if let Some(file) = rfd::FileDialog::new().pick_file() {
@@ -4209,24 +4369,24 @@ impl eframe::App for PotApp {
                                     }
                                     ui.add_space(8.0);
                                     if ui.add_sized(
-                                        Vec2::new(ui.available_width(), 60.0),
+                                        Vec2::new(ui.available_width(), 58.0),
                                         egui::Button::new(RichText::new("Playlist Manager\nF8 Key").strong().size(12.0).color(Color32::from_rgb(220, 225, 240))),
                                     ).clicked() {
                                         self.show_playlist = true;
                                     }
                                 });
 
-                                // Card 2: Stream URL & Settings
+                                // Card 2: Stream URL & DSP Studio
                                 cols[1].vertical_centered(|ui| {
                                     if ui.add_sized(
-                                        Vec2::new(ui.available_width(), 60.0),
+                                        Vec2::new(ui.available_width(), 58.0),
                                         egui::Button::new(RichText::new("Stream URL / Web\nCtrl + U").strong().size(12.5).color(Color32::from_rgb(100, 190, 255))),
                                     ).clicked() {
                                         self.show_stream_url_dialog = true;
                                     }
                                     ui.add_space(8.0);
                                     if ui.add_sized(
-                                        Vec2::new(ui.available_width(), 60.0),
+                                        Vec2::new(ui.available_width(), 58.0),
                                         egui::Button::new(RichText::new("DSP Equalizer Studio\nF7 Key").strong().size(12.0).color(Color32::from_rgb(220, 225, 240))),
                                     ).clicked() {
                                         self.show_control_panel = true;
@@ -4236,25 +4396,28 @@ impl eframe::App for PotApp {
                         }
 
                         // 5. Bottom Keyboard Shortcuts Cheat Sheet Pill
-                        let hint_w = 460.0_f32.min(rect.width() - 32.0);
-                        let hint_rect = Rect::from_center_size(
-                            Pos2::new(center.x, (rect.bottom() - 20.0).max(top_y + 260.0)),
-                            Vec2::new(hint_w, 24.0),
-                        );
-                        let p = ui.painter();
-                        p.rect_filled(hint_rect, CornerRadius::same(12), Color32::from_rgba_unmultiplied(18, 20, 28, 190));
-                        p.rect_stroke(hint_rect, CornerRadius::same(12), Stroke::new(0.8, Color32::from_rgb(40, 44, 58)), egui::StrokeKind::Inside);
-                        p.text(
-                            hint_rect.center(),
-                            Align2::CENTER_CENTER,
-                            "Space: Play/Pause  •  Enter: Fullscreen  •  M: Mute  •  [ / ]: Speed  •  Tab: Stats",
-                            FontId::proportional(10.5),
-                            Color32::from_rgb(150, 155, 175),
-                        );
+                        let block_bottom = content_top_y + shelf_h_opt.unwrap_or(136.0);
+                        if usable_bottom - block_bottom >= 38.0 {
+                            let hint_w = 460.0_f32.min(rect.width() - 32.0);
+                            let hint_y = ((block_bottom + usable_bottom) * 0.5).clamp(block_bottom + 16.0, usable_bottom - 14.0);
+                            let hint_rect = Rect::from_center_size(
+                                Pos2::new(usable_center.x, hint_y),
+                                Vec2::new(hint_w, 22.0),
+                            );
+                            let p = ui.painter();
+                            p.rect_filled(hint_rect, CornerRadius::same(11), Color32::from_rgba_unmultiplied(18, 20, 28, 190));
+                            p.rect_stroke(hint_rect, CornerRadius::same(11), Stroke::new(0.8, Color32::from_rgb(40, 44, 58)), egui::StrokeKind::Inside);
+                            p.text(
+                                hint_rect.center(),
+                                Align2::CENTER_CENTER,
+                                "Space: Play/Pause  •  Enter: Fullscreen  •  M: Mute  •  [ / ]: Speed  •  Tab: Stats",
+                                FontId::proportional(10.5),
+                                Color32::from_rgb(150, 155, 175),
+                            );
+                        }
                     }
 
-                    // Animated OSD HUD
-                    self.osd.render(ui, rect, &stats);
+                    // Diagnostics HUD MPV stats update (rendering handled in top layer 4)
                     if let Ok(player) = &self.player {
                         let ppp = ui.ctx().pixels_per_point();
                         let win_w = (rect.width() * ppp).round() as u32;
@@ -4447,7 +4610,7 @@ impl eframe::App for PotApp {
             self.damaged_file_repair.render(&ctx, player, &stats);
             self.binaural_crossfeed.render(&ctx, player);
             self.video_wall_matrix.render(&ctx, player);
-            self.chapter_marker_dialog.render(&ctx, player, &stats);
+            self.chapter_marker_dialog.render(&ctx, player, &stats, &mut self.config);
             self.audio_compressor.render(&ctx, player);
             self.video_crop.render(&ctx, player);
             self.goto_frame.render(&ctx, player, &stats);
@@ -4525,7 +4688,10 @@ impl eframe::App for PotApp {
                 match cmd {
                     crate::engine::SmtcCommand::Play => player.play(),
                     crate::engine::SmtcCommand::Pause => player.pause(),
-                    crate::engine::SmtcCommand::Toggle => player.toggle_pause(),
+                    crate::engine::SmtcCommand::Toggle => {
+                        player.toggle_pause();
+                        self.osd.show_play_pause(!stats.is_paused);
+                    }
                     crate::engine::SmtcCommand::Stop => player.stop(),
                     crate::engine::SmtcCommand::Next => {
                         let next_opt = self.playlist.lock().unwrap().next();
@@ -4612,74 +4778,125 @@ impl eframe::App for PotApp {
 
         // 4. OSD & TOAST NOTIFICATIONS OVERLAY (Top layer)
         // =========================================================================
-        if self.osd.is_new_message {
-            self.osd.is_new_message = false;
-            if let Some(ref msg) = self.osd.message {
-                if let Ok(ref player) = self.player {
-                    let dur_ms = self.osd.duration.as_millis() as u64;
-                    player.show_osd_text(msg, dur_ms);
-                }
-            }
-        }
+        self.osd.is_new_message = false;
         self.osd.render_ctx(&ctx, self.last_video_rect, &stats);
-        self.toast.render(&ctx);
 
         // Floating "Skip Intro / OP" Button (Netflix / Crunchyroll style)
         let mut do_skip_intro = false;
+        let mut skip_intro_active_rect: Option<Rect> = None;
         if !is_song_mode && !stats.is_idle && stats.duration > 30.0 {
-            let current_ch_name = stats.chapters.iter().find(|c| {
+            let current_ch_idx = stats.chapters.iter().position(|c| {
                 if let Some(next_c) = stats.chapters.iter().find(|n| n.index == c.index + 1) {
                     stats.time_pos >= c.time_pos && stats.time_pos < next_c.time_pos
                 } else {
                     stats.time_pos >= c.time_pos
                 }
-            }).map(|c| c.title.to_uppercase());
+            });
 
-            let is_op_or_intro = if let Some(ref name) = current_ch_name {
-                name.contains("OP") || name.contains("OPENING") || name.contains("INTRO") || name.contains("PROLOGUE") || name.contains("RECAP")
+            let current_ch = current_ch_idx.and_then(|idx| stats.chapters.get(idx));
+
+            let is_op_or_intro = if let Some(ch) = current_ch {
+                self.config.matches_skip_chapter(&ch.title)
             } else {
                 stats.time_pos < 90.0 && stats.duration > 180.0
             };
 
-            if is_op_or_intro {
+            let seg_key = if is_op_or_intro {
+                Some(format!("{}:{:?}", stats.file_path, current_ch_idx))
+            } else {
+                None
+            };
+
+            if let Some(key) = seg_key {
+                // If entering an intro segment for the first time, start 5-second timer
+                if self.intro_segment_key.as_ref() != Some(&key) {
+                    self.intro_segment_key = Some(key);
+                    self.intro_btn_shown_at = Some(std::time::Instant::now());
+                } else if stats.time_pos + 4.0 < self.intro_last_time_pos || (stats.time_pos < 2.0 && self.intro_last_time_pos >= 2.0) {
+                    // User sought backwards significantly or back to start: re-show for 5 seconds
+                    self.intro_btn_shown_at = Some(std::time::Instant::now());
+                }
+            } else {
+                self.intro_segment_key = None;
+                self.intro_btn_shown_at = None;
+            }
+            self.intro_last_time_pos = stats.time_pos;
+
+            if let Some(shown_at) = self.intro_btn_shown_at {
                 let bar_h = if is_fullscreen_active { ControlBar::HEIGHT_FULLSCREEN } else { ControlBar::HEIGHT_COMPACT };
                 let btn_w = 132.0;
                 let btn_h = 32.0;
                 let btn_pos = Pos2::new(screen_w - btn_w - 24.0, screen_h - bar_h - btn_h - 16.0);
+                let btn_rect = Rect::from_min_size(btn_pos, Vec2::new(btn_w, btn_h));
 
-                egui::Area::new(egui::Id::new("vortex_floating_skip_intro_btn"))
-                    .fixed_pos(btn_pos)
-                    .order(egui::Order::Foreground)
-                    .show(&ctx, |ui| {
-                        let btn_rect = Rect::from_min_size(btn_pos, Vec2::new(btn_w, btn_h));
-                        let resp = ui.interact(btn_rect, ui.id().with("btn_skip_intro_osd"), egui::Sense::click());
-                        let p = ui.painter();
-                        let bg = if resp.hovered() {
-                            Color32::from_rgba_unmultiplied(32, 38, 52, 240)
-                        } else {
-                            Color32::from_rgba_unmultiplied(18, 22, 32, 220)
-                        };
-                        let stroke_col = if resp.hovered() {
-                            VortexTheme::POT_YELLOW
-                        } else {
-                            Color32::from_rgba_unmultiplied(255, 255, 255, 60)
-                        };
-                        p.rect_filled(btn_rect, CornerRadius::same(6), bg);
-                        p.rect_stroke(btn_rect, CornerRadius::same(6), Stroke::new(1.0, stroke_col), egui::StrokeKind::Inside);
-                        p.text(
-                            btn_rect.center(),
-                            Align2::CENTER_CENTER,
-                            "⏭ Skip Intro (S)",
-                            FontId::proportional(12.0),
-                            if resp.hovered() { VortexTheme::POT_YELLOW } else { Color32::WHITE },
-                        );
+                let is_hovered = ctx.input(|i| {
+                    i.pointer.hover_pos().map_or(false, |pos| btn_rect.contains(pos))
+                });
 
-                        if resp.clicked() {
-                            do_skip_intro = true;
-                        }
-                    });
+                // While user hovers over the button, hold the timer so it doesn't vanish while clicking
+                if is_hovered {
+                    self.intro_btn_shown_at = Some(std::time::Instant::now() - std::time::Duration::from_millis(3500));
+                }
+
+                let elapsed = shown_at.elapsed().as_secs_f32();
+                if elapsed < 5.0 || is_hovered {
+                    skip_intro_active_rect = Some(btn_rect);
+
+                    // Smoothly fade out during the last 0.5s (between 4.5s and 5.0s)
+                    let alpha = if elapsed >= 4.5 && !is_hovered {
+                        ((5.0 - elapsed) / 0.5).clamp(0.0, 1.0)
+                    } else {
+                        1.0
+                    };
+
+                    egui::Area::new(egui::Id::new("vortex_floating_skip_intro_btn"))
+                        .fixed_pos(btn_pos)
+                        .order(egui::Order::Foreground)
+                        .show(&ctx, |ui| {
+                            let resp = ui.interact(btn_rect, ui.id().with("btn_skip_intro_osd"), egui::Sense::click());
+                            let p = ui.painter();
+                            let bg = if resp.hovered() {
+                                Color32::from_rgba_unmultiplied(32, 38, 52, (240.0 * alpha) as u8)
+                            } else {
+                                Color32::from_rgba_unmultiplied(18, 22, 32, (220.0 * alpha) as u8)
+                            };
+                            let stroke_col = if resp.hovered() {
+                                Color32::from_rgba_unmultiplied(255, 197, 36, (255.0 * alpha) as u8)
+                            } else {
+                                Color32::from_rgba_unmultiplied(255, 255, 255, (60.0 * alpha) as u8)
+                            };
+                            let text_col = if resp.hovered() {
+                                Color32::from_rgba_unmultiplied(255, 197, 36, (255.0 * alpha) as u8)
+                            } else {
+                                Color32::from_rgba_unmultiplied(255, 255, 255, (255.0 * alpha) as u8)
+                            };
+
+                            p.rect_filled(btn_rect, CornerRadius::same(6), bg);
+                            p.rect_stroke(btn_rect, CornerRadius::same(6), Stroke::new(1.0, stroke_col), egui::StrokeKind::Inside);
+                            p.text(
+                                btn_rect.center(),
+                                Align2::CENTER_CENTER,
+                                "⏭ Skip Intro (S)",
+                                FontId::proportional(12.0),
+                                text_col,
+                            );
+
+                            if resp.clicked() {
+                                do_skip_intro = true;
+                            }
+                        });
+
+                    // Continuously repaint while countdown/fade is active
+                    ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                }
             }
         }
+
+        // Render toasts with collision avoidance against floating playback controls
+        let screen_rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(screen_w, screen_h));
+        self.toast.anchor = self.config.toast_position;
+        self.toast.render_with_avoidance(&ctx, screen_rect, skip_intro_active_rect);
+
         if do_skip_intro {
             self.skip_intro_or_op(&stats);
         }
@@ -4729,10 +4946,11 @@ impl eframe::App for PotApp {
 
             let area_resp = egui::Area::new(egui::Id::new("vortex_context_menu").with(self.menu_opened_frame))
                 .order(egui::Order::Tooltip)
-                .current_pos(menu_pos)
+                .fixed_pos(menu_pos)
                 .pivot(egui::Align2::LEFT_TOP)
                 .movable(false)
                 .show(&ctx, |ui| {
+                    ui.style_mut().animation_time = 0.0;
                     egui::Frame::new()
                         .fill(Color32::from_rgba_premultiplied(16, 18, 26, 252))
                         .stroke(Stroke::NONE)
@@ -4819,6 +5037,12 @@ impl eframe::App for PotApp {
                         if menu_actions.toggle_preferences {
                             self.show_main_menu = false;
                             self.show_preferences = !self.show_preferences;
+                        }
+                        if menu_actions.open_subtitle_preferences {
+                            self.show_main_menu = false;
+                            self.show_preferences = true;
+                            self.preferences_dialog.active_category = "Subtitles".to_string();
+                            self.preferences_dialog.active_sub_category = "Font & Typography".to_string();
                         }
                         if menu_actions.toggle_bookmark_overlay {
                             self.show_main_menu = false;
@@ -5059,8 +5283,7 @@ impl eframe::App for PotApp {
                                 if let Some(p) = player_opt {
                                     p.take_screenshot(&path);
                                 }
-                                self.osd.show("Snapshot taken".to_string(), 1500);
-                                self.toast.success("Snapshot saved");
+                                self.osd.show("📸 Snapshot saved to Pictures".to_string(), 1500);
                             }
                         }
                         if menu_actions.sub_sync_changed {
@@ -5260,7 +5483,6 @@ impl eframe::App for PotApp {
                                     "WASAPI Exclusive: OFF (Windows Shared Mixer)"
                                 };
                                 self.osd.show(msg.to_string(), 1500);
-                                self.toast.success(msg);
                                 close_channels_popup = true;
                             }
                             ui.add_space(1.0);
@@ -5274,7 +5496,6 @@ impl eframe::App for PotApp {
                                 }
                                 let _ = self.config.save();
                                 self.osd.show("Audio Channels: Same as Input (Auto Passthrough)".to_string(), 1500);
-                                self.toast.success("Audio Channels: Same as Input (Auto Passthrough)");
                                 close_channels_popup = true;
                             }
                             ui.add_space(1.0);
@@ -5298,8 +5519,7 @@ impl eframe::App for PotApp {
                                     }
                                     let _ = self.config.save();
                                     let msg = format!("Audio Channels: {}", label);
-                                    self.osd.show(msg.clone(), 1500);
-                                    self.toast.success(msg);
+                                    self.osd.show(msg, 1500);
                                     close_channels_popup = true;
                                 }
                             }
@@ -5315,7 +5535,6 @@ impl eframe::App for PotApp {
                                 }
                                 let _ = self.config.save();
                                 self.osd.show("Audio Mode: Virtual Headphone (BS2B)".to_string(), 1500);
-                                self.toast.success("Audio Mode: Virtual Headphone (BS2B)");
                                 close_channels_popup = true;
                             }
                             let is_sofa = curr_ch == "sofalizer";
@@ -5326,7 +5545,6 @@ impl eframe::App for PotApp {
                                 }
                                 let _ = self.config.save();
                                 self.osd.show("Audio Mode: Virtual 3D Surround (HRTF)".to_string(), 1500);
-                                self.toast.success("Audio Mode: Virtual 3D Surround (HRTF)");
                                 close_channels_popup = true;
                             }
                         });
@@ -5480,8 +5698,7 @@ impl eframe::App for PotApp {
                                         player.set_speed(spd_val);
                                     }
                                     let msg = format!("Playback Speed: {:.2}x", spd_val);
-                                    self.osd.show(msg.clone(), 1200);
-                                    self.toast.info(msg);
+                                    self.osd.show(msg, 1200);
                                     close_speed_popup = true;
                                 }
                             }
@@ -5614,7 +5831,6 @@ impl eframe::App for PotApp {
                     "WASAPI Exclusive: OFF (Windows Shared Mixer)"
                 };
                 self.osd.show(msg.to_string(), 1500);
-                self.toast.success(msg);
             }
         }
 
@@ -5627,7 +5843,7 @@ impl eframe::App for PotApp {
                 .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(18, 12, 35))
+                        .fill(Color32::from_rgb(0, 0, 0))
                         .stroke(Stroke::new(1.0, VortexTheme::VORTEX_PURPLE))
                         .corner_radius(CornerRadius::same(8)),
                 )
@@ -5712,7 +5928,7 @@ impl eframe::App for PotApp {
                 egui::CentralPanel::default()
                     .frame(
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(22, 23, 28))
+                            .fill(Color32::from_rgb(0, 0, 0))
                             .inner_margin(Margin::same(6)),
                     )
                     .show(ctx, |ui| {
@@ -5789,7 +6005,6 @@ impl eframe::App for PotApp {
                                 crate::playlist::RepeatMode::Off => "Repeat: Off",
                             };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.info(msg);
                         }
                         if pl_actions.toggle_shuffle {
                             let is_shuf = self.playlist.lock().unwrap().is_shuffle();
@@ -5797,7 +6012,6 @@ impl eframe::App for PotApp {
                             let _ = self.config.save();
                             let msg = if is_shuf { "Shuffle: ON" } else { "Shuffle: OFF" };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.info(msg);
                         }
                         if pl_actions.toggle_restore_prev {
                             self.config.restore_last_playlist = !self.config.restore_last_playlist;
@@ -5808,7 +6022,6 @@ impl eframe::App for PotApp {
                                 "Restore Prev Playlist: Disabled"
                             };
                             self.osd.show(msg.to_string(), 1500);
-                            self.toast.info(msg);
                         }
                         if pl_actions.toggle_detach {
                             detach_toggle = true;
@@ -6054,79 +6267,23 @@ impl eframe::App for PotApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
 
-        // Post-render native child video HWND/X11 bounds update with final frame dialog & menu state
-        if self.child_hwnd != 0 {
+        #[cfg(windows)]
+        if self.parent_hwnd != 0 {
             let ppp = ctx.pixels_per_point();
-            let is_fullscreen_active = self.is_fullscreen;
             let is_song_playback = MusicBackgroundView::is_song(&stats);
             let is_active_video = !stats.is_idle && !stats.file_path.is_empty() && !is_song_playback;
-
-            let screen_size = get_window_client_rect(&ctx).size();
-            let (x, y, w, h) = if is_fullscreen_active {
-                // In fullscreen: full physical screen bounds (0, 0, screen_w, screen_h)
-                #[cfg(windows)]
-                let native_size = native_monitor_physical_size(self.parent_hwnd)
-                    .or_else(|| native_client_physical_size(self.parent_hwnd))
-                    .map(|(w, h)| (w as f32, h as f32))
-                    .unwrap_or((screen_size.x * ppp, screen_size.y * ppp));
-                #[cfg(not(windows))]
-                let native_size = (screen_size.x * ppp, screen_size.y * ppp);
-
-                let (screen_w, screen_h) = native_size;
-                if show_top_menu {
-                    self.active_popup_rects.push(Rect::from_min_size(Pos2::ZERO, Vec2::new(screen_size.x, 32.0)));
-                }
-                if show_bottom_menu {
-                    let bar_h = if is_song_playback { ControlBar::HEIGHT_MUSIC } else { ControlBar::HEIGHT_FULLSCREEN };
-                    self.active_popup_rects.push(Rect::from_min_max(
-                        Pos2::new(0.0, screen_size.y - bar_h),
-                        Pos2::new(screen_size.x, screen_size.y),
-                    ));
-                }
-                #[cfg(windows)]
-                let child_y = 0;
-                #[cfg(not(windows))]
-                let child_y = 0;
-                (0, child_y, screen_w.round() as i32, screen_h.round() as i32)
+            let clip = if is_active_video {
+                let r = self.last_video_rect;
+                Some([
+                    (r.min.x * ppp).round() as i32,
+                    (r.min.y * ppp).round() as i32,
+                    (r.max.x * ppp).round() as i32,
+                    (r.max.y * ppp).round() as i32,
+                ])
             } else {
-                // In windowed mode: the exact central area between the top titlebar (32px) and bottom control bar (52px)
-                let bar_h = if is_song_playback { ControlBar::HEIGHT_MUSIC } else { ControlBar::HEIGHT_COMPACT };
-                let top_h = if show_top_menu { 32.0 } else { 0.0 };
-                let bot_h = if show_bottom_menu { bar_h } else { 0.0 };
-                let side_w = if self.show_playlist && !self.config.playlist_detached { 330.0 } else { 0.0 };
-
-                let vx = 0;
-                let vy = (top_h * ppp).round() as i32;
-                let vw = ((screen_size.x - side_w) * ppp).round() as i32;
-                let vh = ((screen_size.y - top_h - bot_h) * ppp).round() as i32;
-                (vx, vy, vw.max(1), vh.max(1))
+                None
             };
-
-            // Collect all active cascading submenu rects (Level 2, Level 3, etc.) only when menu is open
-            if self.show_main_menu {
-                let sub_rects: Vec<Rect> = ctx.data(|d| d.get_temp(egui::Id::new("all_active_submenu_rects"))).unwrap_or_default();
-                for r in sub_rects {
-                    self.active_popup_rects.push(r);
-                }
-            }
-
-
-            // The native mpv child is above the egui swapchain on Windows.
-            // Keep the child full-screen, but cut transparent holes only where
-            // an egui bar is currently visible so the bar can be seen without
-            // changing the video's size or aspect ratio.
-            let native_exclusions = &self.active_popup_rects[..];
-            update_child_window_geometry(self.child_hwnd, x, y, w, h, is_active_video, native_exclusions, ppp);
-
-            #[cfg(windows)]
-            if self.parent_hwnd != 0 {
-                let clip = if is_active_video {
-                    Some([x, y, x + w, y + h])
-                } else {
-                    None
-                };
-                self.taskbar.set_thumbnail_clip(self.parent_hwnd, clip);
-            }
+            self.taskbar.set_thumbnail_clip(self.parent_hwnd, clip);
         }
         static LAST_FRAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
         if LAST_FRAME.swap(false, std::sync::atomic::Ordering::Relaxed) {
@@ -6142,7 +6299,8 @@ impl eframe::App for PotApp {
 
 }
 
-// ── Native Win32 child window helpers ───────────────────────────────────────
+// ── Native Win32 child window helpers (legacy, retained for reference) ────
+#[allow(dead_code)]
 #[cfg(windows)]
 fn native_monitor_physical_size(hwnd: isize) -> Option<(i32, i32)> {
     use windows_sys::Win32::Foundation::*;
@@ -6172,6 +6330,7 @@ fn native_monitor_physical_size(hwnd: isize) -> Option<(i32, i32)> {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn native_client_physical_size(hwnd: isize) -> Option<(i32, i32)> {
     use windows_sys::Win32::Foundation::RECT;
@@ -6190,6 +6349,7 @@ fn native_client_physical_size(hwnd: isize) -> Option<(i32, i32)> {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 unsafe extern "system" fn video_host_wndproc(
     hwnd: windows_sys::Win32::Foundation::HWND,
@@ -6231,6 +6391,7 @@ unsafe extern "system" fn video_host_wndproc(
     }
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn create_child_video_window(parent_hwnd: isize) -> isize {
     use std::ptr::{null, null_mut};
@@ -6278,19 +6439,23 @@ fn create_child_video_window(parent_hwnd: isize) -> isize {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 static LAST_CHILD_GEOM: std::sync::Mutex<(isize, i32, i32, i32, i32, bool, Vec<(i32, i32, i32, i32)>)> =
     std::sync::Mutex::new((0, -1, -1, -1, -1, false, Vec::new()));
 
+#[allow(dead_code)]
 #[cfg(windows)]
 pub fn reset_child_geom_cache() {
     if let Ok(mut geom_guard) = LAST_CHILD_GEOM.lock() {
         *geom_guard = (0, -1, -1, -1, -1, false, Vec::new());
     }
 }
+#[allow(dead_code)]
 #[cfg(not(windows))]
 pub fn reset_child_geom_cache() {}
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn update_child_window_geometry(
     child_hwnd: isize,
@@ -6340,6 +6505,7 @@ fn update_child_window_geometry(
             h,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
+        BringWindowToTop(child_hwnd as HWND);
 
         let mut valid_holes: Vec<(i32, i32, i32, i32)> = Vec::new();
         for &(rx, ry, rw, rh) in &raw_exclusions {
@@ -6356,9 +6522,13 @@ fn update_child_window_geometry(
             }
         }
 
-        if valid_holes.is_empty() {
-            // Restore full unclipped window
-            SetWindowRgn(child_hwnd as HWND, 0 as _, 1);
+        let is_fs = IS_NATIVE_FULLSCREEN.load(std::sync::atomic::Ordering::Relaxed);
+        static HAD_CUSTOM_RGN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if is_fs || valid_holes.is_empty() {
+            // Restore full unclipped window only if a custom region was actually previously set
+            if HAD_CUSTOM_RGN.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                SetWindowRgn(child_hwnd as HWND, 0 as _, 1);
+            }
         } else {
             let full_rgn = CreateRectRgn(0, 0, w, h);
             if !full_rgn.is_null() {
@@ -6372,6 +6542,8 @@ fn update_child_window_geometry(
                 // SetWindowRgn takes ownership of full_rgn only on success
                 if SetWindowRgn(child_hwnd as HWND, full_rgn, 1) == 0 {
                     DeleteObject(full_rgn as _);
+                } else {
+                    HAD_CUSTOM_RGN.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             }
         }
@@ -6620,12 +6792,11 @@ static IS_NATIVE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::
 #[cfg(windows)]
 static PRE_FULLSCREEN_RECT: std::sync::Mutex<windows_sys::Win32::Foundation::RECT> =
     std::sync::Mutex::new(windows_sys::Win32::Foundation::RECT { left: 100, top: 80, right: 1100, bottom: 700 });
-#[cfg(windows)]
-static PRE_FULLSCREEN_STYLE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 #[cfg(windows)]
 pub fn set_native_fullscreen(
     hwnd: isize,
+    _child_hwnd: isize,
     fullscreen: bool,
     is_maximized: bool,
     saved_rect: Option<windows_sys::Win32::Foundation::RECT>,
@@ -6637,6 +6808,7 @@ pub fn set_native_fullscreen(
     unsafe {
         let hwnd = hwnd as HWND;
         if hwnd.is_null() { return; }
+        crate::platform::set_native_fullscreen_state(fullscreen);
         IS_NATIVE_FULLSCREEN.store(fullscreen, std::sync::atomic::Ordering::Relaxed);
 
         if fullscreen {
@@ -6667,17 +6839,6 @@ pub fn set_native_fullscreen(
                 }
             }
 
-            let cur_style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-            if cur_style != 0 {
-                PRE_FULLSCREEN_STYLE.store(cur_style, std::sync::atomic::Ordering::Relaxed);
-            }
-
-            // If the window was maximized, restore it first so USER32 doesn't clamp to rcWork (1392),
-            // which creates a 48px gap when the taskbar is auto-hidden.
-            if IsZoomed(hwnd) != 0 {
-                ShowWindow(hwnd, SW_RESTORE);
-            }
-
             let mut monitor_info = MONITORINFO {
                 cbSize: std::mem::size_of::<MONITORINFO>() as u32,
                 rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
@@ -6688,61 +6849,59 @@ pub fn set_native_fullscreen(
             GetMonitorInfoW(h_monitor, &mut monitor_info);
 
             let rc = monitor_info.rcMonitor;
-            let base_style = if cur_style != 0 {
-                cur_style
-            } else {
-                WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS
-            };
-            let fs_style = (base_style & !(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_MAXIMIZE | WS_MINIMIZE | WS_BORDER | WS_DLGFRAME))
-                | WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
-            SetWindowLongW(hwnd, GWL_STYLE, fs_style as i32);
+            let mon_w = rc.right - rc.left;
+            let mon_h = rc.bottom - rc.top;
 
-            // Notify Windows Shell so auto-hidden taskbar does not pop up over player controls
-            crate::platform::mark_fullscreen_window(hwnd as isize, true);
+            let hwnd_isize = hwnd as isize;
+            std::thread::spawn(move || {
+                crate::platform::mark_fullscreen_window(hwnd_isize, true);
+            });
 
-            // Suppress DWM border, dark mode, and square corners for fullscreen
-            crate::platform::apply_fullscreen_border_suppression(hwnd);
-
+            let z_order = if always_on_top { -1 as isize as HWND } else { 0 as isize as HWND };
+            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | (if always_on_top { 0 } else { SWP_NOZORDER });
             SetWindowPos(
                 hwnd,
-                -1 as isize as HWND,
+                z_order,
                 rc.left,
                 rc.top,
-                rc.right - rc.left,
-                rc.bottom - rc.top,
-                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                mon_w,
+                mon_h,
+                flags,
             );
         } else {
-            crate::platform::mark_fullscreen_window(hwnd as isize, false);
-            let saved_style = PRE_FULLSCREEN_STYLE.load(std::sync::atomic::Ordering::Relaxed);
-            let restore_style = if saved_style != 0 {
-                saved_style
-            } else {
-                WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_MINIMIZEBOX | WS_MAXIMIZEBOX
-            };
-            let restore_style_cleaned = (restore_style & !(WS_MAXIMIZE | WS_MINIMIZE | WS_BORDER | WS_DLGFRAME))
-                | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
-            SetWindowLongW(hwnd, GWL_STYLE, restore_style_cleaned as i32);
-            crate::platform::apply_border_suppression(hwnd);
+            let hwnd_isize = hwnd as isize;
+            std::thread::spawn(move || {
+                crate::platform::mark_fullscreen_window(hwnd_isize, false);
+            });
 
             let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
+            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | (if always_on_top { 0 } else { SWP_NOZORDER });
             if is_maximized {
+                let h_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                let mut monitor_info = MONITORINFO {
+                    cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                    rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+                    rcWork: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+                    dwFlags: 0,
+                };
+                GetMonitorInfoW(h_monitor, &mut monitor_info);
+                let rw = monitor_info.rcWork;
+                let w = rw.right - rw.left;
+                let h = rw.bottom - rw.top;
                 SetWindowPos(
                     hwnd,
                     z_order,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                    rw.left,
+                    rw.top,
+                    w,
+                    h,
+                    flags,
                 );
-                ShowWindow(hwnd, SW_MAXIMIZE);
             } else {
                 let fallback = PRE_FULLSCREEN_RECT.lock().map(|l| *l).unwrap_or(windows_sys::Win32::Foundation::RECT { left: 100, top: 80, right: 1100, bottom: 700 });
                 let rc = saved_rect.unwrap_or(fallback);
                 let w = (rc.right - rc.left).max(320);
                 let h = (rc.bottom - rc.top).max(200);
-                ShowWindow(hwnd, SW_NORMAL);
                 SetWindowPos(
                     hwnd,
                     z_order,
@@ -6750,14 +6909,14 @@ pub fn set_native_fullscreen(
                     rc.top,
                     w,
                     h,
-                    SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                    flags,
                 );
             }
         }
     }
 }
 #[cfg(not(windows))]
-pub fn set_native_fullscreen(_hwnd: isize, _fullscreen: bool, _is_maximized: bool, _saved_rect: Option<()>, _always_on_top: bool) {}
+pub fn set_native_fullscreen(_hwnd: isize, _child_hwnd: isize, _fullscreen: bool, _is_maximized: bool, _saved_rect: Option<()>, _always_on_top: bool) {}
 
 #[cfg(windows)]
 static PRE_PIP_RECT: std::sync::Mutex<windows_sys::Win32::Foundation::RECT> =

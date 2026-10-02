@@ -317,3 +317,27 @@ pub fn format_time_hms(seconds: f64) -> String {
     let secs = (s % 60.0).floor() as u64;
     format!("{:02}:{:02}:{:02}", hrs, mins, secs)
 }
+
+pub fn parse_time_hms(s: &str) -> Option<f64> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Some(0.0);
+    }
+    let parts: Vec<&str> = s.split(':').map(|p| p.trim()).collect();
+    match parts.len() {
+        1 => parts[0].parse::<f64>().ok(),
+        2 => {
+            let m = parts[0].parse::<f64>().ok()?;
+            let s = parts[1].parse::<f64>().ok()?;
+            Some(m * 60.0 + s)
+        }
+        3 => {
+            let h = parts[0].parse::<f64>().ok()?;
+            let m = parts[1].parse::<f64>().ok()?;
+            let s = parts[2].parse::<f64>().ok()?;
+            Some(h * 3600.0 + m * 60.0 + s)
+        }
+        _ => None,
+    }
+}
+

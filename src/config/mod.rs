@@ -115,6 +115,29 @@ impl Default for PlaylistEndAction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToastPosition {
+    BottomRight,
+    BottomLeft,
+    TopRight,
+}
+
+impl Default for ToastPosition {
+    fn default() -> Self {
+        ToastPosition::BottomLeft
+    }
+}
+
+impl ToastPosition {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ToastPosition::BottomRight => "Bottom-Right (Auto-Avoid)",
+            ToastPosition::BottomLeft => "Bottom-Left (Dock)",
+            ToastPosition::TopRight => "Top-Right (Notification Hub)",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PerFileConfig {
     pub audio_track_id: Option<i64>,
@@ -123,6 +146,25 @@ pub struct PerFileConfig {
     pub subtitle_delay: Option<f64>,
     pub aspect_ratio: Option<String>,
     pub resume_pos: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConfigSkipInterval {
+    pub start: f64,
+    pub length: f64,
+    pub interval_type: String,
+    pub enabled: bool,
+}
+
+impl Default for ConfigSkipInterval {
+    fn default() -> Self {
+        Self {
+            start: 0.0,
+            length: 90.0,
+            interval_type: "Skip".to_string(),
+            enabled: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,6 +195,20 @@ pub struct AppConfig {
     pub subtitle_color: String,
     pub subtitle_outline_color: String,
     pub subtitle_outline_width: f32,
+    pub subtitle_bold: bool,
+    pub subtitle_italic: bool,
+    pub subtitle_border_blur: f32,
+    pub subtitle_shadow_offset: f32,
+    pub subtitle_shadow_color: String,
+    pub subtitle_background_box: bool,
+    pub subtitle_background_color: String,
+    pub subtitle_align_x: String,
+    pub subtitle_align_y: String,
+    pub subtitle_letter_spacing: f32,
+    pub subtitle_ass_override: String,
+    pub subtitle_margin_x: i32,
+    pub subtitle_margin_y: i32,
+    pub subtitle_secondary_pos: f64,
     pub eq_enabled: bool,
     pub eq_preset: String,
     pub eq_bands: Vec<f64>,
@@ -193,6 +249,11 @@ pub struct AppConfig {
     pub skip_intro_sec: f64,
     pub skip_outro_sec: f64,
     pub skip_intro_enabled: bool,
+    pub skip_intro_at_start: bool,
+    pub skip_ending_at_end: bool,
+    pub skip_chapters_enabled: bool,
+    pub skip_chapter_titles: String,
+    pub skip_intervals: Vec<ConfigSkipInterval>,
     pub secondary_subtitle_track: i64,
 
     // Advanced PotPlayer Power Additions
@@ -209,6 +270,7 @@ pub struct AppConfig {
     pub replaygain_mode: String,
     pub replaygain_preamp: f64,
     pub show_seekbar_thumbnail: bool,
+    pub toast_position: ToastPosition,
 
     pub per_file_settings: HashMap<String, PerFileConfig>,
     pub parametric_eq: ParametricEqConfig,
@@ -275,7 +337,21 @@ impl Default for AppConfig {
             subtitle_vertical_pos: 92.0,
             subtitle_color: "#FFFFFF".to_string(),
             subtitle_outline_color: "#000000".to_string(),
-            subtitle_outline_width: 2.0,
+            subtitle_outline_width: 2.5,
+            subtitle_bold: false,
+            subtitle_italic: false,
+            subtitle_border_blur: 0.0,
+            subtitle_shadow_offset: 2.0,
+            subtitle_shadow_color: "#80000000".to_string(),
+            subtitle_background_box: false,
+            subtitle_background_color: "#99000000".to_string(),
+            subtitle_align_x: "center".to_string(),
+            subtitle_align_y: "bottom".to_string(),
+            subtitle_letter_spacing: 0.0,
+            subtitle_ass_override: "scale".to_string(),
+            subtitle_margin_x: 25,
+            subtitle_margin_y: 22,
+            subtitle_secondary_pos: 10.0,
             eq_enabled: false,
             eq_preset: "Flat".to_string(),
             eq_bands: vec![0.0; 18],
@@ -316,6 +392,11 @@ impl Default for AppConfig {
             skip_intro_sec: 0.0,
             skip_outro_sec: 0.0,
             skip_intro_enabled: false,
+            skip_intro_at_start: false,
+            skip_ending_at_end: false,
+            skip_chapters_enabled: true,
+            skip_chapter_titles: "opening;begin;ending;intro;credits;op;ed;prologue;recap;preview;theme;outro;".to_string(),
+            skip_intervals: Vec::new(),
             secondary_subtitle_track: 0,
 
             lut_file: None,
@@ -356,6 +437,7 @@ impl Default for AppConfig {
             osd_font_size: 20.0,
             mouse_middle_click_action: "Mute".to_string(),
             mouse_wheel_action: "Volume".to_string(),
+            toast_position: ToastPosition::default(),
         }
     }
 }
@@ -456,5 +538,125 @@ impl AppConfig {
 
     pub fn get_per_file(&self, path: &str) -> Option<&PerFileConfig> {
         self.per_file_settings.get(path)
+    }
+
+    pub fn matches_skip_chapter(&self, chapter_title: &str) -> bool {
+        if !self.skip_chapters_enabled {
+            return false;
+        }
+        for token in self.skip_chapter_titles.split(';') {
+            let t = token.trim();
+            if matches_skip_keyword(chapter_title, t) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// Helper to check whether a chapter title matches a given keyword tag.
+/// Handles word boundaries so short tags like "op" and "ed" do not falsely match
+/// words like "Operation", "Bishop", "Cooper", "Speed", "Bed", "United", etc.
+pub fn matches_skip_keyword(title: &str, keyword: &str) -> bool {
+    let kw = keyword.trim().to_lowercase();
+    if kw.is_empty() || kw.starts_with('!') {
+        return false;
+    }
+    let lower = title.to_lowercase();
+
+    // If keyword is short (<= 3 chars, e.g. "op", "ed"), require token/word boundary matching:
+    // e.g. "[OP]", "(OP)", "OP 1", "OP1", "OP - Song", "Theme OP", "ED", "ED2", etc.
+    if kw.len() <= 3 {
+        let mut start_idx = 0;
+        while let Some(pos) = lower[start_idx..].find(&kw) {
+            let actual_pos = start_idx + pos;
+            let end_pos = actual_pos + kw.len();
+
+            let before_ok = if actual_pos == 0 {
+                true
+            } else {
+                let prev_char = lower[..actual_pos].chars().next_back().unwrap();
+                !prev_char.is_alphabetic()
+            };
+
+            let after_ok = if end_pos >= lower.len() {
+                true
+            } else {
+                let next_char = lower[end_pos..].chars().next().unwrap();
+                // Allow digits immediately following (e.g. "OP1", "ED2") or non-alphanumeric
+                !next_char.is_alphabetic()
+            };
+
+            if before_ok && after_ok {
+                return true;
+            }
+            start_idx = actual_pos + kw.len();
+        }
+        false
+    } else {
+        // For longer keywords like "opening", "ending", "credits", "intro", "prologue", "recap", "preview", "theme", "outro":
+        lower.contains(&kw)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_skip_keyword_short_tokens() {
+        // False positives that must NOT match:
+        assert!(!matches_skip_keyword("The Operation", "op"));
+        assert!(!matches_skip_keyword("Stop and Go", "op"));
+        assert!(!matches_skip_keyword("Bishop in Danger", "op"));
+        assert!(!matches_skip_keyword("Cooper Station", "op"));
+        assert!(!matches_skip_keyword("Need for Speed", "ed"));
+        assert!(!matches_skip_keyword("United States", "ed"));
+        assert!(!matches_skip_keyword("Go to Bed", "ed"));
+        assert!(!matches_skip_keyword("Red Sun", "ed"));
+        assert!(!matches_skip_keyword("Started Running", "ed"));
+        assert!(!matches_skip_keyword("Locked In", "ed"));
+
+        // Valid short token matches:
+        assert!(matches_skip_keyword("Chapter 1: OP", "op"));
+        assert!(matches_skip_keyword("Chapter 1: [OP]", "op"));
+        assert!(matches_skip_keyword("Chapter 1: (OP)", "op"));
+        assert!(matches_skip_keyword("Chapter 1: OP1", "op"));
+        assert!(matches_skip_keyword("Chapter 1: OP 1", "op"));
+        assert!(matches_skip_keyword("OP - A Cruel Angel's Thesis", "op"));
+        assert!(matches_skip_keyword("Theme: ED", "ed"));
+        assert!(matches_skip_keyword("[ED 2] Fly Me to the Moon", "ed"));
+        assert!(matches_skip_keyword("ED1", "ed"));
+    }
+
+    #[test]
+    fn test_skip_keyword_longer_tokens() {
+        assert!(matches_skip_keyword("Opening Theme", "opening"));
+        assert!(matches_skip_keyword("Episode 1 - Intro", "intro"));
+        assert!(matches_skip_keyword("Prologue & Background", "prologue"));
+        assert!(matches_skip_keyword("Recap of Season 1", "recap"));
+        assert!(matches_skip_keyword("Ending Credits", "ending"));
+        assert!(matches_skip_keyword("Rolling Credits", "credits"));
+        assert!(matches_skip_keyword("Episode Preview", "preview"));
+        assert!(matches_skip_keyword("Outro Sequence", "outro"));
+        assert!(matches_skip_keyword("Opening Theme", "theme"));
+
+        // Disabled tokens (prefixed with '!')
+        assert!(!matches_skip_keyword("Intro Sequence", "!intro"));
+    }
+
+    #[test]
+    fn test_matches_skip_chapter() {
+        let config = AppConfig::default();
+        assert!(config.matches_skip_chapter("Opening"));
+        assert!(config.matches_skip_chapter("Episode 1: OP"));
+        assert!(config.matches_skip_chapter("Ending Theme"));
+        assert!(config.matches_skip_chapter("Credits"));
+        assert!(config.matches_skip_chapter("Season Recap"));
+        assert!(config.matches_skip_chapter("Next Episode Preview"));
+        assert!(!config.matches_skip_chapter("The Operation"));
+        assert!(!config.matches_skip_chapter("Speed"));
+        assert!(!config.matches_skip_chapter("United"));
+        assert!(!config.matches_skip_chapter("Act I: Arrival on Arrakis"));
     }
 }

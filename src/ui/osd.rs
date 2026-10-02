@@ -59,21 +59,14 @@ impl OsdEngine {
         self.expires_at = now + dur;
     }
 
-    pub fn show_center_indicator(&mut self, icon: &'static str, label: String, sub_label: Option<String>, duration_ms: u64) {
-        let now = Instant::now();
-        self.center_indicator = Some(CentralHudIndicator {
-            icon,
-            label,
-            sub_label,
-            created_at: now,
-            duration: Duration::from_millis(duration_ms),
-        });
+    #[inline]
+    pub fn show_center_indicator(&mut self, _icon: &'static str, _label: String, _sub_label: Option<String>, _duration_ms: u64) {
+        // Disabled: user requested removing central indicator, only keep sleek top-left HUD pill
     }
 
     pub fn show_volume(&mut self, volume: f64, is_muted: bool) {
         if is_muted {
             self.show("🔇 Volume: MUTE".to_string(), 1200);
-            self.show_center_indicator("🔇", "MUTE".to_string(), None, 600);
         } else {
             let total_bars = 16;
             let norm_vol = volume.clamp(0.0, 100.0);
@@ -87,7 +80,6 @@ impl OsdEngine {
                 }
             }
             self.show(format!("🔊 Volume: {:3.0}%  {}", norm_vol, bar_str), 1200);
-            self.show_center_indicator("🔊", format!("{:.0}%", norm_vol), Some(bar_str), 600);
         }
     }
 
@@ -101,30 +93,18 @@ impl OsdEngine {
             format!("{} {} / {}{}", icon, format_time(target_time), format_time(duration), delta_str),
             1200,
         );
-        if let Some(d) = delta {
-            let sign = if d >= 0.0 { "+" } else { "" };
-            self.show_center_indicator(
-                if d >= 0.0 { "⏩" } else { "⏪" },
-                format!("{}{:.1}s", sign, d),
-                Some(format!("{} / {}", format_time(target_time), format_time(duration))),
-                600,
-            );
-        }
     }
 
     pub fn show_play_pause(&mut self, is_paused: bool) {
         if is_paused {
             self.show("⏸ Paused".to_string(), 1000);
-            self.show_center_indicator("⏸", "Paused".to_string(), None, 500);
         } else {
             self.show("▶ Playing".to_string(), 1000);
-            self.show_center_indicator("▶", "Playing".to_string(), None, 500);
         }
     }
 
     pub fn show_speed(&mut self, speed: f64) {
         self.show(format!("⚡ Playback Speed: {:.2}×", speed), 1200);
-        self.show_center_indicator("⚡", format!("{:.2}× Speed", speed), None, 600);
     }
 
     pub fn show_sub_delay(&mut self, delay_secs: f64) {
@@ -136,19 +116,6 @@ impl OsdEngine {
             format!("💬 Subtitle Sync: {}{:.3} s ({}{:+0} ms)", sign, delay_secs, sign, delay_ms)
         };
         self.show(status_str, 1500);
-
-        let icon = if delay_ms == 0 { "💬" } else if delay_secs > 0.0 { "⏳" } else { "⚡" };
-        let center_main = if delay_ms == 0 {
-            "SYNC 0.0s".to_string()
-        } else {
-            format!("{}{:.2}s", sign, delay_secs)
-        };
-        let center_sub = if delay_ms == 0 {
-            "Default Sync".to_string()
-        } else {
-            format!("Subtitle Delay: {:+0} ms", delay_ms)
-        };
-        self.show_center_indicator(icon, center_main, Some(center_sub), 700);
     }
 
     pub fn show_audio_delay(&mut self, delay_ms: i64) {
@@ -178,16 +145,6 @@ impl OsdEngine {
 
         let msg = format!("📐 {} × {} [{}]{}", width, height, ar_str, pct_str);
         self.show(msg, 1200);
-        self.show_center_indicator(
-            "📐",
-            format!("{} × {}", width, height),
-            Some(if !pct_str.is_empty() {
-                format!("{} {}", ar_str, pct_str.trim())
-            } else {
-                ar_str
-            }),
-            800,
-        );
     }
 
     pub fn toggle_media_info(&mut self) {
@@ -202,68 +159,8 @@ impl OsdEngine {
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("vortex_osd_layer")));
         let now = Instant::now();
 
-        if self.center_indicator.is_some() || self.message.is_some() {
+        if self.message.is_some() {
             ctx.request_repaint();
-        }
-
-        // ── 1. Center Floating Transport Badge (Animated Fade & Scale) ────────
-        if let Some(ref ind) = self.center_indicator {
-            let elapsed = now.duration_since(ind.created_at).as_secs_f32();
-            let total_sec = ind.duration.as_secs_f32();
-            if elapsed < total_sec {
-                let remaining = total_sec - elapsed;
-                let alpha_in = (elapsed / 0.08).min(1.0);
-                let alpha_out = (remaining / 0.20).min(1.0);
-                let alpha_factor = alpha_in.min(alpha_out);
-                let alpha = (alpha_factor * 255.0) as u8;
-
-                let center_x = video_rect.center().x;
-                let center_y = video_rect.center().y;
-
-                let badge_w = 200.0;
-                let badge_h = if ind.sub_label.is_some() { 100.0 } else { 88.0 };
-                let badge_rect = Rect::from_center_size(Pos2::new(center_x, center_y), Vec2::new(badge_w, badge_h));
-
-                // Frosted Glass Dark Background
-                let bg_col = Color32::from_rgba_unmultiplied(12, 14, 20, (alpha_factor * 225.0) as u8);
-                let stroke_col = Color32::from_rgba_unmultiplied(245, 166, 35, (alpha_factor * 190.0) as u8);
-                painter.rect_filled(badge_rect, CornerRadius::same(14), bg_col);
-                painter.rect_stroke(badge_rect, CornerRadius::same(14), Stroke::new(1.4, stroke_col), StrokeKind::Inside);
-
-                // Icon (Big 30px)
-                let icon_y = if ind.sub_label.is_some() { badge_rect.top() + 24.0 } else { badge_rect.top() + 28.0 };
-                painter.text(
-                    Pos2::new(center_x, icon_y),
-                    Align2::CENTER_CENTER,
-                    ind.icon,
-                    FontId::proportional(28.0),
-                    Color32::from_rgba_unmultiplied(255, 255, 255, alpha),
-                );
-
-                // Primary Label
-                let label_y = icon_y + 24.0;
-                painter.text(
-                    Pos2::new(center_x, label_y),
-                    Align2::CENTER_CENTER,
-                    &ind.label,
-                    FontId::proportional(13.5),
-                    Color32::from_rgba_unmultiplied(240, 245, 255, alpha),
-                );
-
-                // Sub Label (if any)
-                if let Some(ref sub) = ind.sub_label {
-                    let sub_y = label_y + 18.0;
-                    painter.text(
-                        Pos2::new(center_x, sub_y),
-                        Align2::CENTER_CENTER,
-                        sub,
-                        FontId::monospace(10.5),
-                        Color32::from_rgba_unmultiplied(140, 190, 255, alpha),
-                    );
-                }
-            } else {
-                self.center_indicator = None;
-            }
         }
 
         // ── 2. Top-Left Modern Glassmorphism Pill Toast Notification ──────────
@@ -284,7 +181,7 @@ impl OsdEngine {
 
                 let padding = Vec2::new(14.0, 7.0);
                 let toast_rect = Rect::from_min_size(
-                    video_rect.min + Vec2::new(20.0, 20.0),
+                    video_rect.min + Vec2::new(20.0, 48.0),
                     text_size + padding * 2.0,
                 );
 
@@ -319,7 +216,7 @@ impl OsdEngine {
         // ── 3. Playback Info Diagnostics HUD (Tab / Ctrl+F1) ─────────────────
         if self.show_media_info {
             let hud_rect = Rect::from_min_size(
-                video_rect.min + Vec2::new(16.0, 16.0),
+                video_rect.min + Vec2::new(16.0, 48.0),
                 Vec2::new(480.0, 280.0),
             );
 

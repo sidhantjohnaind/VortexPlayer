@@ -14,6 +14,7 @@ pub struct ChapterEntry {
 
 pub struct ChapterMarkerDialog {
     pub is_open: bool,
+    pub last_file_path: String,
     pub chapters: Vec<ChapterEntry>,
     pub selected_idx: Option<usize>,
     pub new_chapter_title: String,
@@ -23,52 +24,14 @@ pub struct ChapterMarkerDialog {
 
 impl Default for ChapterMarkerDialog {
     fn default() -> Self {
-        let sample_chapters = vec![
-            ChapterEntry {
-                index: 1,
-                title: "Opening Prologue & Teaser".to_string(),
-                start_time: 0.0,
-                end_time: 145.0,
-            },
-            ChapterEntry {
-                index: 2,
-                title: "Opening Theme [Theme Song]".to_string(),
-                start_time: 145.0,
-                end_time: 235.0,
-            },
-            ChapterEntry {
-                index: 3,
-                title: "Act I: Arrival on Arrakis".to_string(),
-                start_time: 235.0,
-                end_time: 1820.0,
-            },
-            ChapterEntry {
-                index: 4,
-                title: "Act II: Sandworm Encounter".to_string(),
-                start_time: 1820.0,
-                end_time: 4200.0,
-            },
-            ChapterEntry {
-                index: 5,
-                title: "Act III: The Final Climax".to_string(),
-                start_time: 4200.0,
-                end_time: 6800.0,
-            },
-            ChapterEntry {
-                index: 6,
-                title: "Ending Credits & Post-Scene".to_string(),
-                start_time: 6800.0,
-                end_time: 7240.0,
-            },
-        ];
-
         Self {
             is_open: false,
-            chapters: sample_chapters,
+            last_file_path: String::new(),
+            chapters: Vec::new(),
             selected_idx: Some(0),
             new_chapter_title: "Custom Chapter Marker".to_string(),
             auto_skip_intros: true,
-            status_message: "6 chapter scene markers loaded from media container metadata.".to_string(),
+            status_message: "No chapter scene markers loaded.".to_string(),
         }
     }
 }
@@ -78,9 +41,38 @@ impl ChapterMarkerDialog {
         Self::default()
     }
 
-    pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
+    pub fn render(
+        &mut self,
+        ctx: &egui::Context,
+        player: &crate::engine::Player,
+        stats: &crate::engine::MediaStats,
+        config: &mut crate::config::AppConfig,
+    ) {
         if !self.is_open {
             return;
+        }
+
+        // Dynamically load real container chapters when media changes or dialog opens
+        if (!stats.file_path.is_empty() && self.last_file_path != stats.file_path) || (self.chapters.is_empty() && !stats.chapters.is_empty()) {
+            self.last_file_path = stats.file_path.clone();
+            if !stats.chapters.is_empty() {
+                self.chapters = stats.chapters.iter().enumerate().map(|(i, c)| {
+                    let end_time = if let Some(next_c) = stats.chapters.get(i + 1) {
+                        next_c.time_pos
+                    } else if stats.duration > c.time_pos {
+                        stats.duration
+                    } else {
+                        c.time_pos + 180.0
+                    };
+                    ChapterEntry {
+                        index: (c.index + 1) as usize,
+                        title: if c.title.trim().is_empty() { format!("Chapter {}", i + 1) } else { c.title.clone() },
+                        start_time: c.time_pos,
+                        end_time,
+                    }
+                }).collect();
+                self.status_message = format!("{} container chapters loaded from metadata.", self.chapters.len());
+            }
         }
 
         let mut open = self.is_open;
@@ -125,7 +117,9 @@ impl ChapterMarkerDialog {
                         }
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.checkbox(&mut self.auto_skip_intros, "⚡ Auto-Skip Theme Songs (OP/ED)");
+                            if ui.checkbox(&mut config.skip_chapters_enabled, "⚡ Auto-Skip Theme Chapters (OP/ED)").changed() {
+                                let _ = config.save();
+                            }
                         });
                     });
 
@@ -137,9 +131,13 @@ impl ChapterMarkerDialog {
                         .max_height(240.0)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
+                            if self.chapters.is_empty() {
+                                ui.label(RichText::new("(No chapters available for current media)").color(Color32::GRAY));
+                            }
                             for (idx, ch) in self.chapters.iter().enumerate() {
                                 let is_active = stats.time_pos >= ch.start_time && stats.time_pos < ch.end_time;
                                 let is_selected = self.selected_idx == Some(idx);
+                                let is_skip = config.matches_skip_chapter(&ch.title);
 
                                 let bg = if is_active {
                                     Color32::from_rgb(45, 50, 25)
@@ -161,6 +159,10 @@ impl ChapterMarkerDialog {
                                                 self.selected_idx = Some(idx);
                                             }
 
+                                            if is_skip {
+                                                ui.label(RichText::new("⏭ AUTO-SKIP").size(10.0).color(Color32::from_rgb(255, 120, 80)).strong());
+                                            }
+
                                             let start_str = crate::bookmark::format_time(ch.start_time);
                                             let end_str = crate::bookmark::format_time(ch.end_time);
                                             ui.label(RichText::new(format!("{} → {}", start_str, end_str)).small().color(Color32::GRAY));
@@ -171,6 +173,14 @@ impl ChapterMarkerDialog {
                                                         .fill(Color32::from_rgb(40, 120, 80)),
                                                 ).clicked() {
                                                     player.seek_absolute(ch.start_time);
+                                                }
+                                                if is_skip {
+                                                    if ui.add(
+                                                        egui::Button::new(RichText::new("⏭ Skip").size(11.0).color(Color32::WHITE))
+                                                            .fill(Color32::from_rgb(160, 60, 50)),
+                                                    ).clicked() {
+                                                        player.seek_absolute(ch.end_time);
+                                                    }
                                                 }
                                                 if is_active {
                                                     ui.label(RichText::new("● PLAYING").color(Color32::from_rgb(255, 200, 50)).strong());

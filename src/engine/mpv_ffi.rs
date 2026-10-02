@@ -75,6 +75,53 @@ pub type FnMpvWaitEvent = unsafe extern "C" fn(ctx: *mut c_void, timeout: f64) -
 pub type FnMpvEventName = unsafe extern "C" fn(event_id: c_int) -> *const c_char;
 pub type FnMpvErrorString = unsafe extern "C" fn(error: c_int) -> *const c_char;
 
+pub const MPV_RENDER_PARAM_INVALID: i32 = 0;
+pub const MPV_RENDER_PARAM_API_TYPE: i32 = 1;
+pub const MPV_RENDER_PARAM_OPENGL_INIT_PARAMS: i32 = 2;
+pub const MPV_RENDER_PARAM_OPENGL_FBO: i32 = 3;
+pub const MPV_RENDER_PARAM_FLIP_Y: i32 = 4;
+pub const MPV_RENDER_PARAM_DEPTH: i32 = 5;
+pub const MPV_RENDER_PARAM_ICC_PROFILE: i32 = 6;
+pub const MPV_RENDER_PARAM_AMBIENT_LIGHT: i32 = 7;
+pub const MPV_RENDER_PARAM_X11_DISPLAY: i32 = 8;
+pub const MPV_RENDER_PARAM_WL_DISPLAY: i32 = 9;
+pub const MPV_RENDER_PARAM_ADVANCED_CONTROL: i32 = 10;
+pub const MPV_RENDER_PARAM_NEXT_FRAME_INFO: i32 = 11;
+pub const MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME: i32 = 12;
+pub const MPV_RENDER_PARAM_SKIP_RENDERING: i32 = 13;
+
+pub const MPV_RENDER_API_TYPE_OPENGL: &[u8] = b"opengl\0";
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct MpvRenderParam {
+    pub type_: i32,
+    pub data: *mut c_void,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct MpvOpenglInitParams {
+    pub get_proc_address: Option<unsafe extern "C" fn(ctx: *mut c_void, name: *const c_char) -> *mut c_void>,
+    pub get_proc_address_ctx: *mut c_void,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct MpvOpenglFbo {
+    pub fbo: i32,
+    pub w: i32,
+    pub h: i32,
+    pub internal_format: i32,
+}
+
+pub type FnMpvRenderContextCreate = unsafe extern "C" fn(res: *mut *mut c_void, mpv: *mut c_void, params: *mut MpvRenderParam) -> c_int;
+pub type FnMpvRenderContextSetUpdateCallback = unsafe extern "C" fn(ctx: *mut c_void, callback: Option<unsafe extern "C" fn(cb_ctx: *mut c_void)>, callback_ctx: *mut c_void);
+pub type FnMpvRenderContextUpdate = unsafe extern "C" fn(ctx: *mut c_void) -> u64;
+pub type FnMpvRenderContextRender = unsafe extern "C" fn(ctx: *mut c_void, params: *mut MpvRenderParam) -> c_int;
+pub type FnMpvRenderContextReportSwap = unsafe extern "C" fn(ctx: *mut c_void);
+pub type FnMpvRenderContextFree = unsafe extern "C" fn(ctx: *mut c_void);
+
 #[derive(Clone)]
 pub struct MpvFfi {
     _lib: Arc<Library>,
@@ -96,6 +143,12 @@ pub struct MpvFfi {
     pub mpv_wait_event: FnMpvWaitEvent,
     pub mpv_event_name: FnMpvEventName,
     pub mpv_error_string: FnMpvErrorString,
+    pub mpv_render_context_create: FnMpvRenderContextCreate,
+    pub mpv_render_context_set_update_callback: FnMpvRenderContextSetUpdateCallback,
+    pub mpv_render_context_update: FnMpvRenderContextUpdate,
+    pub mpv_render_context_render: FnMpvRenderContextRender,
+    pub mpv_render_context_report_swap: FnMpvRenderContextReportSwap,
+    pub mpv_render_context_free: FnMpvRenderContextFree,
 }
 
 impl MpvFfi {
@@ -238,6 +291,19 @@ impl MpvFfi {
             let mpv_error_string: Symbol<FnMpvErrorString> = lib.get(b"mpv_error_string\0")
                 .map_err(|e| format!("Symbol mpv_error_string not found: {}", e))?;
 
+            let mpv_render_context_create: Symbol<FnMpvRenderContextCreate> = lib.get(b"mpv_render_context_create\0")
+                .map_err(|e| format!("Symbol mpv_render_context_create not found: {}", e))?;
+            let mpv_render_context_set_update_callback: Symbol<FnMpvRenderContextSetUpdateCallback> = lib.get(b"mpv_render_context_set_update_callback\0")
+                .map_err(|e| format!("Symbol mpv_render_context_set_update_callback not found: {}", e))?;
+            let mpv_render_context_update: Symbol<FnMpvRenderContextUpdate> = lib.get(b"mpv_render_context_update\0")
+                .map_err(|e| format!("Symbol mpv_render_context_update not found: {}", e))?;
+            let mpv_render_context_render: Symbol<FnMpvRenderContextRender> = lib.get(b"mpv_render_context_render\0")
+                .map_err(|e| format!("Symbol mpv_render_context_render not found: {}", e))?;
+            let mpv_render_context_report_swap: Symbol<FnMpvRenderContextReportSwap> = lib.get(b"mpv_render_context_report_swap\0")
+                .map_err(|e| format!("Symbol mpv_render_context_report_swap not found: {}", e))?;
+            let mpv_render_context_free: Symbol<FnMpvRenderContextFree> = lib.get(b"mpv_render_context_free\0")
+                .map_err(|e| format!("Symbol mpv_render_context_free not found: {}", e))?;
+
             Ok(Self {
                 mpv_create: *mpv_create,
                 mpv_initialize: *mpv_initialize,
@@ -257,8 +323,57 @@ impl MpvFfi {
                 mpv_wait_event: *mpv_wait_event,
                 mpv_event_name: *mpv_event_name,
                 mpv_error_string: *mpv_error_string,
+                mpv_render_context_create: *mpv_render_context_create,
+                mpv_render_context_set_update_callback: *mpv_render_context_set_update_callback,
+                mpv_render_context_update: *mpv_render_context_update,
+                mpv_render_context_render: *mpv_render_context_render,
+                mpv_render_context_report_swap: *mpv_render_context_report_swap,
+                mpv_render_context_free: *mpv_render_context_free,
                 _lib: lib,
             })
         }
     }
+}
+
+#[cfg(windows)]
+pub unsafe extern "C" fn get_proc_address_mpv(_ctx: *mut c_void, name: *const c_char) -> *mut c_void {
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
+    type FnwglGetProcAddress = unsafe extern "system" fn(*const c_char) -> *mut c_void;
+    static mut WGL_GET_PROC: Option<FnwglGetProcAddress> = None;
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| unsafe {
+        let opengl32 = GetModuleHandleA(b"opengl32.dll\0".as_ptr());
+        if !opengl32.is_null() {
+            if let Some(proc) = GetProcAddress(opengl32, b"wglGetProcAddress\0".as_ptr()) {
+                WGL_GET_PROC = Some(std::mem::transmute(proc));
+            }
+        }
+    });
+
+    unsafe {
+        if let Some(wgl_get_proc) = WGL_GET_PROC {
+            let p = wgl_get_proc(name);
+            let val = p as usize;
+            if val > 3 && (p as isize) != -1 {
+                return p;
+            }
+        }
+
+        let opengl32 = GetModuleHandleA(b"opengl32.dll\0".as_ptr());
+        if !opengl32.is_null() {
+            if let Some(proc) = GetProcAddress(opengl32, name as *const u8) {
+                return proc as *mut c_void;
+            }
+        }
+    }
+
+    std::ptr::null_mut()
+}
+
+#[cfg(not(windows))]
+pub unsafe extern "C" fn get_proc_address_mpv(_ctx: *mut c_void, name: *const c_char) -> *mut c_void {
+    extern "C" {
+        fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+    }
+    dlsym(std::ptr::null_mut(), name)
 }

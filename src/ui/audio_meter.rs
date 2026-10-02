@@ -59,8 +59,8 @@ impl AudioMeterWidget {
 
         // ── 1. INPUT METERS FRAME ────────────────────────────────────────────
         egui::Frame::new()
-            .fill(Color32::from_rgb(20, 22, 28))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
+            .fill(Color32::from_rgb(0, 0, 0))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
             .corner_radius(CornerRadius::same(4))
             .inner_margin(Margin::same(8))
             .show(ui, |ui| {
@@ -85,8 +85,8 @@ impl AudioMeterWidget {
 
         // ── 2. OUTPUT METERS FRAME ───────────────────────────────────────────
         egui::Frame::new()
-            .fill(Color32::from_rgb(20, 22, 28))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
+            .fill(Color32::from_rgb(0, 0, 0))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
             .corner_radius(CornerRadius::same(4))
             .inner_margin(Margin::same(8))
             .show(ui, |ui| {
@@ -111,8 +111,8 @@ impl AudioMeterWidget {
 
         // ── 3. LOUDNESS & METRICS FOOTER ─────────────────────────────────────
         egui::Frame::new()
-            .fill(Color32::from_rgb(16, 18, 22))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(38, 42, 54)))
+            .fill(Color32::from_rgb(0, 0, 0))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(30, 34, 44)))
             .corner_radius(CornerRadius::same(4))
             .inner_margin(Margin::symmetric(8, 5))
             .show(ui, |ui| {

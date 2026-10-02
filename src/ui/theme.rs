@@ -182,8 +182,9 @@ impl VortexTheme {
 
         visuals.override_text_color                  = Some(skin.text_primary);
         visuals.panel_fill                           = skin.bg_canvas;
-        visuals.window_fill                          = Color32::from_rgb(16, 18, 24);
-        visuals.window_stroke                        = Stroke::new(1.0, Color32::from_rgb(42, 45, 56));
+        visuals.window_fill                          = Color32::from_rgb(0, 0, 0);
+        visuals.extreme_bg_color                     = Color32::from_rgb(0, 0, 0);
+        visuals.window_stroke                        = Stroke::new(1.0, Color32::from_rgb(45, 50, 65));
         visuals.window_corner_radius                 = CornerRadius::same(4);
         visuals.menu_corner_radius                   = CornerRadius::same(4);
 
@@ -201,8 +202,8 @@ impl VortexTheme {
         };
 
         // Tooltip & Non-interactive widgets styling
-        visuals.widgets.noninteractive.bg_fill       = Color32::from_rgb(20, 22, 28);
-        visuals.widgets.noninteractive.bg_stroke     = Stroke::new(1.0, Color32::from_rgb(48, 52, 64));
+        visuals.widgets.noninteractive.bg_fill       = Color32::from_rgb(10, 10, 14);
+        visuals.widgets.noninteractive.bg_stroke     = Stroke::new(1.0, Color32::from_rgb(45, 50, 65));
         visuals.widgets.noninteractive.fg_stroke     = Stroke::new(1.0, Color32::from_rgb(240, 242, 248));
         visuals.widgets.noninteractive.corner_radius = CornerRadius::same(4);
 
@@ -227,6 +228,7 @@ impl VortexTheme {
         ctx.set_visuals(visuals);
 
         ctx.style_mut_of(egui::Theme::Dark, |style| {
+            style.animation_time         = 0.0; // Instant snappy native response - zero sliding motion
             style.spacing.item_spacing   = Vec2::new(4.0, 4.0);
             style.spacing.window_margin  = Margin::symmetric(4, 4);
             style.spacing.button_padding = Vec2::new(6.0, 3.0);

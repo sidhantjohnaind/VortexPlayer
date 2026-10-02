@@ -4,9 +4,9 @@ pub mod windows;
 #[cfg(windows)]
 pub use windows::{
     apply_border_suppression, apply_fullscreen_border_suppression, attach_subclass, build_button_icons,
-    install_startup_cbt_hook, is_taskbar_autohide, mark_fullscreen_window, uninstall_startup_cbt_hook,
-    GlobalHotkeyEvent, GlobalHotkeyManager, SmtcEvent, TaskbarProgressState, WindowsSmtcAdapter,
-    WindowsTaskbarAdapter,
+    install_startup_cbt_hook, is_native_fullscreen, is_taskbar_autohide, mark_fullscreen_window,
+    set_native_fullscreen_state, uninstall_startup_cbt_hook, GlobalHotkeyEvent, GlobalHotkeyManager,
+    SmtcEvent, TaskbarProgressState, WindowsSmtcAdapter, WindowsTaskbarAdapter,
 };
 
 #[cfg(not(windows))]

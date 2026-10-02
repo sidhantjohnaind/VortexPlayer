@@ -44,8 +44,8 @@ pub fn fluent_switch(ui: &mut egui::Ui, value: &mut bool) -> egui::Response {
 /// Modern Fluent Settings Card Container
 pub fn settings_card<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
     egui::Frame::new()
-        .fill(Color32::from_rgb(24, 27, 36))
-        .stroke(Stroke::new(1.0, Color32::from_rgb(40, 45, 60)))
+        .fill(Color32::from_rgb(0, 0, 0))
+        .stroke(Stroke::new(1.0, Color32::from_rgb(32, 36, 48)))
         .corner_radius(CornerRadius::same(8))
         .inner_margin(Margin::symmetric(16, 12))
         .show(ui, |ui| {
@@ -75,6 +75,59 @@ pub fn settings_row<R>(
     }).inner
 }
 
+/// Modern Fluent Settings Row with modified indicator dot and 1-click Reset button
+pub fn settings_row_resettable<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    description: &str,
+    is_modified: bool,
+    mut on_reset: impl FnMut(),
+    control: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                if is_modified {
+                    let (resp, painter) = ui.allocate_painter(Vec2::new(7.0, 7.0), Sense::hover());
+                    painter.circle_filled(resp.rect.center(), 2.5, VortexTheme::POT_YELLOW);
+                }
+                ui.label(RichText::new(title).size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                if is_modified {
+                    let reset_btn = ui.add(
+                        egui::Button::new(RichText::new("↺").size(11.0).color(Color32::from_rgb(140, 146, 168)))
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::NONE)
+                    );
+                    if reset_btn.on_hover_text("Reset this setting to default").clicked() {
+                        on_reset();
+                    }
+                }
+            });
+            if !description.is_empty() {
+                ui.label(RichText::new(description).size(10.5).color(Color32::from_rgb(140, 146, 168)));
+            }
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            control(ui)
+        }).inner
+    }).inner
+}
+
+pub fn recommended_badge(ui: &mut egui::Ui) {
+    ui.label(
+        RichText::new(" RECOMMENDED ")
+            .size(9.0)
+            .strong()
+            .color(Color32::from_rgb(40, 210, 120))
+            .background_color(Color32::from_rgb(16, 42, 28))
+    );
+}
+
+pub fn info_tooltip(ui: &mut egui::Ui, text: &str) {
+    ui.label(RichText::new("ℹ").size(11.0).color(Color32::from_rgb(140, 150, 180)))
+        .on_hover_text(text);
+}
+
 /// Section title and subtitle header
 pub fn section_header(ui: &mut egui::Ui, breadcrumb: &str, title: &str, description: &str) {
     ui.label(RichText::new(breadcrumb).size(10.5).color(Color32::from_rgb(130, 136, 155)));
@@ -86,6 +139,305 @@ pub fn section_header(ui: &mut egui::Ui, breadcrumb: &str, title: &str, descript
     ui.add_space(8.0);
 }
 
+pub fn parse_hex_color(hex: &str) -> Color32 {
+    let s = hex.trim().trim_start_matches('#');
+    if s.len() == 6 {
+        if let Ok(val) = u32::from_str_radix(s, 16) {
+            let r = ((val >> 16) & 0xFF) as u8;
+            let g = ((val >> 8) & 0xFF) as u8;
+            let b = (val & 0xFF) as u8;
+            return Color32::from_rgb(r, g, b);
+        }
+    } else if s.len() == 8 {
+        if let Ok(val) = u32::from_str_radix(s, 16) {
+            let a = ((val >> 24) & 0xFF) as u8;
+            let r = ((val >> 16) & 0xFF) as u8;
+            let g = ((val >> 8) & 0xFF) as u8;
+            let b = (val & 0xFF) as u8;
+            return Color32::from_rgba_unmultiplied(r, g, b, a);
+        }
+    }
+    Color32::WHITE
+}
+
+pub fn color_to_hex(c: Color32) -> String {
+    if c.a() == 255 {
+        format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b())
+    } else {
+        format!("#{:02X}{:02X}{:02X}{:02X}", c.a(), c.r(), c.g(), c.b())
+    }
+}
+
+pub fn render_subtitle_preview(ui: &mut egui::Ui, config: &AppConfig) {
+    ui.add_space(2.0);
+    settings_card(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Live Subtitle Preview").size(12.0).strong().color(Color32::from_rgb(215, 220, 235)));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(RichText::new("Real-time rendering sample").size(10.5).color(Color32::from_rgb(130, 136, 155)));
+            });
+        });
+        ui.add_space(4.0);
+
+        let preview_h = 75.0;
+        let preview_w = ui.available_width();
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(preview_w, preview_h), Sense::hover());
+
+        let painter = ui.painter();
+        // Cinematic dark gradient background simulating a video player scene
+        painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgb(14, 16, 22));
+        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, Color32::from_rgb(38, 42, 58)), StrokeKind::Inside);
+
+        let sample_text = "The quick brown fox jumps over the lazy dog";
+        let sub_color = parse_hex_color(&config.subtitle_color);
+        let border_color = parse_hex_color(&config.subtitle_outline_color);
+        let shadow_color = parse_hex_color(&config.subtitle_shadow_color);
+        let box_color = parse_hex_color(&config.subtitle_background_color);
+
+        let display_size = (config.subtitle_font_size * 0.70).clamp(13.0, 24.0);
+        let font_id = FontId::new(display_size, egui::FontFamily::Proportional);
+
+        let text_center = Pos2::new(rect.center().x, rect.center().y);
+
+        // Draw background box if enabled
+        if config.subtitle_background_box {
+            let padding = Vec2::new(16.0, 5.0);
+            let approx_box_rect = Rect::from_center_size(text_center, Vec2::new((preview_w - 40.0).max(200.0), display_size + padding.y * 2.0));
+            painter.rect_filled(approx_box_rect, CornerRadius::same(4), box_color);
+        }
+
+        // Draw shadow if offset > 0
+        if config.subtitle_shadow_offset > 0.0 {
+            let s_off = Vec2::new(config.subtitle_shadow_offset * 0.7, config.subtitle_shadow_offset * 0.7);
+            painter.text(
+                text_center + s_off,
+                Align2::CENTER_CENTER,
+                sample_text,
+                font_id.clone(),
+                shadow_color,
+            );
+        }
+
+        // Draw outline / stroke
+        if config.subtitle_outline_width > 0.0 {
+            let b_w = (config.subtitle_outline_width * 0.6).clamp(0.8, 3.5);
+            for (dx, dy) in &[
+                (-b_w, 0.0), (b_w, 0.0), (0.0, -b_w), (0.0, b_w),
+                (-b_w, -b_w), (b_w, b_w), (-b_w, b_w), (b_w, -b_w),
+            ] {
+                painter.text(
+                    text_center + Vec2::new(*dx, *dy),
+                    Align2::CENTER_CENTER,
+                    sample_text,
+                    font_id.clone(),
+                    border_color,
+                );
+            }
+        }
+
+        // Draw primary text
+        painter.text(
+            text_center,
+            Align2::CENTER_CENTER,
+            sample_text,
+            font_id,
+            sub_color,
+        );
+    });
+}
+
+pub fn render_osd_preview(ui: &mut egui::Ui, config: &AppConfig) {
+    ui.add_space(2.0);
+    settings_card(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Live On-Screen Display (OSD) Preview").size(12.0).strong().color(Color32::from_rgb(215, 220, 235)));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(RichText::new("y = 48px below Top Bar").size(10.5).color(Color32::from_rgb(130, 136, 155)));
+            });
+        });
+        ui.add_space(4.0);
+
+        let preview_h = 70.0;
+        let preview_w = ui.available_width();
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(preview_w, preview_h), Sense::hover());
+        let painter = ui.painter();
+
+        // Dark simulated video backdrop
+        painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgb(12, 14, 20));
+        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, Color32::from_rgb(34, 38, 52)), StrokeKind::Inside);
+
+        // Top bar mock line
+        let bar_rect = Rect::from_min_size(rect.left_top(), Vec2::new(preview_w, 16.0));
+        painter.rect_filled(bar_rect, CornerRadius::ZERO, Color32::from_rgb(20, 22, 30));
+        painter.text(bar_rect.left_center() + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, "▶ VortexPlayer - BigBuckBunny_4K.mkv", FontId::proportional(9.0), Color32::from_rgb(160, 165, 185));
+
+        // OSD Pill positioned below the top bar
+        let font_sz = (config.osd_font_size * 0.75).clamp(11.0, 20.0);
+        let pill_text = "🔊 Volume 80%";
+        let pill_w = 115.0;
+        let pill_h = font_sz + 8.0;
+        let pill_center = Pos2::new(rect.center().x, rect.top() + 24.0 + (pill_h / 2.0));
+        let pill_rect = Rect::from_center_size(pill_center, Vec2::new(pill_w, pill_h));
+
+        painter.rect_filled(pill_rect, CornerRadius::same((pill_h / 2.0) as u8), Color32::from_rgba_unmultiplied(22, 26, 38, 220));
+        painter.rect_stroke(pill_rect, CornerRadius::same((pill_h / 2.0) as u8), Stroke::new(1.0, Color32::from_rgb(60, 75, 110)), StrokeKind::Inside);
+        painter.text(pill_center, Align2::CENTER_CENTER, pill_text, FontId::proportional(font_sz), Color32::WHITE);
+    });
+}
+
+pub fn render_color_tuning_preview(ui: &mut egui::Ui, config: &AppConfig) {
+    ui.add_space(2.0);
+    settings_card(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Live Video Tone & Color Calibration Preview").size(12.0).strong().color(Color32::from_rgb(215, 220, 235)));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(RichText::new("Real-time shader emulation").size(10.5).color(Color32::from_rgb(130, 136, 155)));
+            });
+        });
+        ui.add_space(4.0);
+
+        let preview_h = 42.0;
+        let preview_w = ui.available_width();
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(preview_w, preview_h), Sense::hover());
+        let painter = ui.painter();
+
+        painter.rect_filled(rect, CornerRadius::same(6), Color32::from_rgb(10, 10, 14));
+        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, Color32::from_rgb(34, 38, 52)), StrokeKind::Inside);
+
+        let b_factor = (config.video_brightness / 100.0) as f32;
+        let c_factor = (config.video_contrast / 100.0) as f32;
+        let s_factor = (config.video_saturation / 100.0) as f32;
+
+        let adjust_color = |r: u8, g: u8, b: u8| -> Color32 {
+            let mut rf = (r as f32) / 255.0;
+            let mut gf = (g as f32) / 255.0;
+            let mut bf = (b as f32) / 255.0;
+
+            rf = ((rf - 0.5) * c_factor + 0.5) * b_factor;
+            gf = ((gf - 0.5) * c_factor + 0.5) * b_factor;
+            bf = ((bf - 0.5) * c_factor + 0.5) * b_factor;
+
+            let gray = 0.299 * rf + 0.587 * gf + 0.114 * bf;
+            rf = gray + (rf - gray) * s_factor;
+            gf = gray + (gf - gray) * s_factor;
+            bf = gray + (bf - gray) * s_factor;
+
+            Color32::from_rgb(
+                (rf.clamp(0.0, 1.0) * 255.0) as u8,
+                (gf.clamp(0.0, 1.0) * 255.0) as u8,
+                (bf.clamp(0.0, 1.0) * 255.0) as u8,
+            )
+        };
+
+        let bar_count = 8;
+        let bar_w = (rect.width() - 8.0) / (bar_count as f32);
+        let base_colors = [
+            (240, 240, 240), // White
+            (220, 220, 40),  // Yellow
+            (40, 220, 220),  // Cyan
+            (40, 220, 40),   // Green
+            (220, 40, 220),  // Magenta
+            (220, 40, 40),   // Red
+            (40, 40, 220),   // Blue
+            (30, 30, 30),    // Dark Gray
+        ];
+
+        for (i, &(r, g, b)) in base_colors.iter().enumerate() {
+            let bar_rect = Rect::from_min_size(
+                Pos2::new(rect.left() + 4.0 + (i as f32) * bar_w, rect.top() + 4.0),
+                Vec2::new(bar_w - 2.0, rect.height() - 8.0),
+            );
+            let adj = adjust_color(r, g, b);
+            painter.rect_filled(bar_rect, CornerRadius::same(3), adj);
+        }
+    });
+}
+
+pub struct SearchEntry {
+    pub category: &'static str,
+    pub sub_category: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
+    pub keywords: &'static str,
+}
+
+pub const SEARCH_DATABASE: &[SearchEntry] = &[
+    SearchEntry { category: "General", sub_category: "Basic & Startup", title: "Theme Palette & Skin", description: "Aesthetic color theme for all window frames and dialogs", keywords: "theme dark light fluent skin appearance color" },
+    SearchEntry { category: "General", sub_category: "Basic & Startup", title: "Auto-Resume Playback", description: "Remember and seek to last played timestamp upon opening media", keywords: "resume remember timestamp position seek auto" },
+    SearchEntry { category: "General", sub_category: "Basic & Startup", title: "Auto-Queue Neighboring Episodes", description: "Scan folder for next sequential episodes and queue them", keywords: "playlist next episode binge anime series queue" },
+    SearchEntry { category: "General", sub_category: "Power & Performance", title: "Prevent System Sleep During Video", description: "Keep display awake and prevent computer standby", keywords: "sleep standby screen saver suspend power" },
+    SearchEntry { category: "General", sub_category: "Window & Screen", title: "Always on Top", description: "Keep the player window floating above other desktop applications", keywords: "top topmost float pin floating window" },
+    SearchEntry { category: "General", sub_category: "OSD Diagnostics", title: "OSD Font Size & Notification Placement", description: "Configure translucent on-screen telemetry pills and toast alerts", keywords: "osd overlay pills font text volume timecode duration" },
+    SearchEntry { category: "Playback", sub_category: "Time & Seeking", title: "Seek Step Durations", description: "Configure Left/Right arrow jump intervals in seconds", keywords: "seek skip arrows jump step interval seconds" },
+    SearchEntry { category: "Playback", sub_category: "Speed & Pitch", title: "Playback Speed & Pitch Correction", description: "Maintain natural voice pitch when speeding up or slowing down", keywords: "speed pitch scaletempo fast slow rate audio" },
+    SearchEntry { category: "Playback", sub_category: "Auto-Skip & Chapters", title: "Intro & Outro Auto-Skip", description: "Automatically jump over anime openings and episode intros", keywords: "skip intro opening op ed outro chapters" },
+    SearchEntry { category: "Video", sub_category: "Hardware Video Decoder", title: "Hardware Acceleration (D3D11VA / NVDEC)", description: "GPU hardware accelerated decoding pipeline", keywords: "hwdec gpu nvdec d3d11va cuda dxva intel nvidia acceleration" },
+    SearchEntry { category: "Video", sub_category: "Pixel Scalers & Anime4K", title: "Upscaling & Downscaling Filters", description: "Lanczos, EWA Spline, Bicubic scaling algorithms and deband", keywords: "scaler upscaler lanczos spline bicubic anime4k deband" },
+    SearchEntry { category: "Video", sub_category: "Color Adjustments", title: "Brightness, Contrast, Saturation & Gamma", description: "Real-time picture adjustment controls with live preview test card", keywords: "color brightness contrast saturation gamma hue picture" },
+    SearchEntry { category: "Audio", sub_category: "Output Device", title: "Audio Endpoint & WASAPI Exclusive", description: "Select sound output card and bit-perfect WASAPI mode", keywords: "wasapi exclusive dac soundcard headphones spdif device audio" },
+    SearchEntry { category: "Audio", sub_category: "Channels & Surround Matrix", title: "Audio Channels (Stereo / 5.1 / 7.1)", description: "Downmix or passthrough surround speaker channels", keywords: "stereo surround 5.1 7.1 channels downmix passthrough" },
+    SearchEntry { category: "Audio", sub_category: "18-Band Equalizer", title: "Graphic Equalizer Presets & Bands", description: "Fine-tune 18-frequency acoustic spectrum", keywords: "eq equalizer bands bass treble acoustic sound rock pop vocal" },
+    SearchEntry { category: "Subtitles", sub_category: "Font & Typography", title: "Subtitle Font Family & Size", description: "Select font typeface, pt size, bold, italic, and letter spacing", keywords: "font family size pt typography bold italic tracking letter spacing" },
+    SearchEntry { category: "Subtitles", sub_category: "Colors, Outlines & Shadow", title: "Subtitle Color, Outlines & Drop Shadow", description: "Text color, outline border, soft glow blur, and drop shadow", keywords: "color outline border blur glow shadow box background yellow white" },
+    SearchEntry { category: "Subtitles", sub_category: "Position, Margins & Canvas", title: "Subtitle Position & Letterbox", description: "Vertical placement, horizontal alignment, and letterbox rendering", keywords: "position align top bottom margin letterbox canvas frame" },
+    SearchEntry { category: "Subtitles", sub_category: "Engine, ASS & Dual Subtitles", title: "ASS Styling Override & Dual Subtitles", description: "Advanced SubStation Alpha styling override and secondary subtitles", keywords: "ass ssa override dual secondary subtitle styling" },
+    SearchEntry { category: "Subtitles", sub_category: "Language Priority & Download", title: "Subtitle Track Priority", description: "Preferred subtitle languages and automated downloader", keywords: "language track priority opensubtitles download english" },
+    SearchEntry { category: "Input & Hotkeys", sub_category: "Keyboard & Global Hotkeys", title: "Keyboard Shortcuts & Controls", description: "View and customize hotkeys", keywords: "hotkey shortcut keyboard key input bindings controls" },
+    SearchEntry { category: "Advanced", sub_category: "Profiles, Backup & Reset", title: "Demuxer Buffer & Custom mpv Options", description: "RAM cache, demuxer readahead, custom parameters, and JSON export", keywords: "buffer cache demuxer ram export import backup reset json" },
+];
+
+pub fn get_category_modified_count(category: &str, config: &AppConfig, def: &AppConfig) -> usize {
+    match category {
+        "General" => {
+            let mut c = 0;
+            if config.theme_mode != def.theme_mode { c += 1; }
+            if config.auto_resume != def.auto_resume { c += 1; }
+            if config.auto_load_next_episode != def.auto_load_next_episode { c += 1; }
+            if config.always_on_top != def.always_on_top { c += 1; }
+            if (config.osd_font_size - def.osd_font_size).abs() > 0.5 { c += 1; }
+            c
+        }
+        "Playback" => {
+            let mut c = 0;
+            if (config.seek_step_short - def.seek_step_short).abs() > 0.1 { c += 1; }
+            if (config.playback_speed - def.playback_speed).abs() > 0.05 { c += 1; }
+            c
+        }
+        "Video" => {
+            let mut c = 0;
+            if config.hardware_decoding != def.hardware_decoding { c += 1; }
+            if config.video_deband != def.video_deband { c += 1; }
+            if (config.video_brightness - def.video_brightness).abs() > 0.5 { c += 1; }
+            if (config.video_contrast - def.video_contrast).abs() > 0.5 { c += 1; }
+            if (config.video_saturation - def.video_saturation).abs() > 0.5 { c += 1; }
+            c
+        }
+        "Audio" => {
+            let mut c = 0;
+            if config.audio_channels != def.audio_channels { c += 1; }
+            if config.wasapi_exclusive != def.wasapi_exclusive { c += 1; }
+            if config.eq_enabled != def.eq_enabled { c += 1; }
+            c
+        }
+        "Subtitles" => {
+            let mut c = 0;
+            if (config.subtitle_font_size - def.subtitle_font_size).abs() > 0.5 { c += 1; }
+            if config.subtitle_color != def.subtitle_color { c += 1; }
+            if config.subtitle_bold != def.subtitle_bold { c += 1; }
+            if config.subtitle_ass_override != def.subtitle_ass_override { c += 1; }
+            if (config.subtitle_vertical_pos - def.subtitle_vertical_pos).abs() > 0.5 { c += 1; }
+            c
+        }
+        "Advanced" => {
+            let mut c = 0;
+            if (config.cache_demuxer_sec - def.cache_demuxer_sec).abs() > 0.5 { c += 1; }
+            if config.cache_demuxer_mb != def.cache_demuxer_mb { c += 1; }
+            c
+        }
+        _ => 0,
+    }
+}
+
 pub struct PreferencesDialog {
     pub active_category: String,
     pub active_sub_category: String,
@@ -93,6 +445,7 @@ pub struct PreferencesDialog {
     pub new_preset_name: String,
     pub is_naming_preset: bool,
     pub save_feedback_time: f64,
+    pub feedback_message: String,
 }
 
 impl Default for PreferencesDialog {
@@ -104,6 +457,7 @@ impl Default for PreferencesDialog {
             new_preset_name: String::new(),
             is_naming_preset: false,
             save_feedback_time: 0.0,
+            feedback_message: String::new(),
         }
     }
 }
@@ -135,14 +489,14 @@ impl PreferencesDialog {
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(18, 20, 26))
+                        .fill(Color32::from_rgb(0, 0, 0))
                         .inner_margin(Margin::same(14)),
                 )
                 .show(ctx, |ui| {
                     // Top Modern Search Bar Capsule
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(26, 29, 38))
-                        .stroke(Stroke::new(1.0, Color32::from_rgb(42, 46, 60)))
+                        .fill(Color32::from_rgb(10, 10, 14))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(36, 40, 52)))
                         .corner_radius(CornerRadius::same(8))
                         .inner_margin(Margin::symmetric(12, 8))
                         .show(ui, |ui| {
@@ -162,7 +516,135 @@ impl PreferencesDialog {
                                 }
                             });
                         });
-                    ui.add_space(8.0);
+                    ui.add_space(5.0);
+
+                    // Master Profiles Quick Setup Ribbon
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(32, 36, 48)))
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::symmetric(10, 5))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("⚡ Quick Profiles:").size(11.0).strong().color(Color32::from_rgb(160, 166, 185)));
+                                ui.add_space(2.0);
+
+                                let prof_high = ui.add(
+                                    egui::Button::new(RichText::new("🚀 Dedicated GPU").size(10.5).color(Color32::from_rgb(220, 230, 255)))
+                                        .fill(Color32::from_rgb(26, 32, 48))
+                                        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 60, 95)))
+                                        .corner_radius(CornerRadius::same(4))
+                                );
+                                if prof_high.on_hover_text("D3D11VA hardware acceleration, 800MB buffer, debanding, sharp scaling").clicked() {
+                                    config.hardware_decoding = "d3d11va".to_string();
+                                    config.cache_demuxer_sec = 60.0;
+                                    config.cache_demuxer_mb = 800;
+                                    config.video_deband = true;
+                                    config.video_sharpen = 0.4;
+                                    config.video_sync_mode = "display-resample".to_string();
+                                    config.framedrop_mode = "vo".to_string();
+                                    if let Some(p) = player {
+                                        p.set_hwdec("d3d11va");
+                                        p.set_property_string("deband", "yes");
+                                    }
+                                    let _ = config.save();
+                                    self.feedback_message = "🚀 Dedicated GPU Profile Applied (D3D11VA • 800MB Cache • Deband On)".to_string();
+                                    self.save_feedback_time = ui.ctx().input(|i| i.time);
+                                }
+
+                                let prof_batt = ui.add(
+                                    egui::Button::new(RichText::new("🔋 Battery Saver").size(10.5).color(Color32::from_rgb(220, 245, 230)))
+                                        .fill(Color32::from_rgb(20, 36, 28))
+                                        .stroke(Stroke::new(1.0, Color32::from_rgb(35, 75, 50)))
+                                        .corner_radius(CornerRadius::same(4))
+                                );
+                                if prof_batt.on_hover_text("Low power consumption, auto-safe hwdec, 128MB cache, minimal CPU/GPU drain").clicked() {
+                                    config.hardware_decoding = "auto-safe".to_string();
+                                    config.cache_demuxer_sec = 15.0;
+                                    config.cache_demuxer_mb = 128;
+                                    config.video_deband = false;
+                                    config.video_sharpen = 0.0;
+                                    config.video_sync_mode = "audio".to_string();
+                                    config.framedrop_mode = "nonref".to_string();
+                                    if let Some(p) = player {
+                                        p.set_hwdec("auto-safe");
+                                        p.set_property_string("deband", "no");
+                                    }
+                                    let _ = config.save();
+                                    self.feedback_message = "🔋 Battery Saver Profile Applied (Low RAM • Minimal GPU Draw)".to_string();
+                                    self.save_feedback_time = ui.ctx().input(|i| i.time);
+                                }
+
+                                let prof_audio = ui.add(
+                                    egui::Button::new(RichText::new("🎧 Audiophile Hi-Fi").size(10.5).color(Color32::from_rgb(255, 235, 215)))
+                                        .fill(Color32::from_rgb(42, 30, 20))
+                                        .stroke(Stroke::new(1.0, Color32::from_rgb(90, 60, 35)))
+                                        .corner_radius(CornerRadius::same(4))
+                                );
+                                if prof_audio.on_hover_text("Bit-perfect WASAPI Exclusive, Soxr high-precision resampler, uncompressed dynamics").clicked() {
+                                    config.audio_channels = "2.0".to_string();
+                                    config.wasapi_exclusive = true;
+                                    config.audio_normalize = false;
+                                    config.eq_enabled = false;
+                                    if let Some(p) = player {
+                                        p.set_wasapi_exclusive(true);
+                                        p.set_audio_channels("stereo");
+                                    }
+                                    let _ = config.save();
+                                    self.feedback_message = "🎧 Audiophile Hi-Fi Profile Applied (WASAPI Exclusive • Pure Stereo)".to_string();
+                                    self.save_feedback_time = ui.ctx().input(|i| i.time);
+                                }
+
+                                let prof_anime = ui.add(
+                                    egui::Button::new(RichText::new("🎬 Anime / Clear Art").size(10.5).color(Color32::from_rgb(255, 240, 190)))
+                                        .fill(Color32::from_rgb(38, 34, 18))
+                                        .stroke(Stroke::new(1.0, Color32::from_rgb(85, 75, 30)))
+                                        .corner_radius(CornerRadius::same(4))
+                                );
+                                if prof_anime.on_hover_text("Deband gradient fix, sharpen, high-visibility yellow subtitles with dark outline").clicked() {
+                                    config.video_deband = true;
+                                    config.video_sharpen = 0.5;
+                                    config.subtitle_color = "#FFE600".to_string();
+                                    config.subtitle_outline_width = 3.0;
+                                    config.subtitle_bold = true;
+                                    config.subtitle_ass_override = "scale".to_string();
+                                    if let Some(p) = player {
+                                        p.set_property_string("deband", "yes");
+                                        p.apply_all_subtitle_settings(config);
+                                    }
+                                    let _ = config.save();
+                                    self.feedback_message = "🎬 Anime & Clear Art Profile Applied (Yellow Subs • Deband • Scaled ASS)".to_string();
+                                    self.save_feedback_time = ui.ctx().input(|i| i.time);
+                                }
+
+                                let prof_reset = ui.add(
+                                    egui::Button::new(RichText::new("↺ Defaults").size(10.5).color(Color32::from_rgb(180, 185, 200)))
+                                        .fill(Color32::from_rgb(24, 26, 34))
+                                        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
+                                        .corner_radius(CornerRadius::same(4))
+                                );
+                                if prof_reset.on_hover_text("Restore balanced standard factory defaults").clicked() {
+                                    *config = AppConfig::default();
+                                    if let Some(p) = player {
+                                        p.apply_all_subtitle_settings(config);
+                                        p.set_hwdec(&config.hardware_decoding);
+                                    }
+                                    let _ = config.save();
+                                    self.feedback_message = "↺ Balanced Factory Defaults Restored".to_string();
+                                    self.save_feedback_time = ui.ctx().input(|i| i.time);
+                                }
+
+                                if !self.feedback_message.is_empty() {
+                                    let now = ui.ctx().input(|i| i.time);
+                                    if now - self.save_feedback_time < 3.5 {
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            ui.label(RichText::new(&self.feedback_message).size(10.5).color(VortexTheme::POT_YELLOW).strong());
+                                        });
+                                    }
+                                }
+                            });
+                        });
+                    ui.add_space(6.0);
 
                 let available_h = (ui.available_height() - 46.0).max(350.0);
                 ui.allocate_ui_with_layout(
@@ -180,12 +662,14 @@ impl PreferencesDialog {
                                 ("▶", "Playback", &["Time & Seeking", "Speed & Pitch", "Auto-Skip & Chapters", "Loop & End Actions"]),
                                 ("🎬", "Video", &["Hardware Video Decoder", "Renderer & Presentation", "Pixel Scalers & Anime4K", "HDR & Color Management", "Aspect Ratio & Framing", "Color Adjustments"]),
                                 ("🔊", "Audio", &["Output Device", "Channels & Surround Matrix", "DSP & Volume Dynamics", "18-Band Equalizer", "Soxr Resampling & ReplayGain"]),
-                                ("💬", "Subtitles", &["Engine & Dual Subtitles", "Typography & Positioning", "Language Priority & Download"]),
+                                ("💬", "Subtitles", &["Font & Typography", "Colors, Outlines & Shadow", "Position, Margins & Canvas", "Engine, ASS & Dual Subtitles", "Language Priority & Download"]),
                                 ("⌨", "Input & Hotkeys", &["Keyboard & Global Hotkeys", "Gamepad & Controller"]),
                                 ("🌐", "Network & Cloud", &["Stream Buffering & Protocols"]),
                                 ("🧩", "Integration", &["Windows SMTC & Shell"]),
                                 ("⚡", "Advanced", &["Profiles, Backup & Reset"]),
                             ];
+
+                            let def_cfg = AppConfig::default();
 
                             egui::ScrollArea::vertical()
                                 .id_salt("pref_tree_scroll")
@@ -194,6 +678,7 @@ impl PreferencesDialog {
                                 .show(ui, |ui| {
                                     for (icon, section, sub_items) in tree_sections {
                                         let is_section_active = self.active_category == *section;
+                                        let mod_cnt = get_category_modified_count(section, config, &def_cfg);
 
                                         ui.add_space(8.0);
                                         ui.horizontal(|ui| {
@@ -204,6 +689,9 @@ impl PreferencesDialog {
                                                     .size(11.5)
                                                     .color(if is_section_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(180, 186, 205) }),
                                             );
+                                            if mod_cnt > 0 {
+                                                ui.label(RichText::new(format!("● {}", mod_cnt)).size(9.0).color(VortexTheme::POT_YELLOW).strong());
+                                            }
                                         });
                                         ui.add_space(2.0);
 
@@ -265,7 +753,58 @@ impl PreferencesDialog {
                                 .show(ui, |ui| {
                                     let query = self.search_query.trim().to_lowercase();
                                     if !query.is_empty() {
-                                        ui.label(RichText::new(format!("Search Results for \"{}\":", self.search_query)).strong().color(VortexTheme::POT_YELLOW));
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(format!("🔍 Search Results for \"{}\":", self.search_query)).strong().color(VortexTheme::POT_YELLOW).size(13.0));
+                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                if ui.small_button("Clear Search ✕").clicked() {
+                                                    self.search_query.clear();
+                                                }
+                                            });
+                                        });
+                                        ui.add_space(4.0);
+
+                                        let mut match_count = 0;
+                                        for item in SEARCH_DATABASE {
+                                            if item.title.to_lowercase().contains(&query)
+                                                || item.description.to_lowercase().contains(&query)
+                                                || item.category.to_lowercase().contains(&query)
+                                                || item.sub_category.to_lowercase().contains(&query)
+                                                || item.keywords.contains(&query)
+                                            {
+                                                match_count += 1;
+                                                settings_card(ui, |ui| {
+                                                    ui.horizontal(|ui| {
+                                                        ui.vertical(|ui| {
+                                                            ui.label(RichText::new(format!("{}  ›  {}", item.category, item.sub_category)).size(10.0).color(Color32::from_rgb(130, 136, 155)));
+                                                            ui.label(RichText::new(item.title).size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                                            ui.label(RichText::new(item.description).size(10.5).color(Color32::from_rgb(140, 146, 168)));
+                                                        });
+                                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                            let jump_btn = ui.add(
+                                                                egui::Button::new(RichText::new("Jump to Setting →").size(11.0).color(VortexTheme::POT_YELLOW))
+                                                                    .fill(Color32::from_rgb(32, 36, 48))
+                                                                    .stroke(Stroke::new(1.0, Color32::from_rgb(55, 60, 80)))
+                                                                    .corner_radius(CornerRadius::same(5))
+                                                            );
+                                                            if jump_btn.clicked() {
+                                                                self.active_category = item.category.to_string();
+                                                                self.active_sub_category = item.sub_category.to_string();
+                                                                self.search_query.clear();
+                                                            }
+                                                        });
+                                                    });
+                                                });
+                                                ui.add_space(3.0);
+                                            }
+                                        }
+
+                                        if match_count == 0 {
+                                            settings_card(ui, |ui| {
+                                                ui.label(RichText::new(format!("No settings matched \"{}\". Try searching for 'decoder', 'subtitles', 'cache', 'audio', or 'hotkeys'.", query)).color(Color32::from_rgb(160, 165, 180)).size(11.0));
+                                            });
+                                        }
+                                        ui.add_space(8.0);
+                                        ui.separator();
                                         ui.add_space(4.0);
                                     }
 
@@ -433,6 +972,8 @@ impl PreferencesDialog {
                                     }
                                     ("General", "OSD Diagnostics") => {
                                         section_header(ui, "General  ›  OSD Diagnostics", "OSD Diagnostics", "Configure on-screen notifications, seekbar hover scrubbing, and diagnostic HUD.");
+                                        render_osd_preview(ui, config);
+                                        ui.add_space(8.0);
                                         settings_card(ui, |ui| {
                                             settings_row(ui, "OSD Notification Duration", "Duration in milliseconds that status alerts stay visible", |ui| {
                                                 ui.add(egui::Slider::new(&mut config.osd_duration_ms, 500..=5000).suffix(" ms"));
@@ -444,6 +985,29 @@ impl PreferencesDialog {
                                             ui.separator();
                                             settings_row(ui, "Seekbar Hover Thumbnail Scrubbing", "Show real-time preview card when hovering over the progress bar", |ui| {
                                                 fluent_switch(ui, &mut config.show_seekbar_thumbnail);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Toast Notification Placement", "Screen position and layout for floating status cards", |ui| {
+                                                egui::ComboBox::from_id_salt("pref_toast_position_combo")
+                                                    .selected_text(config.toast_position.display_name())
+                                                    .width(170.0)
+                                                    .show_ui(ui, |ui| {
+                                                        ui.selectable_value(
+                                                            &mut config.toast_position,
+                                                            crate::config::ToastPosition::BottomRight,
+                                                            "Bottom-Right (Auto-Avoid)",
+                                                        );
+                                                        ui.selectable_value(
+                                                            &mut config.toast_position,
+                                                            crate::config::ToastPosition::BottomLeft,
+                                                            "Bottom-Left (Dock)",
+                                                        );
+                                                        ui.selectable_value(
+                                                            &mut config.toast_position,
+                                                            crate::config::ToastPosition::TopRight,
+                                                            "Top-Right (Notification Hub)",
+                                                        );
+                                                    });
                                             });
                                         });
                                         ui.add_space(8.0);
@@ -511,6 +1075,14 @@ impl PreferencesDialog {
                                             ui.separator();
                                             settings_row(ui, "Ending / Outro Duration", "Number of seconds to skip before file ends", |ui| {
                                                 ui.add(egui::DragValue::new(&mut config.skip_outro_sec).range(0.0..=300.0).suffix(" s"));
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Auto-Skip Chapters by Title", "Automatically skip chapters matching intro, OP, ED, recap, or credits keywords", |ui| {
+                                                fluent_switch(ui, &mut config.skip_chapters_enabled);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Chapter Skip Keywords", "Semicolon-separated keywords (e.g. opening;begin;ending;intro;credits;op;ed;)", |ui| {
+                                                ui.add(egui::TextEdit::singleline(&mut config.skip_chapter_titles).desired_width(280.0));
                                             });
                                         });
                                     }
@@ -733,6 +1305,8 @@ impl PreferencesDialog {
                                     }
                                     ("Video", "Color Adjustments") => {
                                         section_header(ui, "Video  ›  Color Adjustments", "Color Adjustments", "Precision video brightness, contrast, saturation, and unsharp masking.");
+                                        render_color_tuning_preview(ui, config);
+                                        ui.add_space(8.0);
                                         settings_card(ui, |ui| {
                                             settings_row(ui, "Brightness", "Luminance offset (-100% to +100%)", |ui| {
                                                 ui.horizontal(|ui| {
@@ -1124,8 +1698,8 @@ impl PreferencesDialog {
                                             if self.is_naming_preset {
                                                 ui.add_space(4.0);
                                                 egui::Frame::new()
-                                                    .fill(Color32::from_rgb(20, 22, 30))
-                                                    .stroke(Stroke::new(1.0, Color32::from_rgb(50, 55, 75)))
+                                                    .fill(Color32::from_rgb(10, 10, 14))
+                                                    .stroke(Stroke::new(1.0, Color32::from_rgb(40, 45, 60)))
                                                     .corner_radius(CornerRadius::same(6))
                                                     .inner_margin(Margin::symmetric(10, 6))
                                                     .show(ui, |ui| {
@@ -1165,8 +1739,8 @@ impl PreferencesDialog {
                                             }
 
                                             egui::Frame::new()
-                                                .fill(Color32::from_rgb(18, 20, 26))
-                                                .stroke(Stroke::new(1.0, Color32::from_rgb(38, 42, 54)))
+                                                .fill(Color32::from_rgb(0, 0, 0))
+                                                .stroke(Stroke::new(1.0, Color32::from_rgb(32, 36, 48)))
                                                 .corner_radius(CornerRadius::same(6))
                                                 .inner_margin(Margin::symmetric(10, 8))
                                                 .show(ui, |ui| {
@@ -1323,40 +1897,255 @@ impl PreferencesDialog {
                                     }
 
                                     // ──────────────────────────────────────────────
-                                    // 5. SUBTITLES
+                                    // 5. SUBTITLES (POTPLAYER-GRADE CUSTOMIZATION)
                                     // ──────────────────────────────────────────────
-                                    ("Subtitles", "Engine & Dual Subtitles") => {
-                                        section_header(ui, "Subtitles  ›  Engine & Dual Subtitles", "Dual Subtitles & Renderer", "Simultaneous dual-track rendering and language learning support.");
+                                    ("Subtitles", "Font & Typography") | ("Subtitles", "Typography & Positioning") => {
+                                        section_header(ui, "Subtitles  ›  Font & Typography", "Font & Typography", "Custom typeface, font scaling, bold/italic weights, and letter spacing.");
+                                        render_subtitle_preview(ui, config);
+                                        ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Multi-Track Subtitle Engine").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
-                                            ui.label(RichText::new("• Primary Subtitle: Rendered cleanly along the bottom of the video viewport\n• 2nd Dual Subtitle: Rendered along the top of the viewport for side-by-side language acquisition\n• Format Support: ASS, SSA, SRT, VTT, SUB, SAMI with full font attachment rendering").size(11.0).color(Color32::from_rgb(140, 146, 165)));
-                                        });
-                                    }
-                                    ("Subtitles", "Typography & Positioning") => {
-                                        section_header(ui, "Subtitles  ›  Typography & Positioning", "Typography & Positioning", "Font styling, sizing, outline weight, and letterbox canvas placement.");
-                                        settings_card(ui, |ui| {
-                                            settings_row(ui, "Font Family", "Custom typeface font name", |ui| {
+                                            settings_row(ui, "Font Family", "Primary subtitle typeface name", |ui| {
                                                 ui.add(egui::TextEdit::singleline(&mut config.subtitle_sub_font).hint_text("e.g. Segoe UI, Arial, Trebuchet MS"));
                                             });
-                                            ui.separator();
-                                            settings_row(ui, "Font Size", "Baseline typography point size", |ui| {
-                                                ui.add(egui::Slider::new(&mut config.subtitle_font_size, 14.0..=72.0).suffix(" pt"));
+                                            ui.horizontal(|ui| {
+                                                ui.label(RichText::new("Quick Fonts:").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                                for font in &["Segoe UI", "Arial", "Trebuchet MS", "Verdana", "Inter", "Roboto", "Consolas", "Georgia"] {
+                                                    let is_sel = config.subtitle_sub_font == *font;
+                                                    if ui.selectable_label(is_sel, *font).clicked() {
+                                                        config.subtitle_sub_font = font.to_string();
+                                                    }
+                                                }
                                             });
                                             ui.separator();
-                                            settings_row(ui, "Vertical Position", "Vertical distance from screen top", |ui| {
-                                                ui.add(egui::Slider::new(&mut config.subtitle_vertical_pos, 40.0..=100.0).suffix(" %"));
-                                            });
-                                            ui.separator();
-                                            settings_row(ui, "Outline Thickness", "High-contrast shadow border width", |ui| {
-                                                ui.add(egui::Slider::new(&mut config.subtitle_outline_width, 0.0..=8.0).suffix(" px"));
-                                            });
-                                            ui.separator();
-                                            settings_row(ui, "Display Canvas Placement", "Letterbox black bar vs inside video bounds", |ui| {
-                                                ui.vertical(|ui| {
-                                                    ui.radio_value(&mut config.subtitle_render_to_video, false, "Render in Black Bar Letterbox (Default)");
-                                                    ui.radio_value(&mut config.subtitle_render_to_video, true, "Force Render Inside Video Frame");
+                                            settings_row(ui, "Font Size", "Baseline typography point size (pt)", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    if ui.small_button("−").clicked() {
+                                                        config.subtitle_font_size = (config.subtitle_font_size - 1.0).max(12.0);
+                                                    }
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_font_size, 12.0..=72.0).suffix(" pt"));
+                                                    if ui.small_button("+").clicked() {
+                                                        config.subtitle_font_size = (config.subtitle_font_size + 1.0).min(72.0);
+                                                    }
+                                                    if ui.small_button("↺ 28").clicked() {
+                                                        config.subtitle_font_size = 28.0;
+                                                    }
                                                 });
                                             });
+                                            ui.separator();
+                                            settings_row(ui, "Bold Font Weight", "Render subtitles with bold stroke thickness", |ui| {
+                                                fluent_switch(ui, &mut config.subtitle_bold);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Italic Font Style", "Render subtitles in italicized typeface", |ui| {
+                                                fluent_switch(ui, &mut config.subtitle_italic);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Letter / Character Spacing", "Fine tracking distance between letters", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_letter_spacing, -4.0..=10.0).suffix(" px"));
+                                                    if ui.small_button("↺ 0").clicked() {
+                                                        config.subtitle_letter_spacing = 0.0;
+                                                    }
+                                                });
+                                            });
+                                        });
+                                    }
+                                    ("Subtitles", "Colors, Outlines & Shadow") => {
+                                        section_header(ui, "Subtitles  ›  Colors, Outlines & Shadow", "Colors, Outlines & Drop Shadow", "High-contrast font colors, stroke borders, soft blur glow, and shadow depth.");
+                                        render_subtitle_preview(ui, config);
+                                        ui.add_space(8.0);
+                                        settings_card(ui, |ui| {
+                                            // Text Color
+                                            settings_row(ui, "Subtitle Text Color", "Primary fill color for unstyled subtitles", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let mut col = parse_hex_color(&config.subtitle_color);
+                                                    if ui.color_edit_button_srgba(&mut col).changed() {
+                                                        config.subtitle_color = color_to_hex(col);
+                                                    }
+                                                    ui.add(egui::TextEdit::singleline(&mut config.subtitle_color).desired_width(75.0));
+                                                });
+                                            });
+                                            ui.horizontal(|ui| {
+                                                ui.label(RichText::new("Preset Colors:").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                                let swatches = [
+                                                    ("White", "#FFFFFF"),
+                                                    ("PotPlayer Yellow", "#FFE600"),
+                                                    ("Bright Yellow", "#FFFF00"),
+                                                    ("Soft Amber", "#FFCC00"),
+                                                    ("Cyan", "#00FFFF"),
+                                                    ("Mint", "#A8FFB2"),
+                                                ];
+                                                for (name, hex) in swatches {
+                                                    if ui.selectable_label(config.subtitle_color.eq_ignore_ascii_case(hex), name).clicked() {
+                                                        config.subtitle_color = hex.to_string();
+                                                    }
+                                                }
+                                            });
+                                            ui.separator();
+
+                                            // Outline / Stroke
+                                            settings_row(ui, "Outline / Stroke Color", "Border color enclosing subtitle typography", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let mut col = parse_hex_color(&config.subtitle_outline_color);
+                                                    if ui.color_edit_button_srgba(&mut col).changed() {
+                                                        config.subtitle_outline_color = color_to_hex(col);
+                                                    }
+                                                    ui.add(egui::TextEdit::singleline(&mut config.subtitle_outline_color).desired_width(75.0));
+                                                });
+                                            });
+                                            settings_row(ui, "Outline Thickness", "Stroke border width around letters", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_outline_width, 0.0..=8.0).suffix(" px"));
+                                                    if ui.small_button("Thin").clicked() { config.subtitle_outline_width = 1.5; }
+                                                    if ui.small_button("Medium").clicked() { config.subtitle_outline_width = 2.5; }
+                                                    if ui.small_button("Thick").clicked() { config.subtitle_outline_width = 4.0; }
+                                                    if ui.small_button("Off").clicked() { config.subtitle_outline_width = 0.0; }
+                                                });
+                                            });
+                                            settings_row(ui, "Outline Soft Blur Radius", "Sub-pixel gaussian blur for soft cinematic glow", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_border_blur, 0.0..=10.0).suffix(" px"));
+                                                    if ui.small_button("↺ 0").clicked() { config.subtitle_border_blur = 0.0; }
+                                                });
+                                            });
+                                            ui.separator();
+
+                                            // Drop Shadow
+                                            settings_row(ui, "Drop Shadow Color", "Tint and transparency of subtitle shadow", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let mut col = parse_hex_color(&config.subtitle_shadow_color);
+                                                    if ui.color_edit_button_srgba(&mut col).changed() {
+                                                        config.subtitle_shadow_color = color_to_hex(col);
+                                                    }
+                                                    ui.add(egui::TextEdit::singleline(&mut config.subtitle_shadow_color).desired_width(85.0));
+                                                });
+                                            });
+                                            settings_row(ui, "Drop Shadow Distance", "3D projection offset behind characters", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_shadow_offset, 0.0..=10.0).suffix(" px"));
+                                                    if ui.small_button("Subtle").clicked() { config.subtitle_shadow_offset = 1.5; }
+                                                    if ui.small_button("Default").clicked() { config.subtitle_shadow_offset = 2.0; }
+                                                    if ui.small_button("Deep").clicked() { config.subtitle_shadow_offset = 4.0; }
+                                                    if ui.small_button("None").clicked() { config.subtitle_shadow_offset = 0.0; }
+                                                });
+                                            });
+                                            ui.separator();
+
+                                            // Background Bounding Box
+                                            settings_row(ui, "Background Bounding Box", "Display opaque or semi-transparent strip behind subtitles (PotPlayer style)", |ui| {
+                                                fluent_switch(ui, &mut config.subtitle_background_box);
+                                            });
+                                            if config.subtitle_background_box {
+                                                settings_row(ui, "Background Box Color & Opacity", "Tint and alpha level for bounding background strip", |ui| {
+                                                    ui.horizontal(|ui| {
+                                                        let mut col = parse_hex_color(&config.subtitle_background_color);
+                                                        if ui.color_edit_button_srgba(&mut col).changed() {
+                                                            config.subtitle_background_color = color_to_hex(col);
+                                                        }
+                                                        ui.add(egui::TextEdit::singleline(&mut config.subtitle_background_color).desired_width(85.0));
+                                                    });
+                                                });
+                                                ui.horizontal(|ui| {
+                                                    ui.label(RichText::new("Quick Opacity:").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                                    if ui.button("40% Tint").clicked() { config.subtitle_background_color = "#66000000".to_string(); }
+                                                    if ui.button("60% Standard").clicked() { config.subtitle_background_color = "#99000000".to_string(); }
+                                                    if ui.button("80% Heavy").clicked() { config.subtitle_background_color = "#CC000000".to_string(); }
+                                                    if ui.button("100% Solid").clicked() { config.subtitle_background_color = "#FF000000".to_string(); }
+                                                });
+                                            }
+                                        });
+                                    }
+                                    ("Subtitles", "Position, Margins & Canvas") => {
+                                        section_header(ui, "Subtitles  ›  Position, Margins & Canvas", "Position, Alignment & Canvas", "Screen vertical position, horizontal/vertical alignment, edge margins, and letterbox bounds.");
+                                        render_subtitle_preview(ui, config);
+                                        ui.add_space(8.0);
+                                        settings_card(ui, |ui| {
+                                            settings_row(ui, "Vertical Position", "Vertical distance from top of screen (% from 0 to 100)", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_vertical_pos, 0.0..=100.0).suffix(" %"));
+                                                    if ui.small_button("Bottom (92%)").clicked() { config.subtitle_vertical_pos = 92.0; }
+                                                    if ui.small_button("Center (50%)").clicked() { config.subtitle_vertical_pos = 50.0; }
+                                                    if ui.small_button("Top (10%)").clicked() { config.subtitle_vertical_pos = 10.0; }
+                                                });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Horizontal Alignment", "Screen horizontal text anchoring", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.selectable_value(&mut config.subtitle_align_x, "left".to_string(), "Left");
+                                                    ui.selectable_value(&mut config.subtitle_align_x, "center".to_string(), "Center (Default)");
+                                                    ui.selectable_value(&mut config.subtitle_align_x, "right".to_string(), "Right");
+                                                });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Vertical Alignment", "Screen vertical text baseline reference", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.selectable_value(&mut config.subtitle_align_y, "bottom".to_string(), "Bottom (Default)");
+                                                    ui.selectable_value(&mut config.subtitle_align_y, "center".to_string(), "Center");
+                                                    ui.selectable_value(&mut config.subtitle_align_y, "top".to_string(), "Top");
+                                                });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Horizontal Edge Margins", "Left and right safe margin border padding", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_margin_x, 0..=200).suffix(" px"));
+                                                    if ui.small_button("↺ 25").clicked() { config.subtitle_margin_x = 25; }
+                                                });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Vertical Edge Margins", "Top and bottom safe margin border padding", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_margin_y, 0..=150).suffix(" px"));
+                                                    if ui.small_button("↺ 22").clicked() { config.subtitle_margin_y = 22; }
+                                                });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Display Canvas Placement", "Letterbox black bars vs inside video bounds", |ui| {
+                                                ui.vertical(|ui| {
+                                                    ui.radio_value(&mut config.subtitle_render_to_video, false, "Render in Black Bar Letterbox (Recommended)");
+                                                    ui.radio_value(&mut config.subtitle_render_to_video, true, "Force Render Inside Video Frame Pixels");
+                                                });
+                                            });
+                                        });
+                                    }
+                                    ("Subtitles", "Engine, ASS & Dual Subtitles") | ("Subtitles", "Engine & Dual Subtitles") => {
+                                        section_header(ui, "Subtitles  ›  Engine, ASS & Dual Subtitles", "Renderer Engine, ASS Styling & Dual Subtitles", "ASS/SSA override control, multi-track dual subtitles, and format rendering engine.");
+                                        settings_card(ui, |ui| {
+                                            settings_row(ui, "ASS/SSA Styling Override Mode", "Control whether to preserve or override styled anime/fan subtitles", |ui| {
+                                                egui::ComboBox::from_id_salt("ass_override_mode")
+                                                    .selected_text(match config.subtitle_ass_override.as_str() {
+                                                        "no" => "Strict / Original (Preserve All ASS Effects)",
+                                                        "scale" => "Smart Scale (Scale to Resolution - Recommended)",
+                                                        "yes" => "Allow Font & Sizing Overrides",
+                                                        "force" => "Force All VortexPlayer Styles (Font, Color, Outline)",
+                                                        "strip" => "Strip ASS Tags (Render as Plain Subtitles)",
+                                                        _ => "Smart Scale",
+                                                    })
+                                                    .show_ui(ui, |ui| {
+                                                        ui.selectable_value(&mut config.subtitle_ass_override, "scale".to_string(), "Smart Scale (Scale to Resolution - Recommended)");
+                                                        ui.selectable_value(&mut config.subtitle_ass_override, "no".to_string(), "Strict / Original (Preserve All ASS Effects)");
+                                                        ui.selectable_value(&mut config.subtitle_ass_override, "yes".to_string(), "Allow Font & Sizing Overrides");
+                                                        ui.selectable_value(&mut config.subtitle_ass_override, "force".to_string(), "Force All VortexPlayer Styles (Font, Color, Outline)");
+                                                        ui.selectable_value(&mut config.subtitle_ass_override, "strip".to_string(), "Strip ASS Tags (Render as Plain Subtitles)");
+                                                    });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Secondary / Dual Subtitle Position", "Vertical position of secondary language track for side-by-side learning", |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let mut sec_pos = config.subtitle_secondary_pos as f32;
+                                                    let slider = ui.add(egui::Slider::new(&mut sec_pos, 0.0..=100.0).suffix(" %"));
+                                                    if slider.changed() {
+                                                        config.subtitle_secondary_pos = sec_pos as f64;
+                                                    }
+                                                    if ui.small_button("Top (10%)").clicked() { config.subtitle_secondary_pos = 10.0; }
+                                                    if ui.small_button("Upper-Third (25%)").clicked() { config.subtitle_secondary_pos = 25.0; }
+                                                    if ui.small_button("Bottom (90%)").clicked() { config.subtitle_secondary_pos = 90.0; }
+                                                });
+                                            });
+                                        });
+                                        ui.add_space(8.0);
+                                        settings_card(ui, |ui| {
+                                            ui.label(RichText::new("Multi-Track Subtitle Engine & Dual Playback").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                            ui.label(RichText::new("• Primary Subtitle: Rendered cleanly along the bottom of the video viewport\n• 2nd Dual Subtitle: Rendered along the top of the viewport for simultaneous language acquisition\n• Format Support: ASS, SSA, SRT, VTT, SUB, SAMI with full embedded font attachment rendering").size(11.0).color(Color32::from_rgb(140, 146, 165)));
                                         });
                                     }
                                     ("Subtitles", "Language Priority & Download") => {
@@ -1507,13 +2296,7 @@ impl PreferencesDialog {
                                 p.set_hwdec(&cfg.hardware_decoding);
                                 p.set_aspect_ratio(&cfg.aspect_ratio);
                                 p.set_video_align_y(&cfg.video_align_y);
-                                p.set_subtitle_font_size(cfg.subtitle_font_size);
-                                p.set_subtitle_pos(cfg.subtitle_vertical_pos);
-                                p.set_subtitle_border_size(cfg.subtitle_outline_width);
-                                if !cfg.subtitle_sub_font.is_empty() {
-                                    p.set_subtitle_font(&cfg.subtitle_sub_font);
-                                }
-                                p.set_property_string("sub-use-margins", if cfg.subtitle_render_to_video { "no" } else { "yes" });
+                                p.apply_all_subtitle_settings(cfg);
                                 p.set_property_string("video-sync", &cfg.video_sync_mode);
                                 p.set_property_string("framedrop", &cfg.framedrop_mode);
                                 p.set_property_double("demuxer-readahead-secs", cfg.cache_demuxer_sec);

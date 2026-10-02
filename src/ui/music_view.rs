@@ -37,15 +37,18 @@ impl MusicBackgroundView {
             return false;
         }
         let p = Path::new(&stats.file_path);
-        let ext_is_audio = if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-            matches!(
-                ext.to_lowercase().as_str(),
-                "mp3" | "flac" | "wav" | "m4a" | "aac" | "ogg" | "opus" | "wma" | "alac" | "aiff" | "ape" | "ac3" | "dts" | "mka" | "oga" | "wv" | "mid" | "midi"
-            )
-        } else {
-            false
-        };
-        ext_is_audio || (stats.video_width == 0 && (stats.video_codec.is_empty() || stats.video_codec == "none"))
+        if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+            let ext_lower = ext.to_lowercase();
+            // Video file extensions must NEVER be treated as songs (prevents album art flash during video load)
+            if crate::playlist::scanner::SUPPORTED_VIDEO_EXTENSIONS.contains(&ext_lower.as_str()) {
+                return false;
+            }
+            if crate::playlist::scanner::SUPPORTED_AUDIO_EXTENSIONS.contains(&ext_lower.as_str()) {
+                return true;
+            }
+        }
+        // For extensionless files: only treat as song if explicitly confirmed NO video stream and has audio
+        !stats.video_codec.is_empty() && stats.video_codec == "none" && stats.video_width == 0 && stats.audio_channels > 0
     }
 
     /// Locate cover art in song folder
@@ -395,6 +398,12 @@ impl MusicBackgroundView {
 
     pub fn render(&mut self, ui: &mut egui::Ui, player: &Player, rect: Rect, stats: &MediaStats) {
         if !Self::is_song(stats) {
+            if self.cover_texture.is_some() || self.blurred_texture.is_some() {
+                self.cover_texture = None;
+                self.blurred_texture = None;
+                self.cached_cover_path = None;
+                self.last_file_path.clear();
+            }
             return;
         }
 

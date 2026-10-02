@@ -2,7 +2,9 @@
 target/
 dist/
 *.exe
+*.EXE
 *.dll
+*.DLL
 *.7z
 *.res
 *.obj

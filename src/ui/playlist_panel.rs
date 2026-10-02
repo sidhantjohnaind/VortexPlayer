@@ -135,9 +135,9 @@ impl PlaylistPanel {
                     let is_default = playlist.active_tab == PlaylistTab::DefaultPlaylist;
                     let tab_txt = format!("Default ({})", playlist.items.len());
                     let (r, resp) = ui.allocate_exact_size(Vec2::new(95.0, 22.0), Sense::click());
-                    let bg = if is_default { Color32::from_rgb(50, 53, 64) } else { Color32::from_rgb(26, 28, 35) };
+                    let bg = if is_default { Color32::from_rgb(26, 28, 35) } else { Color32::from_rgb(8, 9, 12) };
                     ui.painter().rect_filled(r, CornerRadius::same(3), bg);
-                    ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, if is_default { Color32::from_rgb(70, 75, 95) } else { Color32::from_rgb(38, 41, 52) }), StrokeKind::Inside);
+                    ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, if is_default { Color32::from_rgb(55, 60, 75) } else { Color32::from_rgb(28, 30, 38) }), StrokeKind::Inside);
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, tab_txt, FontId::proportional(11.0), if is_default { Color32::WHITE } else { Color32::from_rgb(160, 165, 180) });
                     if resp.clicked() {
                         playlist.active_tab = PlaylistTab::DefaultPlaylist;
@@ -145,9 +145,9 @@ impl PlaylistPanel {
 
                     // "+" Add Tab / Add Files Button
                     let (plus_r, plus_resp) = ui.allocate_exact_size(Vec2::new(24.0, 22.0), Sense::click());
-                    let plus_bg = if plus_resp.hovered() { Color32::from_rgb(45, 48, 60) } else { Color32::from_rgb(26, 28, 35) };
+                    let plus_bg = if plus_resp.hovered() { Color32::from_rgb(30, 32, 40) } else { Color32::from_rgb(8, 9, 12) };
                     ui.painter().rect_filled(plus_r, CornerRadius::same(3), plus_bg);
-                    ui.painter().rect_stroke(plus_r, CornerRadius::same(3), Stroke::new(1.0, Color32::from_rgb(38, 41, 52)), StrokeKind::Inside);
+                    ui.painter().rect_stroke(plus_r, CornerRadius::same(3), Stroke::new(1.0, Color32::from_rgb(28, 30, 38)), StrokeKind::Inside);
                     ui.painter().text(plus_r.center(), Align2::CENTER_CENTER, "+", FontId::proportional(13.0), Color32::from_rgb(180, 185, 200));
                     if plus_resp.clicked() {
                         actions.add_files = true;
@@ -233,18 +233,18 @@ impl PlaylistPanel {
                         let painter = ui.painter();
 
                         let bg = if is_active {
-                            Color32::from_rgb(46, 50, 64)
+                            Color32::from_rgb(26, 28, 36)
                         } else if resp.hovered() {
-                            Color32::from_rgb(34, 37, 48)
+                            Color32::from_rgb(18, 20, 26)
                         } else {
-                            Color32::from_rgb(22, 24, 30)
+                            Color32::from_rgb(0, 0, 0)
                         };
 
                         painter.rect_filled(r, CornerRadius::same(3), bg);
                         painter.rect_stroke(
                             r,
                             CornerRadius::same(3),
-                            Stroke::new(1.0, if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(38, 42, 52) }),
+                            Stroke::new(1.0, if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(30, 32, 40) }),
                             StrokeKind::Inside,
                         );
 
@@ -286,11 +286,11 @@ impl PlaylistPanel {
                             let painter = ui.painter();
 
                             let bg = if is_active {
-                                Color32::from_rgb(38, 41, 52)
+                                Color32::from_rgb(22, 24, 30)
                             } else if resp.hovered() {
-                                Color32::from_rgb(28, 30, 38)
+                                Color32::from_rgb(16, 17, 22)
                             } else {
-                                Color32::from_rgb(18, 20, 25)
+                                Color32::from_rgb(0, 0, 0)
                             };
 
                             painter.rect_filled(r, CornerRadius::same(2), bg);
@@ -415,19 +415,19 @@ impl PlaylistPanel {
                                 let painter = ui.painter();
 
                                 let bg = if is_current {
-                                    Color32::from_rgb(38, 42, 50)
+                                    Color32::from_rgb(24, 27, 35)
                                 } else if resp.hovered() {
-                                    Color32::from_rgb(44, 48, 58)
+                                    Color32::from_rgb(18, 20, 26)
                                 } else if row_idx % 2 == 1 {
-                                    Color32::from_rgb(20, 22, 27)
+                                    Color32::from_rgb(6, 7, 10)
                                 } else {
-                                    Color32::from_rgb(16, 17, 22)
+                                    Color32::from_rgb(0, 0, 0)
                                 };
 
                                 painter.rect_filled(rect, CornerRadius::same(2), bg);
 
                                 if is_current {
-                                    painter.rect_stroke(rect, CornerRadius::same(2), Stroke::new(1.0, Color32::from_rgb(60, 68, 85)), StrokeKind::Inside);
+                                    painter.rect_stroke(rect, CornerRadius::same(2), Stroke::new(1.0, Color32::from_rgb(50, 58, 72)), StrokeKind::Inside);
                                 }
 
                                 // Format badge icon on the left (e.g. green FLAC badge)
@@ -650,7 +650,7 @@ impl PlaylistPanel {
                         d.get_temp(cache_id).unwrap_or_else(|| (PathBuf::new(), Vec::new()))
                     });
 
-                    if cached_dir != *browser_dir || (dir_items.is_empty() && browser_dir.exists()) {
+                    if cached_dir != *browser_dir {
                         dir_items.clear();
                         if let Ok(entries) = std::fs::read_dir(&*browser_dir) {
                             for entry in entries.flatten() {

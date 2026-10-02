@@ -86,6 +86,7 @@ pub struct MenuActions {
     pub play_path: Option<PathBuf>,
     pub sub_sync_changed: bool,
     pub resize_window_factor: Option<f32>,
+    pub open_subtitle_preferences: bool,
 }
 
 
@@ -324,25 +325,14 @@ fn submenu_item<R>(
     if is_open {
         let win_size = ui.ctx().input(|i| i.viewport().inner_rect.or(i.raw.screen_rect)).map(|r| r.size()).unwrap_or(Vec2::new(1280.0, 720.0));
         let last_rect: Option<Rect> = ui.ctx().data(|d| d.get_temp(item_id.with("submenu_rect")));
-        // Submenu bounds are persisted between frames for stable cascading
-        // hover behavior. Cap the cached width so one long label cannot make
-        // the entire context submenu expand into an oversized panel.
-        let sub_w = last_rect
-            .map(|r| r.width())
-            .unwrap_or(185.0)
-            .clamp(150.0, 300.0);
         let sub_h = last_rect.map(|r| r.height()).unwrap_or(360.0).max(160.0);
 
-        // Position popup: if right edge overflows screen, flip to the left side of the menu!
-        let right_x = rect.right() - 2.0;
-        let left_x = rect.left() - sub_w + 2.0;
-
-        let popup_x = if right_x + sub_w <= win_size.x - 8.0 {
-            right_x
-        } else if left_x >= 8.0 {
-            left_x
+        // Submenu cascading direction: if right edge overflows screen, flip to the left side
+        let open_right = rect.right() + 185.0 <= win_size.x - 8.0;
+        let (popup_x, pivot) = if open_right {
+            (rect.right() - 2.0, egui::Align2::LEFT_TOP)
         } else {
-            (win_size.x - sub_w - 8.0).max(8.0)
+            (rect.left() + 2.0, egui::Align2::RIGHT_TOP)
         };
 
         let max_menu_h = (win_size.y - 44.0).max(180.0);
@@ -357,10 +347,12 @@ fn submenu_item<R>(
         let area_resp = egui::Area::new(item_id.with("submenu_cascade_area"))
             .order(egui::Order::Tooltip)
             .fixed_pos(popup_pos)
+            .pivot(pivot)
             .show(ui.ctx(), |ui| {
+                ui.style_mut().animation_time = 0.0;
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(20, 22, 28))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(42, 45, 58)))
+                    .fill(Color32::from_rgb(0, 0, 0))
+                    .stroke(Stroke::new(1.0, Color32::from_rgb(38, 42, 54)))
                     .corner_radius(CornerRadius::ZERO)
                     .shadow(egui::Shadow {
                         offset: [0, 8],
@@ -370,9 +362,8 @@ fn submenu_item<R>(
                     })
                     .inner_margin(Margin::symmetric(4, 5))
                     .show(ui, |ui| {
-                        // Match the outer popup width and clip long labels to
-                        // the available menu area instead of growing it.
-                        ui.set_width((sub_w - 8.0).clamp(142.0, 292.0));
+                        ui.set_min_width(175.0);
+                        ui.set_max_width(280.0);
                         egui::ScrollArea::vertical()
                             .max_height(max_menu_h)
                             .auto_shrink([true, true])
@@ -390,7 +381,7 @@ fn submenu_item<R>(
         let area_menu_state_id = area_resp.response.id.with("active_submenu_id");
         let child_open_id: Option<egui::Id> = ui.ctx().data(|d| d.get_temp(area_menu_state_id)).flatten();
         let child_active_rect: Option<Rect> = if let Some(child_id) = child_open_id {
-            ui.ctx().data(|d| d.get_temp(child_id.with("submenu_rect")))
+            ui.ctx().data(|d| d.get_temp(child_id.with("submenu_bridge_rect")).or_else(|| d.get_temp(child_id.with("submenu_rect"))))
         } else {
             None
         };
@@ -402,7 +393,8 @@ fn submenu_item<R>(
         };
 
         ui.ctx().data_mut(|d| {
-            d.insert_temp(item_id.with("submenu_rect"), total_active_rect);
+            d.insert_temp(item_id.with("submenu_rect"), actual_rect);
+            d.insert_temp(item_id.with("submenu_bridge_rect"), total_active_rect);
             let list: &mut Vec<Rect> = d.get_temp_mut_or_default(egui::Id::new("all_active_submenu_rects"));
             list.push(actual_rect);
         });
@@ -600,6 +592,7 @@ impl PotMenu {
             play_path: None,
             sub_sync_changed: false,
             resize_window_factor: None,
+            open_subtitle_preferences: false,
         };
 
 
@@ -625,8 +618,8 @@ impl PotMenu {
         visuals.widgets.active.bg_stroke = Stroke::NONE;
         visuals.widgets.active.corner_radius = CornerRadius::ZERO;
         visuals.menu_corner_radius = CornerRadius::ZERO;
-        visuals.window_fill = Color32::from_rgb(20, 22, 28);
-        visuals.window_stroke = Stroke::NONE;
+        visuals.window_fill = Color32::from_rgb(0, 0, 0);
+        visuals.window_stroke = Stroke::new(1.0, Color32::from_rgb(38, 42, 54));
         visuals.window_shadow = egui::Shadow {
             offset: [0, 8],
             blur: 24,
@@ -836,8 +829,11 @@ impl PotMenu {
                         let is_current = stats.current_chapter == Some(ch.index)
                             || (stats.current_chapter.is_none() && ch.time_pos <= stats.time_pos && stats.chapters.iter().filter(|c| c.time_pos <= stats.time_pos).last().map(|c| c.index) == Some(ch.index));
                         let time_str = format_time(ch.time_pos);
+                        let is_skip = config.matches_skip_chapter(&ch.title);
                         let label = if ch.title.trim().is_empty() {
                             format!("Chapter {} ({})", i + 1, time_str)
+                        } else if is_skip {
+                            format!("{} ({}) ⏭ [Skip]", ch.title.trim(), time_str)
                         } else {
                             format!("{} ({})", ch.title.trim(), time_str)
                         };
@@ -857,6 +853,11 @@ impl PotMenu {
                     let new_state = !auto_skip_on;
                     bookmark_mgr.auto_skip_bookmarks = new_state;
                     config.skip_intro_enabled = new_state;
+                    let _ = config.save();
+                    ui.close();
+                }
+                if menu_item(ui, &skin, if config.skip_chapters_enabled { "✓" } else { " " }, "Auto-Skip Chapters (OP/ED)", "", config.skip_chapters_enabled, false).clicked() {
+                    config.skip_chapters_enabled = !config.skip_chapters_enabled;
                     let _ = config.save();
                     ui.close();
                 }
@@ -1004,7 +1005,7 @@ impl PotMenu {
         // 3. SUBTITLES
         // =====================================================================
         submenu_item(ui, &skin, "💬", "Subtitles", |ui| {
-            ui.set_min_width(150.0);
+            ui.set_min_width(175.0);
             if menu_item(ui, &skin, "👁", "Show / Hide Subtitles", "Alt+H", false, false).clicked() {
                 if let Some(p) = player {
                     p.toggle_subtitles();
@@ -1021,14 +1022,11 @@ impl PotMenu {
                 actions.load_subtitle = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "📝", "Subtitle Studio...", "Ctrl+T", false, false).clicked() {
-                actions.toggle_subtitle_studio = true;
-                ui.close();
-            }
             menu_separator(ui);
 
+            // Subtitle Track Selection
             submenu_item(ui, &skin, "💬", "Select Subtitle Track", |ui| {
-                ui.set_min_width(140.0);
+                ui.set_min_width(160.0);
                 if stats.subtitle_tracks.is_empty() {
                     ui.label(RichText::new("  (No subtitle tracks)").size(11.0).color(skin.text_muted));
                 } else {
@@ -1044,12 +1042,296 @@ impl PotMenu {
                 }
             });
             menu_separator(ui);
+
+            // ── Subtitle Font & Style ──────────────────────────────────────────
+            submenu_item(ui, &skin, "🔤", "Font & Style", |ui| {
+                ui.set_min_width(170.0);
+                submenu_item(ui, &skin, "📏", "Font Size", |ui| {
+                    ui.set_min_width(160.0);
+                    if menu_item(ui, &skin, "➕", "Increase Size (+2 pt)", "Page Up", false, false).clicked() {
+                        config.subtitle_font_size = (config.subtitle_font_size + 2.0).clamp(12.0, 72.0);
+                        if let Some(p) = player { p.set_subtitle_font_size(config.subtitle_font_size); }
+                        let _ = config.save();
+                        ui.close();
+                    }
+                    if menu_item(ui, &skin, "➖", "Decrease Size (-2 pt)", "Page Down", false, false).clicked() {
+                        config.subtitle_font_size = (config.subtitle_font_size - 2.0).clamp(12.0, 72.0);
+                        if let Some(p) = player { p.set_subtitle_font_size(config.subtitle_font_size); }
+                        let _ = config.save();
+                        ui.close();
+                    }
+                    if menu_item(ui, &skin, "↺", "Reset Size (28 pt)", "Home", false, false).clicked() {
+                        config.subtitle_font_size = 28.0;
+                        if let Some(p) = player { p.set_subtitle_font_size(28.0); }
+                        let _ = config.save();
+                        ui.close();
+                    }
+                    menu_separator(ui);
+                    for &sz in &[16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 42.0, 48.0] {
+                        let is_sel = (config.subtitle_font_size - sz).abs() < 1.0;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, &format!("{:.0} pt", sz), "", is_sel, false).clicked() {
+                            config.subtitle_font_size = sz;
+                            if let Some(p) = player { p.set_subtitle_font_size(sz); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+
+                submenu_item(ui, &skin, "🅰", "Font Family", |ui| {
+                    ui.set_min_width(160.0);
+                    for font in &["Segoe UI", "Arial", "Trebuchet MS", "Verdana", "Inter", "Roboto", "Consolas", "Georgia"] {
+                        let is_sel = config.subtitle_sub_font == *font;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, font, "", is_sel, false).clicked() {
+                            config.subtitle_sub_font = font.to_string();
+                            if let Some(p) = player { p.set_subtitle_font(font); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+
+                let bold_mark = if config.subtitle_bold { "✓" } else { " " };
+                if menu_item(ui, &skin, bold_mark, "Bold Font Weight", "", config.subtitle_bold, false).clicked() {
+                    config.subtitle_bold = !config.subtitle_bold;
+                    if let Some(p) = player { p.set_subtitle_bold(config.subtitle_bold); }
+                    let _ = config.save();
+                    ui.close();
+                }
+
+                let italic_mark = if config.subtitle_italic { "✓" } else { " " };
+                if menu_item(ui, &skin, italic_mark, "Italic Font Style", "", config.subtitle_italic, false).clicked() {
+                    config.subtitle_italic = !config.subtitle_italic;
+                    if let Some(p) = player { p.set_subtitle_italic(config.subtitle_italic); }
+                    let _ = config.save();
+                    ui.close();
+                }
+
+                submenu_item(ui, &skin, "↔", "Letter Spacing", |ui| {
+                    ui.set_min_width(140.0);
+                    let spacings = [
+                        (-1.0, "Tight (-1 px)"),
+                        (0.0, "Normal (0 px - Default)"),
+                        (2.0, "Wide (+2 px)"),
+                        (4.0, "Very Wide (+4 px)"),
+                    ];
+                    for (sp, label) in spacings {
+                        let is_sel = (config.subtitle_letter_spacing - sp).abs() < 0.5;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                            config.subtitle_letter_spacing = sp;
+                            if let Some(p) = player { p.set_subtitle_letter_spacing(sp); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+            });
+
+            // ── Colors, Outline & Box ─────────────────────────────────────────
+            submenu_item(ui, &skin, "🎨", "Colors & Effects", |ui| {
+                ui.set_min_width(170.0);
+                submenu_item(ui, &skin, "🟡", "Text Color", |ui| {
+                    ui.set_min_width(160.0);
+                    let colors = [
+                        ("#FFFFFF", "White"),
+                        ("#FFE600", "PotPlayer Yellow"),
+                        ("#FFFF00", "Bright Yellow"),
+                        ("#FFCC00", "Soft Amber"),
+                        ("#00FFFF", "Cyan"),
+                        ("#A8FFB2", "Mint Green"),
+                    ];
+                    for (hex, label) in colors {
+                        let is_sel = config.subtitle_color.eq_ignore_ascii_case(hex);
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                            config.subtitle_color = hex.to_string();
+                            if let Some(p) = player { p.set_subtitle_color(hex); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+
+                submenu_item(ui, &skin, "🖌", "Outline Thickness", |ui| {
+                    ui.set_min_width(160.0);
+                    let outlines = [
+                        (0.0, "Off (0 px)"),
+                        (1.5, "Thin (1.5 px)"),
+                        (2.5, "Medium (2.5 px - Default)"),
+                        (4.0, "Thick (4.0 px)"),
+                        (6.0, "Extra Thick (6.0 px)"),
+                    ];
+                    for (w, label) in outlines {
+                        let is_sel = (config.subtitle_outline_width - w).abs() < 0.5;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                            config.subtitle_outline_width = w;
+                            if let Some(p) = player { p.set_subtitle_border_size(w); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+
+                submenu_item(ui, &skin, "✨", "Outline Soft Blur", |ui| {
+                    ui.set_min_width(160.0);
+                    let blurs = [
+                        (0.0, "Off (Crisp Edge)"),
+                        (1.5, "Subtle (1.5 px)"),
+                        (3.0, "Cinematic Glow (3.0 px)"),
+                        (5.0, "Heavy Glow (5.0 px)"),
+                    ];
+                    for (b, label) in blurs {
+                        let is_sel = (config.subtitle_border_blur - b).abs() < 0.5;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                            config.subtitle_border_blur = b;
+                            if let Some(p) = player { p.set_subtitle_border_blur(b); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+
+                submenu_item(ui, &skin, "🌑", "Drop Shadow", |ui| {
+                    ui.set_min_width(150.0);
+                    let shadows = [
+                        (0.0, "Off (0 px)"),
+                        (1.5, "Subtle (1.5 px)"),
+                        (2.0, "Standard (2.0 px - Default)"),
+                        (4.0, "Deep (4.0 px)"),
+                    ];
+                    for (s, label) in shadows {
+                        let is_sel = (config.subtitle_shadow_offset - s).abs() < 0.5;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                            config.subtitle_shadow_offset = s;
+                            if let Some(p) = player { p.set_subtitle_shadow_offset(s); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+
+                let box_mark = if config.subtitle_background_box { "✓" } else { " " };
+                if menu_item(ui, &skin, box_mark, "Background Bounding Box", "", config.subtitle_background_box, false).clicked() {
+                    config.subtitle_background_box = !config.subtitle_background_box;
+                    if let Some(p) = player { p.set_subtitle_background_box(config.subtitle_background_box, &config.subtitle_background_color); }
+                    let _ = config.save();
+                    ui.close();
+                }
+
+                if config.subtitle_background_box {
+                    submenu_item(ui, &skin, "⬛", "Box Opacity", |ui| {
+                        ui.set_min_width(140.0);
+                        let opacities = [
+                            ("#66000000", "40% Tint"),
+                            ("#99000000", "60% Standard"),
+                            ("#CC000000", "80% Heavy"),
+                            ("#FF000000", "100% Solid"),
+                        ];
+                        for (hex, label) in opacities {
+                            let is_sel = config.subtitle_background_color.eq_ignore_ascii_case(hex);
+                            if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                                config.subtitle_background_color = hex.to_string();
+                                if let Some(p) = player { p.set_subtitle_background_box(true, hex); }
+                                let _ = config.save();
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+            });
+
+            // ── Position & Placement ──────────────────────────────────────────
+            submenu_item(ui, &skin, "↕", "Position & Canvas", |ui| {
+                ui.set_min_width(170.0);
+                if menu_item(ui, &skin, "⬆", "Move Up (-5%)", "↑", false, false).clicked() {
+                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos - 5.0).clamp(0.0, 100.0);
+                    if let Some(p) = player { p.set_subtitle_pos(config.subtitle_vertical_pos); }
+                    let _ = config.save();
+                    ui.close();
+                }
+                if menu_item(ui, &skin, "⬇", "Move Down (+5%)", "↓", false, false).clicked() {
+                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos + 5.0).clamp(0.0, 100.0);
+                    if let Some(p) = player { p.set_subtitle_pos(config.subtitle_vertical_pos); }
+                    let _ = config.save();
+                    ui.close();
+                }
+                menu_separator(ui);
+                let pos_presets = [
+                    (92.0, "Bottom (92% - Default)"),
+                    (80.0, "Lower-Middle (80%)"),
+                    (50.0, "Center (50%)"),
+                    (10.0, "Top (10%)"),
+                ];
+                for (pos, label) in pos_presets {
+                    let is_sel = (config.subtitle_vertical_pos - pos).abs() < 3.0;
+                    if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                        config.subtitle_vertical_pos = pos;
+                        if let Some(p) = player { p.set_subtitle_pos(pos); }
+                        let _ = config.save();
+                        ui.close();
+                    }
+                }
+                menu_separator(ui);
+                submenu_item(ui, &skin, "↔", "Horizontal Alignment", |ui| {
+                    ui.set_min_width(140.0);
+                    for &(val, label) in &[("left", "Left"), ("center", "Center (Default)"), ("right", "Right")] {
+                        let is_sel = config.subtitle_align_x == val;
+                        if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                            config.subtitle_align_x = val.to_string();
+                            if let Some(p) = player { p.set_subtitle_align_x(val); }
+                            let _ = config.save();
+                            ui.close();
+                        }
+                    }
+                });
+                menu_separator(ui);
+                let lb_sel = !config.subtitle_render_to_video;
+                if menu_item(ui, &skin, if lb_sel { "✓" } else { " " }, "Render in Black Bar Letterbox", "", lb_sel, false).clicked() {
+                    config.subtitle_render_to_video = false;
+                    if let Some(p) = player { p.set_property_string("sub-use-margins", "yes"); }
+                    let _ = config.save();
+                    ui.close();
+                }
+                let vid_sel = config.subtitle_render_to_video;
+                if menu_item(ui, &skin, if vid_sel { "✓" } else { " " }, "Force Render Inside Video Frame", "", vid_sel, false).clicked() {
+                    config.subtitle_render_to_video = true;
+                    if let Some(p) = player { p.set_property_string("sub-use-margins", "no"); }
+                    let _ = config.save();
+                    ui.close();
+                }
+            });
+
+            // ── ASS / SSA Override Mode ───────────────────────────────────────
+            submenu_item(ui, &skin, "⚙", "ASS Styling Override", |ui| {
+                ui.set_min_width(190.0);
+                let modes = [
+                    ("scale", "Smart Scale (Scale to Resolution - Recommended)"),
+                    ("no", "Strict / Original (Preserve All ASS Effects)"),
+                    ("yes", "Allow Font & Sizing Overrides"),
+                    ("force", "Force All VortexPlayer Styles"),
+                    ("strip", "Strip ASS Tags (Plain Subtitles)"),
+                ];
+                for (mode, label) in modes {
+                    let is_sel = config.subtitle_ass_override == mode;
+                    if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                        config.subtitle_ass_override = mode.to_string();
+                        if let Some(p) = player { p.set_subtitle_ass_override(mode); }
+                        let _ = config.save();
+                        ui.close();
+                    }
+                }
+            });
+            menu_separator(ui);
+
             if menu_item(ui, &skin, "🌐", "Word Translator...", "Ctrl+Alt+W", false, false).clicked() {
                 actions.toggle_subtitle_translator = true;
                 ui.close();
             }
             if menu_item(ui, &skin, "🧠", "AI Speech-to-Text...", "Ctrl+Alt+3", false, false).clicked() {
                 actions.toggle_ai_subtitle = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "📝", "Subtitle Studio...", "Ctrl+T", false, false).clicked() {
+                actions.toggle_subtitle_studio = true;
                 ui.close();
             }
             menu_separator(ui);
@@ -1100,6 +1382,11 @@ impl PotMenu {
                     ui.close();
                 }
             });
+            menu_separator(ui);
+            if menu_item(ui, &skin, "⚙", "Subtitle Preferences...", "F5", false, false).clicked() {
+                actions.open_subtitle_preferences = true;
+                ui.close();
+            }
         });
 
         // =====================================================================

@@ -19,14 +19,18 @@ pub struct Toast {
     pub duration: Duration,
 }
 
+use crate::config::ToastPosition;
+
 pub struct ToastManager {
     pub toasts: Vec<Toast>,
+    pub anchor: ToastPosition,
 }
 
 impl Default for ToastManager {
     fn default() -> Self {
         Self {
             toasts: Vec::new(),
+            anchor: ToastPosition::BottomLeft,
         }
     }
 }
@@ -66,11 +70,6 @@ impl ToastManager {
     }
 
     pub fn render(&mut self, ctx: &egui::Context) {
-        self.toasts.retain(|t| t.created_at.elapsed() < t.duration);
-        if self.toasts.is_empty() {
-            return;
-        }
-
         let (win_w, win_h) = ctx.input(|i| {
             i.viewport()
                 .inner_rect
@@ -79,6 +78,14 @@ impl ToastManager {
                 .unwrap_or((1100.0, 680.0))
         });
         let screen_rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(win_w, win_h));
+        self.render_with_avoidance(ctx, screen_rect, None);
+    }
+
+    pub fn render_with_avoidance(&mut self, ctx: &egui::Context, screen_rect: Rect, avoid_rect: Option<Rect>) {
+        self.toasts.retain(|t| t.created_at.elapsed() < t.duration);
+        if self.toasts.is_empty() {
+            return;
+        }
 
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Tooltip,
@@ -106,8 +113,30 @@ impl ToastManager {
             let text_w = toast.message.len() as f32 * 7.0;
             let toast_w = (text_w + 52.0).clamp(220.0, (screen_rect.width() - 40.0).max(220.0));
 
-            let x = screen_rect.right() - toast_w - 18.0;
-            let y = screen_rect.bottom() - 85.0 - (i as f32 * (toast_h + gap));
+            let (x, y) = match self.anchor {
+                ToastPosition::BottomLeft => {
+                    let x = screen_rect.left() + 24.0;
+                    let y = screen_rect.bottom() - 85.0 - (i as f32 * (toast_h + gap));
+                    (x, y)
+                }
+                ToastPosition::BottomRight => {
+                    let x = screen_rect.right() - toast_w - 24.0;
+                    let base_y = if let Some(avoid) = avoid_rect {
+                        // Unconditionally float cleanly above the avoid rect with 12px margin!
+                        avoid.top() - 12.0 - toast_h
+                    } else {
+                        screen_rect.bottom() - 85.0
+                    };
+                    let y = base_y - (i as f32 * (toast_h + gap));
+                    (x, y)
+                }
+                ToastPosition::TopRight => {
+                    let x = screen_rect.right() - toast_w - 24.0;
+                    let y = 48.0 + (i as f32 * (toast_h + gap));
+                    (x, y)
+                }
+            };
+
             let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(toast_w, toast_h));
 
             let (accent_color, icon) = match toast.kind {

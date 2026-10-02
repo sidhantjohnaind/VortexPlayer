@@ -65,7 +65,7 @@ impl ControlPanel {
             .min_width(530.0)
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(20, 22, 28))
+                    .fill(Color32::from_rgb(0, 0, 0))
                     .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
                     .corner_radius(CornerRadius::same(6))
                     .inner_margin(egui::Margin::same(12)),
@@ -87,8 +87,8 @@ impl ControlPanel {
                     for (tab, label) in tabs {
                         let is_active = self.active_tab == tab;
                         let text_col = if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(175, 180, 195) };
-                        let bg_col = if is_active { Color32::from_rgb(38, 36, 28) } else { Color32::from_rgb(26, 28, 36) };
-                        let stroke_col = if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(44, 48, 60) };
+                        let bg_col = if is_active { Color32::from_rgb(32, 28, 14) } else { Color32::from_rgb(14, 15, 20) };
+                        let stroke_col = if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(38, 42, 54) };
 
                         let tab_btn = ui.add_sized(
                             Vec2::new(tab_w, 26.0),
@@ -358,8 +358,8 @@ impl ControlPanel {
                         // ── Inline Save Preset Dialog ──
                         if self.is_naming_preset {
                             egui::Frame::new()
-                                .fill(Color32::from_rgb(26, 28, 36))
-                                .stroke(Stroke::new(1.0, Color32::from_rgb(50, 55, 72)))
+                                .fill(Color32::from_rgb(10, 10, 14))
+                                .stroke(Stroke::new(1.0, Color32::from_rgb(40, 45, 60)))
                                 .corner_radius(CornerRadius::same(4))
                                 .inner_margin(egui::Margin::symmetric(10, 6))
                                 .show(ui, |ui| {
@@ -394,8 +394,8 @@ impl ControlPanel {
                         }
 
                         let fader_card = egui::Frame::new()
-                            .fill(Color32::from_rgb(14, 15, 20))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(34, 37, 46)))
+                            .fill(Color32::from_rgb(0, 0, 0))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(32, 35, 46)))
                             .corner_radius(CornerRadius::same(4))
                             .inner_margin(egui::Margin::symmetric(10, 8));
 
@@ -438,8 +438,8 @@ impl ControlPanel {
 
                         // ── Audio Delay & Dynamic Normalizer Card ──
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(18, 20, 26))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(34, 38, 48)))
+                            .fill(Color32::from_rgb(0, 0, 0))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(32, 35, 46)))
                             .corner_radius(CornerRadius::same(4))
                             .inner_margin(egui::Margin::symmetric(10, 8))
                             .show(ui, |ui| {
@@ -675,6 +675,67 @@ impl ControlPanel {
                                 player.set_subtitle_pos(95.0);
                                 let _ = config.save();
                             }
+                        });
+
+                        ui.separator();
+
+                        // Outline & Quick Toggles
+                        ui.horizontal(|ui| {
+                            ui.label("Outline Width:");
+                            let mut ow = config.subtitle_outline_width;
+                            let slider = ui.add(egui::Slider::new(&mut ow, 0.0..=8.0).suffix("px"));
+                            if slider.changed() {
+                                config.subtitle_outline_width = ow;
+                                player.set_subtitle_border_size(ow);
+                                let _ = config.save();
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.checkbox(&mut config.subtitle_bold, "Bold Font").changed() {
+                                player.set_subtitle_bold(config.subtitle_bold);
+                                let _ = config.save();
+                            }
+                            if ui.checkbox(&mut config.subtitle_background_box, "Background Box").changed() {
+                                player.set_subtitle_background_box(config.subtitle_background_box, &config.subtitle_background_color);
+                                let _ = config.save();
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("ASS Override:");
+                            let cur_ov = config.subtitle_ass_override.clone();
+                            egui::ComboBox::from_id_salt("cp_ass_override")
+                                .selected_text(match cur_ov.as_str() {
+                                    "no" => "Strict (Keep ASS)",
+                                    "scale" => "Smart Scale",
+                                    "yes" => "Allow Font Overrides",
+                                    "force" => "Force All Overrides",
+                                    "strip" => "Strip ASS Tags",
+                                    _ => "Smart Scale",
+                                })
+                                .show_ui(ui, |ui| {
+                                    if ui.selectable_label(config.subtitle_ass_override == "scale", "Smart Scale (Default)").clicked() {
+                                        config.subtitle_ass_override = "scale".to_string();
+                                        player.set_subtitle_ass_override(&config.subtitle_ass_override);
+                                        let _ = config.save();
+                                    }
+                                    if ui.selectable_label(config.subtitle_ass_override == "force", "Force All Overrides").clicked() {
+                                        config.subtitle_ass_override = "force".to_string();
+                                        player.set_subtitle_ass_override(&config.subtitle_ass_override);
+                                        let _ = config.save();
+                                    }
+                                    if ui.selectable_label(config.subtitle_ass_override == "no", "Strict (Keep ASS)").clicked() {
+                                        config.subtitle_ass_override = "no".to_string();
+                                        player.set_subtitle_ass_override(&config.subtitle_ass_override);
+                                        let _ = config.save();
+                                    }
+                                    if ui.selectable_label(config.subtitle_ass_override == "strip", "Strip ASS Tags").clicked() {
+                                        config.subtitle_ass_override = "strip".to_string();
+                                        player.set_subtitle_ass_override(&config.subtitle_ass_override);
+                                        let _ = config.save();
+                                    }
+                                });
                         });
                     }
                 }

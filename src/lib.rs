@@ -18,3 +18,4 @@ pub fn log_step(_msg: &str) {
         let _ = writeln!(f, "[{:?}] [PID {}] {}", std::time::SystemTime::now(), std::process::id(), _msg);
     }
 }
+

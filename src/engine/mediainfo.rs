@@ -122,9 +122,13 @@ pub fn get_mediainfo_text(file_path: &str, stats: &MediaStats) -> String {
         }
     }
 
-    // If file does not exist on disk (e.g. streaming URL like http://, rtmp://), synthesize directly
-    let is_local_file = Path::new(file_path).exists();
-    if !is_local_file {
+    // If file is a network streaming URL, synthesize directly without blocking disk/network check
+    let is_network_url = file_path.starts_with("http://")
+        || file_path.starts_with("https://")
+        || file_path.starts_with("rtmp://")
+        || file_path.starts_with("rtsp://")
+        || file_path.starts_with("mms://");
+    if is_network_url {
         let synthetic = generate_synthesized_file_info(stats);
         let mut cache = get_cache().lock().unwrap_or_else(|e| e.into_inner());
         cache.insert(file_path.to_string(), synthetic.clone());

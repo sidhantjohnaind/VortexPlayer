@@ -1,34 +1,154 @@
 #![allow(dead_code)]
 
 use super::theme::VortexTheme;
-use crate::bookmark::{format_time, BookmarkManager};
-use crate::config::AppConfig;
+use crate::bookmark::{format_time_hms, parse_time_hms, BookmarkManager};
+use crate::config::{AppConfig, ConfigSkipInterval};
 use crate::engine::chapters::ChapterItem;
 use crate::engine::Player;
 use eframe::egui::{self, Align2, Color32, CornerRadius, RichText, Stroke, Vec2};
 use std::sync::Arc;
 
+/// A single chapter-title keyword tag with its own enabled state.
+#[derive(Debug, Clone)]
+pub struct SkipTag {
+    pub keyword: String,
+    pub enabled: bool,
+}
+
+/// Default built-in keywords that PotPlayer ships.
+const DEFAULT_KEYWORDS: &[&str] = &[
+    "opening", "begin", "ending", "intro", "credits", "op", "ed",
+    "prologue", "recap", "preview", "theme", "outro",
+];
+
 pub struct AutoSkipDialog {
     pub is_open: bool,
-    pub new_start_sec: f64,
-    pub new_end_sec: f64,
-    pub new_label: String,
+    was_open: bool,
+
+    // Draft dialog state
+    pub enable_skip_feature: bool,
+    pub intro_at_start: bool,
+    pub intro_time_str: String,
+    pub ending_at_end: bool,
+    pub ending_time_str: String,
+    pub chapters_enabled: bool,
+    pub tags: Vec<SkipTag>,
+    pub new_tag_input: String,
+    pub intervals: Vec<ConfigSkipInterval>,
+    pub selected_index: Option<usize>,
+
+    // Add / Edit Modal sub-state
+    pub is_modal_open: bool,
+    pub modal_is_edit: bool,
+    pub modal_start_str: String,
+    pub modal_length_str: String,
+    pub modal_type_str: String,
 }
 
 impl Default for AutoSkipDialog {
     fn default() -> Self {
         Self {
             is_open: false,
-            new_start_sec: 0.0,
-            new_end_sec: 90.0,
-            new_label: "Opening Theme".to_string(),
+            was_open: false,
+            enable_skip_feature: false,
+            intro_at_start: false,
+            intro_time_str: "00:00:00".to_string(),
+            ending_at_end: false,
+            ending_time_str: "00:00:00".to_string(),
+            chapters_enabled: true,
+            tags: Vec::new(),
+            new_tag_input: String::new(),
+            intervals: Vec::new(),
+            selected_index: None,
+
+            is_modal_open: false,
+            modal_is_edit: false,
+            modal_start_str: "00:00:00".to_string(),
+            modal_length_str: "00:01:30".to_string(),
+            modal_type_str: "Skip".to_string(),
         }
     }
+}
+
+/// Parse the semicolon-delimited config string into a Vec<SkipTag>.
+fn tags_from_config_string(s: &str) -> Vec<SkipTag> {
+    let mut tags: Vec<SkipTag> = Vec::new();
+    for token in s.split(';') {
+        let t = token.trim();
+        if t.is_empty() {
+            continue;
+        }
+        // Tokens prefixed with '!' are disabled
+        let (keyword, enabled) = if let Some(stripped) = t.strip_prefix('!') {
+            (stripped.to_lowercase(), false)
+        } else {
+            (t.to_lowercase(), true)
+        };
+        if !keyword.is_empty() && !tags.iter().any(|tag| tag.keyword == keyword) {
+            tags.push(SkipTag { keyword, enabled });
+        }
+    }
+    // Ensure all defaults are present
+    for kw in DEFAULT_KEYWORDS {
+        let lower = kw.to_lowercase();
+        if !tags.iter().any(|tag| tag.keyword == lower) {
+            tags.push(SkipTag {
+                keyword: lower,
+                enabled: false,
+            });
+        }
+    }
+    tags
+}
+
+/// Serialize tags back into a semicolon-delimited string for config storage.
+/// Disabled tags are prefixed with '!'.
+fn tags_to_config_string(tags: &[SkipTag]) -> String {
+    tags.iter()
+        .map(|tag| {
+            if tag.enabled {
+                format!("{};", tag.keyword)
+            } else {
+                format!("!{};", tag.keyword)
+            }
+        })
+        .collect::<String>()
 }
 
 impl AutoSkipDialog {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    fn init_from_config(&mut self, config: &AppConfig, bookmark_mgr: &BookmarkManager) {
+        self.enable_skip_feature = config.skip_intro_enabled;
+        self.intro_at_start = config.skip_intro_at_start;
+        self.intro_time_str = format_time_hms(config.skip_intro_sec);
+        self.ending_at_end = config.skip_ending_at_end;
+        self.ending_time_str = format_time_hms(config.skip_outro_sec);
+        self.chapters_enabled = config.skip_chapters_enabled;
+        self.tags = tags_from_config_string(&config.skip_chapter_titles);
+        self.new_tag_input.clear();
+
+        // Combine config skip intervals with bookmark intervals if config is empty
+        if !config.skip_intervals.is_empty() {
+            self.intervals = config.skip_intervals.clone();
+        } else if !bookmark_mgr.skip_intervals.is_empty() {
+            self.intervals = bookmark_mgr
+                .skip_intervals
+                .iter()
+                .map(|item| ConfigSkipInterval {
+                    start: item.start,
+                    length: (item.end - item.start).max(0.0),
+                    interval_type: "Skip".to_string(),
+                    enabled: item.enabled,
+                })
+                .collect();
+        } else {
+            self.intervals.clear();
+        }
+        self.selected_index = None;
+        self.is_modal_open = false;
     }
 
     pub fn render(
@@ -37,404 +157,832 @@ impl AutoSkipDialog {
         bookmark_mgr: &mut BookmarkManager,
         config: &mut AppConfig,
         chapters: &[ChapterItem],
-        player: Option<&Arc<Player>>,
+        _player: Option<&Arc<Player>>,
         current_time: f64,
         duration: f64,
     ) -> Option<egui::Rect> {
         if !self.is_open {
+            self.was_open = false;
             return None;
         }
 
+        // Initialize state when opened
+        if !self.was_open {
+            self.init_from_config(config, bookmark_mgr);
+            self.was_open = true;
+        }
+
         let mut open = self.is_open;
-        let mut should_close = false;
+        let mut save_and_close = false;
+        let mut cancel_and_close = false;
 
-        let window_resp = egui::Window::new("Auto-Skip Range Manager & Table (PotPlayer Style)")
-            .id(egui::Id::new("auto_skip_range_manager_window"))
+        let window_resp = egui::Window::new("Skip Setup")
+            .id(egui::Id::new("potplayer_skip_setup_window"))
             .open(&mut open)
-            .resizable(true)
+            .resizable(false)
+            .collapsible(false)
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_width(700.0)
-            .default_height(500.0)
+            .fixed_size(Vec2::new(560.0, 520.0))
             .show(ctx, |ui| {
-                // 1. Master Engine Switch & Current Playhead
-                ui.horizontal(|ui| {
-                    let mut engine_active = bookmark_mgr.auto_skip_bookmarks || config.skip_intro_enabled;
-                    let engine_color = if engine_active { Color32::from_rgb(255, 90, 70) } else { Color32::GRAY };
-                    if ui.checkbox(
-                        &mut engine_active,
-                        RichText::new("Enable Auto-Skip Engine (Ctrl+Alt+S)")
-                            .strong()
-                            .color(engine_color),
-                    ).changed() {
-                        bookmark_mgr.auto_skip_bookmarks = engine_active;
-                        config.skip_intro_enabled = engine_active;
-                        let _ = config.save();
-                    }
+                ui.set_width(540.0);
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(format!("⏱ Playhead: {}", format_time(current_time)))
-                                .monospace()
-                                .color(Color32::from_rgb(180, 200, 240)),
-                        );
+                // =============================================================
+                // 1. Group Box: "Skip Playback"
+                // =============================================================
+                ui.group(|ui| {
+                    ui.set_width(540.0);
+                    ui.add_space(2.0);
+
+                    ui.label(
+                        RichText::new("Skip Playback")
+                            .strong()
+                            .size(13.0)
+                            .color(Color32::from_rgb(220, 225, 235)),
+                    );
+                    ui.label(
+                        RichText::new(
+                            "Skip feature allows you to set playback skip intervals.",
+                        )
+                        .size(11.5)
+                        .color(Color32::from_rgb(160, 165, 175)),
+                    );
+                    ui.add_space(4.0);
+
+                    // Checkbox: Enable skip feature
+                    ui.checkbox(
+                        &mut self.enable_skip_feature,
+                        "Enable skip feature",
+                    );
+                    ui.add_space(3.0);
+
+                    // Indented sub-options
+                    ui.horizontal(|ui| {
+                        ui.add_space(20.0);
+                        ui.vertical(|ui| {
+                            // Row 1: Intro (at the start)
+                            ui.horizontal(|ui| {
+                                ui.checkbox(
+                                    &mut self.intro_at_start,
+                                    "Intro (at the start)",
+                                );
+                                ui.add_space(30.0);
+                                ui.label("Skip");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.intro_time_str)
+                                        .desired_width(75.0)
+                                        .font(egui::TextStyle::Monospace),
+                                )
+                                .on_hover_text("HH:MM:SS (e.g. 00:01:30)");
+                            });
+                            ui.add_space(2.0);
+
+                            // Row 2: Ending (at the end)
+                            ui.horizontal(|ui| {
+                                ui.checkbox(
+                                    &mut self.ending_at_end,
+                                    "Ending (at the end)",
+                                );
+                                ui.add_space(25.0);
+                                ui.label("Skip");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.ending_time_str)
+                                        .desired_width(75.0)
+                                        .font(egui::TextStyle::Monospace),
+                                )
+                                .on_hover_text("HH:MM:SS (e.g. 00:01:30)");
+                            });
+                            ui.add_space(4.0);
+
+                            // Row 3: Chapter title(s) - toggleable tag chips
+                            ui.horizontal(|ui| {
+                                ui.checkbox(
+                                    &mut self.chapters_enabled,
+                                    "Chapter title(s)",
+                                );
+                            });
+
+                            // Tag chip area
+                            ui.add_space(2.0);
+                            ui.horizontal(|ui| {
+                                ui.add_space(20.0);
+                                ui.vertical(|ui| {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 3.0);
+
+                                        let mut remove_idx: Option<usize> = None;
+
+                                        for (idx, tag) in
+                                            self.tags.iter_mut().enumerate()
+                                        {
+                                            let (bg, fg, border) = if tag.enabled {
+                                                (
+                                                    Color32::from_rgb(35, 70, 42),
+                                                    Color32::from_rgb(120, 230, 140),
+                                                    Color32::from_rgb(60, 140, 80),
+                                                )
+                                            } else {
+                                                (
+                                                    Color32::from_rgb(40, 42, 48),
+                                                    Color32::from_rgb(130, 135, 150),
+                                                    Color32::from_rgb(65, 70, 80),
+                                                )
+                                            };
+
+                                            let label_text = format!(" {} ", tag.keyword);
+                                            let btn = egui::Button::new(
+                                                RichText::new(&label_text)
+                                                    .size(11.0)
+                                                    .color(fg),
+                                            )
+                                            .fill(bg)
+                                            .stroke(Stroke::new(1.0, border))
+                                            .corner_radius(CornerRadius::same(10));
+
+                                            let resp = ui.add(btn);
+
+                                            if resp.clicked() {
+                                                tag.enabled = !tag.enabled;
+                                            }
+                                            if resp.secondary_clicked() {
+                                                remove_idx = Some(idx);
+                                            }
+
+                                            let tooltip = if tag.enabled {
+                                                format!(
+                                                    "✅ '{}' — enabled (click to disable, right-click to remove)",
+                                                    tag.keyword
+                                                )
+                                            } else {
+                                                format!(
+                                                    "⬜ '{}' — disabled (click to enable, right-click to remove)",
+                                                    tag.keyword
+                                                )
+                                            };
+                                            resp.on_hover_text(tooltip);
+                                        }
+
+                                        if let Some(idx) = remove_idx {
+                                            self.tags.remove(idx);
+                                        }
+                                    });
+
+                                    // Add custom tag input
+                                    ui.add_space(2.0);
+                                    ui.horizontal(|ui| {
+                                        let te = ui.add(
+                                            egui::TextEdit::singleline(
+                                                &mut self.new_tag_input,
+                                            )
+                                            .desired_width(120.0)
+                                            .hint_text("New keyword..."),
+                                        );
+                                        let enter_pressed = te.lost_focus()
+                                            && ui.input(|i| {
+                                                i.key_pressed(egui::Key::Enter)
+                                            });
+
+                                        if (ui
+                                            .add(
+                                                egui::Button::new(
+                                                    RichText::new("+ Add")
+                                                        .size(10.5)
+                                                        .color(
+                                                            Color32::from_rgb(
+                                                                100, 200, 120,
+                                                            ),
+                                                        ),
+                                                )
+                                                .min_size(Vec2::new(42.0, 18.0)),
+                                            )
+                                            .clicked()
+                                            || enter_pressed)
+                                            && !self.new_tag_input.trim().is_empty()
+                                        {
+                                            let kw = self
+                                                .new_tag_input
+                                                .trim()
+                                                .to_lowercase();
+                                            if !self
+                                                .tags
+                                                .iter()
+                                                .any(|t| t.keyword == kw)
+                                            {
+                                                self.tags.push(SkipTag {
+                                                    keyword: kw,
+                                                    enabled: true,
+                                                });
+                                            }
+                                            self.new_tag_input.clear();
+                                        }
+
+                                        ui.label(
+                                            RichText::new(
+                                                "(click = toggle, right-click = remove)",
+                                            )
+                                            .size(9.5)
+                                            .color(Color32::from_rgb(110, 115, 130)),
+                                        );
+                                    });
+                                });
+                            });
+                        });
                     });
+                    ui.add_space(4.0);
                 });
 
-                ui.add_space(4.0);
-                ui.separator();
+                ui.add_space(6.0);
 
-                // 2. Global Preset Skip Durations (Opening / Ending)
-                ui.group(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Fixed Preset Skips:").strong().color(VortexTheme::POT_YELLOW));
-                        ui.add_space(10.0);
+                // =============================================================
+                // 2. Table: Start | Length | Interval | Interval Type
+                // =============================================================
+                let table_width = ui.available_width();
+                let col_start_w = 75.0;
+                let col_len_w = 75.0;
+                let col_int_w = 150.0;
 
-                        let mut intro_active = config.skip_intro_sec > 0.0;
-                        if ui.checkbox(&mut intro_active, "Skip Intro:").changed() {
-                            config.skip_intro_sec = if intro_active { 90.0 } else { 0.0 };
-                            let _ = config.save();
-                        }
-                        if intro_active {
-                            if ui.add(egui::DragValue::new(&mut config.skip_intro_sec).range(0.0..=300.0).speed(1.0).suffix("s")).changed() {
-                                let _ = config.save();
-                            }
-                        }
+                let frame_stroke = Stroke::new(1.0, Color32::from_rgb(60, 65, 75));
+                let header_bg = Color32::from_rgb(32, 35, 43);
+                let table_bg = Color32::from_rgb(22, 24, 29);
 
-                        ui.add_space(12.0);
+                egui::Frame::NONE
+                    .fill(table_bg)
+                    .stroke(frame_stroke)
+                    .corner_radius(CornerRadius::same(2))
+                    .show(ui, |ui| {
+                        // Header
+                        let (hdr_rect, _) = ui.allocate_exact_size(
+                            Vec2::new(table_width, 24.0),
+                            egui::Sense::hover(),
+                        );
+                        ui.painter().rect_filled(
+                            hdr_rect,
+                            CornerRadius::ZERO,
+                            header_bg,
+                        );
+                        ui.painter().line_segment(
+                            [hdr_rect.left_bottom(), hdr_rect.right_bottom()],
+                            Stroke::new(1.0, Color32::from_rgb(50, 55, 65)),
+                        );
 
-                        let mut outro_active = config.skip_outro_sec > 0.0;
-                        if ui.checkbox(&mut outro_active, "Skip Outro:").changed() {
-                            config.skip_outro_sec = if outro_active { 90.0 } else { 0.0 };
-                            let _ = config.save();
-                        }
-                        if outro_active {
-                            if ui.add(egui::DragValue::new(&mut config.skip_outro_sec).range(0.0..=300.0).speed(1.0).suffix("s")).changed() {
-                                let _ = config.save();
-                            }
-                        }
-
-                        // 1-Click Import Chapters Button
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let has_chapters = !chapters.is_empty();
-                            let import_btn = ui.add_enabled(
-                                has_chapters,
-                                egui::Button::new(RichText::new("📥 Import OP/ED from Chapters").strong().color(Color32::from_rgb(70, 180, 255))),
+                        let mut h_ui = ui
+                            .new_child(egui::UiBuilder::new().max_rect(hdr_rect));
+                        h_ui.horizontal(|ui| {
+                            ui.set_height(24.0);
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("Start")
+                                    .strong()
+                                    .size(11.5)
+                                    .color(Color32::from_rgb(210, 215, 225)),
                             );
-                            if import_btn.clicked() {
-                                let mut imported_count = 0;
-                                for (i, ch) in chapters.iter().enumerate() {
-                                    let u = ch.title.to_uppercase();
-                                    if u.contains("OP") || u.contains("OPENING") || u.contains("INTRO")
-                                        || u.contains("PROLOGUE") || u.contains("RECAP")
-                                        || u.contains("ED") || u.contains("ENDING") || u.contains("CREDITS")
-                                        || u.contains("PREVIEW") || u.contains("THEME")
+                            ui.add_space(col_start_w - 38.0);
+                            ui.label(
+                                RichText::new("Length")
+                                    .strong()
+                                    .size(11.5)
+                                    .color(Color32::from_rgb(210, 215, 225)),
+                            );
+                            ui.add_space(col_len_w - 48.0);
+                            ui.label(
+                                RichText::new("Interval")
+                                    .strong()
+                                    .size(11.5)
+                                    .color(Color32::from_rgb(210, 215, 225)),
+                            );
+                            ui.add_space(col_int_w - 58.0);
+                            ui.label(
+                                RichText::new("Interval Type")
+                                    .strong()
+                                    .size(11.5)
+                                    .color(Color32::from_rgb(210, 215, 225)),
+                            );
+                        });
+
+                        // Table Body
+                        egui::ScrollArea::vertical()
+                            .id_salt("potplayer_skip_setup_table_scroll")
+                            .max_height(180.0)
+                            .min_scrolled_height(140.0)
+                            .show(ui, |ui| {
+                                ui.set_min_width(table_width);
+
+                                if self.intervals.is_empty() {
+                                    ui.add_space(35.0);
+                                    ui.vertical_centered(|ui| {
+                                        ui.label(
+                                            RichText::new("No skip intervals added.")
+                                                .color(Color32::from_rgb(
+                                                    120, 125, 135,
+                                                ))
+                                                .size(11.0),
+                                        );
+                                        ui.label(
+                                            RichText::new(
+                                                "Click [Add...] below to create a custom skip interval.",
+                                            )
+                                            .color(Color32::from_rgb(90, 95, 105))
+                                            .size(10.0),
+                                        );
+                                    });
+                                    ui.add_space(35.0);
+                                } else {
+                                    let mut double_clicked_idx = None;
+
+                                    for (idx, interval) in
+                                        self.intervals.iter().enumerate()
                                     {
-                                        let start = ch.time_pos;
-                                        let end = if let Some(next_c) = chapters.get(i + 1) {
-                                            next_c.time_pos
-                                        } else if duration > start {
-                                            duration
+                                        let is_selected =
+                                            self.selected_index == Some(idx);
+                                        let row_bg = if is_selected {
+                                            Color32::from_rgb(45, 75, 125)
+                                        } else if idx % 2 == 1 {
+                                            Color32::from_rgba_unmultiplied(
+                                                255, 255, 255, 5,
+                                            )
                                         } else {
-                                            start + 90.0
+                                            Color32::TRANSPARENT
                                         };
-                                        if end > start {
-                                            let label = if ch.title.trim().is_empty() {
-                                                format!("Chapter {}", i + 1)
+
+                                        let (row_rect, row_resp) =
+                                            ui.allocate_exact_size(
+                                                Vec2::new(table_width, 22.0),
+                                                egui::Sense::click(),
+                                            );
+                                        if row_bg != Color32::TRANSPARENT {
+                                            ui.painter().rect_filled(
+                                                row_rect,
+                                                CornerRadius::ZERO,
+                                                row_bg,
+                                            );
+                                        }
+
+                                        if row_resp.clicked() {
+                                            self.selected_index = Some(idx);
+                                        }
+                                        if row_resp.double_clicked() {
+                                            double_clicked_idx = Some(idx);
+                                        }
+
+                                        let mut r_ui = ui.new_child(
+                                            egui::UiBuilder::new()
+                                                .max_rect(row_rect),
+                                        );
+                                        r_ui.horizontal(|ui| {
+                                            ui.set_height(22.0);
+                                            ui.add_space(8.0);
+
+                                            let text_col = if is_selected {
+                                                Color32::WHITE
                                             } else {
-                                                ch.title.trim().to_string()
+                                                Color32::from_rgb(220, 225, 230)
                                             };
-                                            bookmark_mgr.add_skip_interval(start, end, label);
-                                            imported_count += 1;
+
+                                            ui.add(egui::Label::new(
+                                                RichText::new(format_time_hms(
+                                                    interval.start,
+                                                ))
+                                                .monospace()
+                                                .size(11.0)
+                                                .color(text_col),
+                                            ));
+                                            ui.add_space(col_start_w - 55.0);
+
+                                            ui.add(egui::Label::new(
+                                                RichText::new(format_time_hms(
+                                                    interval.length,
+                                                ))
+                                                .monospace()
+                                                .size(11.0)
+                                                .color(text_col),
+                                            ));
+                                            ui.add_space(col_len_w - 55.0);
+
+                                            let end_pos =
+                                                interval.start + interval.length;
+                                            ui.add(egui::Label::new(
+                                                RichText::new(format!(
+                                                    "{} - {}",
+                                                    format_time_hms(interval.start),
+                                                    format_time_hms(end_pos)
+                                                ))
+                                                .monospace()
+                                                .size(11.0)
+                                                .color(text_col),
+                                            ));
+                                            ui.add_space(col_int_w - 128.0);
+
+                                            ui.add(egui::Label::new(
+                                                RichText::new(
+                                                    &interval.interval_type,
+                                                )
+                                                .size(11.0)
+                                                .color(if is_selected {
+                                                    Color32::WHITE
+                                                } else {
+                                                    VortexTheme::POT_YELLOW
+                                                }),
+                                            ));
+                                        });
+                                    }
+
+                                    if let Some(idx) = double_clicked_idx {
+                                        self.selected_index = Some(idx);
+                                        let item = &self.intervals[idx];
+                                        self.modal_is_edit = true;
+                                        self.modal_start_str =
+                                            format_time_hms(item.start);
+                                        self.modal_length_str =
+                                            format_time_hms(item.length);
+                                        self.modal_type_str =
+                                            item.interval_type.clone();
+                                        self.is_modal_open = true;
+                                    }
+                                }
+                            });
+                    });
+
+                ui.add_space(8.0);
+
+                // =============================================================
+                // 3. Action Buttons Below Table
+                // =============================================================
+                ui.horizontal(|ui| {
+                    // Scan from current file chapters button
+                    if !chapters.is_empty() {
+                        let enabled_tags: Vec<String> = self
+                            .tags
+                            .iter()
+                            .filter(|t| t.enabled)
+                            .map(|t| t.keyword.clone())
+                            .collect();
+                        if ui
+                            .button(
+                                RichText::new(format!(
+                                    "📥 Scan Chapters ({})",
+                                    chapters.len()
+                                ))
+                                .color(Color32::from_rgb(70, 180, 255)),
+                            )
+                            .on_hover_text(
+                                "Scan current file's chapters and auto-add matching intervals",
+                            )
+                            .clicked()
+                        {
+                            for (i, ch) in chapters.iter().enumerate() {
+                                let matches = enabled_tags
+                                    .iter()
+                                    .any(|kw| crate::config::matches_skip_keyword(&ch.title, kw));
+                                if matches {
+                                    let start = ch.time_pos;
+                                    let end = if let Some(next_c) =
+                                        chapters.get(i + 1)
+                                    {
+                                        next_c.time_pos
+                                    } else if duration > start {
+                                        duration
+                                    } else {
+                                        start + 90.0
+                                    };
+                                    let length = (end - start).max(0.0);
+                                    // Don't add duplicates
+                                    let already_exists = self.intervals.iter().any(
+                                        |iv| {
+                                            (iv.start - start).abs() < 0.5
+                                                && (iv.length - length).abs() < 0.5
+                                        },
+                                    );
+                                    if !already_exists {
+                                        self.intervals.push(ConfigSkipInterval {
+                                            start,
+                                            length,
+                                            interval_type: "Skip".to_string(),
+                                            enabled: true,
+                                        });
+                                    }
+                                }
+                            }
+                            self.intervals.sort_by(|a, b| {
+                                a.start
+                                    .partial_cmp(&b.start)
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                        }
+                    }
+
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            let has_selection = self.selected_index.is_some()
+                                && self.selected_index.unwrap()
+                                    < self.intervals.len();
+
+                            if ui
+                                .add_enabled(
+                                    has_selection,
+                                    egui::Button::new("  Delete  ")
+                                        .min_size(Vec2::new(72.0, 22.0)),
+                                )
+                                .clicked()
+                            {
+                                if let Some(idx) = self.selected_index {
+                                    if idx < self.intervals.len() {
+                                        self.intervals.remove(idx);
+                                        if self.intervals.is_empty() {
+                                            self.selected_index = None;
+                                        } else if idx >= self.intervals.len() {
+                                            self.selected_index =
+                                                Some(self.intervals.len() - 1);
                                         }
                                     }
                                 }
-                                if imported_count > 0 {
-                                    bookmark_mgr.sync_skip_intervals_to_bookmarks();
+                            }
+
+                            ui.add_space(4.0);
+
+                            if ui
+                                .add_enabled(
+                                    has_selection,
+                                    egui::Button::new("  Edit...  ")
+                                        .min_size(Vec2::new(72.0, 22.0)),
+                                )
+                                .clicked()
+                            {
+                                if let Some(idx) = self.selected_index {
+                                    if let Some(item) = self.intervals.get(idx) {
+                                        self.modal_is_edit = true;
+                                        self.modal_start_str =
+                                            format_time_hms(item.start);
+                                        self.modal_length_str =
+                                            format_time_hms(item.length);
+                                        self.modal_type_str =
+                                            item.interval_type.clone();
+                                        self.is_modal_open = true;
+                                    }
                                 }
                             }
-                        });
-                    });
+
+                            ui.add_space(4.0);
+
+                            if ui
+                                .add(egui::Button::new("   Add...   ").min_size(Vec2::new(72.0, 22.0)))
+                                .clicked()
+                            {
+                                self.modal_is_edit = false;
+                                self.modal_start_str =
+                                    format_time_hms(current_time);
+                                self.modal_length_str = "00:01:30".to_string();
+                                self.modal_type_str = "Skip".to_string();
+                                self.is_modal_open = true;
+                            }
+                        },
+                    );
                 });
 
+                ui.add_space(10.0);
+                ui.separator();
                 ui.add_space(4.0);
 
-                // 3. Add Custom Skip Range Box with Chapter Picker Dropdown
-                ui.group(|ui| {
+                // =============================================================
+                // 4. OK / Cancel
+                // =============================================================
+                ui.horizontal(|ui| {
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            if ui
+                                .add(egui::Button::new("  Cancel  ").min_size(Vec2::new(76.0, 24.0)))
+                                .clicked()
+                            {
+                                cancel_and_close = true;
+                            }
+                            ui.add_space(8.0);
+                            if ui
+                                .add(egui::Button::new(RichText::new("    OK    ").strong()).min_size(Vec2::new(76.0, 24.0)))
+                                .clicked()
+                            {
+                                save_and_close = true;
+                            }
+                        },
+                    );
+                });
+            });
+
+        // =====================================================================
+        // Sub-Modal: Add / Edit Skip Interval
+        // =====================================================================
+        if self.is_modal_open {
+            let modal_title = if self.modal_is_edit {
+                "Edit Skip Interval"
+            } else {
+                "Add Skip Interval"
+            };
+            let mut modal_open = self.is_modal_open;
+            let mut apply_modal = false;
+
+            egui::Window::new(modal_title)
+                .id(egui::Id::new("sub_modal_skip_interval"))
+                .open(&mut modal_open)
+                .resizable(false)
+                .collapsible(false)
+                .anchor(Align2::CENTER_CENTER, Vec2::new(0.0, 20.0))
+                .default_width(340.0)
+                .show(ctx, |ui| {
+                    ui.add_space(4.0);
+
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("➕ Add Interval:").strong().color(Color32::from_rgb(130, 220, 140)));
-                        ui.label("Title:");
-                        ui.add(egui::TextEdit::singleline(&mut self.new_label).desired_width(120.0));
+                        ui.label("Start Time:    ");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.modal_start_str)
+                                .desired_width(80.0)
+                                .font(egui::TextStyle::Monospace),
+                        );
+                        if ui
+                            .small_button("⏱ Curr")
+                            .on_hover_text("Set to current playback time")
+                            .clicked()
+                        {
+                            self.modal_start_str = format_time_hms(current_time);
+                        }
+                    });
+                    ui.add_space(4.0);
 
-                        // Chapter selection menu from media file
-                        let ch_count = chapters.len();
-                        let ch_btn_text = if ch_count > 0 {
-                            format!("📖 Chapters ({}) ▾", ch_count)
-                        } else {
-                            "📖 Chapters (0) ▾".to_string()
-                        };
-                        let ch_btn_color = if ch_count > 0 {
-                            Color32::from_rgb(70, 190, 255)
-                        } else {
-                            Color32::GRAY
-                        };
+                    ui.horizontal(|ui| {
+                        ui.label("Length / Dur: ");
+                        ui.add(
+                            egui::TextEdit::singleline(
+                                &mut self.modal_length_str,
+                            )
+                            .desired_width(80.0)
+                            .font(egui::TextStyle::Monospace),
+                        );
+                        if ui
+                            .small_button("+85s")
+                            .on_hover_text("Standard Anime Opening (85s)")
+                            .clicked()
+                        {
+                            self.modal_length_str = "00:01:25".to_string();
+                        }
+                        if ui
+                            .small_button("+90s")
+                            .on_hover_text("Standard TV Opening (90s)")
+                            .clicked()
+                        {
+                            self.modal_length_str = "00:01:30".to_string();
+                        }
+                    });
+                    ui.add_space(4.0);
 
-                        ui.menu_button(RichText::new(ch_btn_text).color(ch_btn_color).strong(), |ui| {
-                            if chapters.is_empty() {
-                                ui.label(RichText::new("No chapters detected in current media file.").italics().color(Color32::GRAY));
-                            } else {
-                                ui.label(RichText::new(format!("Chapters from File ({} found):", ch_count)).strong().color(VortexTheme::POT_YELLOW));
-                                ui.label(RichText::new("Click a chapter to load title and timestamps:").size(10.5).color(Color32::from_rgb(150, 160, 180)));
-                                ui.separator();
-                                egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-                                    for (i, ch) in chapters.iter().enumerate() {
-                                        let ch_title = if ch.title.trim().is_empty() {
-                                            format!("Chapter {}", i + 1)
-                                        } else {
-                                            ch.title.trim().to_string()
-                                        };
-                                        let start = ch.time_pos;
-                                        let end = if let Some(next_c) = chapters.get(i + 1) {
+                    // Quick Chapter Loader
+                    if !chapters.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.label("From Chapter:");
+                            ui.menu_button("📖 Select Chapter ▾", |ui| {
+                                for (i, ch) in chapters.iter().enumerate() {
+                                    let label = if ch.title.trim().is_empty() {
+                                        format!("Chapter {}", i + 1)
+                                    } else {
+                                        ch.title.trim().to_string()
+                                    };
+                                    let start = ch.time_pos;
+                                    let end =
+                                        if let Some(next_c) = chapters.get(i + 1) {
                                             next_c.time_pos
                                         } else if duration > start {
                                             duration
                                         } else {
                                             start + 90.0
                                         };
-                                        let dur = (end - start).max(0.0);
-
-                                        ui.horizontal(|ui| {
-                                            let row_label = format!("{}. {} ({} - {}, dur: {})", i + 1, ch_title, format_time(start), format_time(end), format_time(dur));
-                                            if ui.button(RichText::new(row_label).strong()).on_hover_text("Load chapter title, start, and end time into input fields").clicked() {
-                                                self.new_label = ch_title.clone();
-                                                self.new_start_sec = start;
-                                                self.new_end_sec = end;
-                                                ui.close();
-                                            }
-                                            if ui.small_button("➕ Add").on_hover_text("Directly add this chapter to Auto-Skip Table").clicked() {
-                                                bookmark_mgr.add_skip_interval(start, end, ch_title.clone());
-                                                ui.close();
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                            ui.separator();
-                            ui.label(RichText::new("Quick Title Presets:").size(10.5).color(Color32::from_rgb(160, 165, 185)));
-                            ui.horizontal_wrapped(|ui| {
-                                for preset in &["OP", "ED", "Opening", "Ending", "Intro", "Outro", "Recap", "Preview"] {
-                                    if ui.small_button(*preset).on_hover_text(format!("Set title to '{}'", preset)).clicked() {
-                                        self.new_label = preset.to_string();
+                                    let dur = (end - start).max(0.0);
+                                    let title_row = format!(
+                                        "{}. {} ({})",
+                                        i + 1,
+                                        label,
+                                        format_time_hms(dur)
+                                    );
+                                    if ui.button(title_row).clicked() {
+                                        self.modal_start_str =
+                                            format_time_hms(start);
+                                        self.modal_length_str =
+                                            format_time_hms(dur);
                                         ui.close();
                                     }
                                 }
                             });
                         });
-
                         ui.add_space(4.0);
-                        ui.label("Start:");
-                        ui.add(egui::DragValue::new(&mut self.new_start_sec).range(0.0..=duration.max(10.0)).speed(1.0).suffix("s"));
-                        if ui.small_button("⏱ Curr").on_hover_text("Use current playhead position as start time").clicked() {
-                            self.new_start_sec = current_time;
-                        }
+                    }
 
-                        ui.add_space(4.0);
-                        ui.label("End:");
-                        ui.add(egui::DragValue::new(&mut self.new_end_sec).range(0.0..=duration.max(10.0)).speed(1.0).suffix("s"));
-                        if ui.small_button("⏱ Curr").on_hover_text("Use current playhead position as end time").clicked() {
-                            self.new_end_sec = current_time;
-                        }
-                        if ui.small_button("+85s").on_hover_text("Set End = Start + 85s (Standard Anime OP)").clicked() {
-                            self.new_end_sec = self.new_start_sec + 85.0;
-                        }
-                        if ui.small_button("+90s").on_hover_text("Set End = Start + 90s (TV Intro)").clicked() {
-                            self.new_end_sec = self.new_start_sec + 90.0;
-                        }
+                    ui.horizontal(|ui| {
+                        ui.label("Interval Type: ");
+                        ui.radio_value(
+                            &mut self.modal_type_str,
+                            "Skip".to_string(),
+                            "Skip",
+                        );
+                        ui.radio_value(
+                            &mut self.modal_type_str,
+                            "Play only".to_string(),
+                            "Play only",
+                        );
+                    });
 
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(RichText::new("➕ Add").strong().color(Color32::WHITE)).clicked() {
-                                if self.new_end_sec > self.new_start_sec {
-                                    bookmark_mgr.add_skip_interval(self.new_start_sec, self.new_end_sec, self.new_label.trim().to_string());
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+
+                    ui.horizontal(|ui| {
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if ui.button(" Cancel ").clicked() {
+                                    self.is_modal_open = false;
                                 }
-                            }
-                        });
+                                ui.add_space(6.0);
+                                if ui
+                                    .button(RichText::new("   OK   ").strong())
+                                    .clicked()
+                                {
+                                    apply_modal = true;
+                                }
+                            },
+                        );
                     });
                 });
 
-                ui.add_space(4.0);
+            if apply_modal {
+                let start_sec =
+                    parse_time_hms(&self.modal_start_str).unwrap_or(0.0);
+                let length_sec =
+                    parse_time_hms(&self.modal_length_str).unwrap_or(90.0);
+                let new_interval = ConfigSkipInterval {
+                    start: start_sec,
+                    length: length_sec,
+                    interval_type: if self.modal_type_str.is_empty() {
+                        "Skip".to_string()
+                    } else {
+                        self.modal_type_str.clone()
+                    },
+                    enabled: true,
+                };
 
-                // 4. PotPlayer Skip Range Table
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Auto-Skip Table:").strong().size(12.5));
-                    let active_count = bookmark_mgr.skip_intervals.iter().filter(|i| i.enabled).count();
-                    ui.label(
-                        RichText::new(format!("({} active / {} total)", active_count, bookmark_mgr.skip_intervals.len()))
-                            .size(11.0)
-                            .color(Color32::from_rgb(160, 165, 180)),
-                    );
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Clear All").clicked() {
-                            bookmark_mgr.clear_skip_intervals();
+                if self.modal_is_edit {
+                    if let Some(idx) = self.selected_index {
+                        if idx < self.intervals.len() {
+                            self.intervals[idx] = new_interval;
                         }
-                        if ui.small_button("Deselect All").clicked() {
-                            for item in &mut bookmark_mgr.skip_intervals {
-                                item.enabled = false;
-                            }
-                            bookmark_mgr.sync_skip_intervals_to_bookmarks();
-                        }
-                        if ui.small_button("Select All").clicked() {
-                            for item in &mut bookmark_mgr.skip_intervals {
-                                item.enabled = true;
-                            }
-                            bookmark_mgr.sync_skip_intervals_to_bookmarks();
-                        }
+                    }
+                } else {
+                    self.intervals.push(new_interval);
+                    self.intervals.sort_by(|a, b| {
+                        a.start
+                            .partial_cmp(&b.start)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     });
-                });
-
-                // Table Header
-                let table_header_rect = ui.available_rect_before_wrap();
-                let header_h = 24.0;
-                let header_r = egui::Rect::from_min_size(table_header_rect.min, Vec2::new(table_header_rect.width(), header_h));
-                ui.painter().rect_filled(header_r, CornerRadius::same(3), Color32::from_rgb(26, 29, 38));
-                ui.painter().rect_stroke(header_r, CornerRadius::same(3), Stroke::new(1.0, Color32::from_rgb(45, 50, 65)), egui::StrokeKind::Inside);
-
-                ui.horizontal(|ui| {
-                    ui.set_height(header_h);
-                    ui.add_space(6.0);
-                    ui.label(RichText::new("Active").strong().size(11.0).color(Color32::from_rgb(180, 190, 210)));
-                    ui.add_space(20.0);
-                    ui.label(RichText::new("Label / Description").strong().size(11.0).color(Color32::from_rgb(180, 190, 210)));
-                    ui.add_space(110.0);
-                    ui.label(RichText::new("Start").strong().size(11.0).color(Color32::from_rgb(180, 190, 210)));
-                    ui.add_space(32.0);
-                    ui.label(RichText::new("End").strong().size(11.0).color(Color32::from_rgb(180, 190, 210)));
-                    ui.add_space(36.0);
-                    ui.label(RichText::new("Duration").strong().size(11.0).color(Color32::from_rgb(180, 190, 210)));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(10.0);
-                        ui.label(RichText::new("Actions").strong().size(11.0).color(Color32::from_rgb(180, 190, 210)));
-                    });
-                });
-
-                // Scrollable Table Body
-                egui::ScrollArea::vertical()
-                    .id_salt("auto_skip_table_scroll")
-                    .max_height(200.0)
-                    .show(ui, |ui| {
-                        let mut delete_index = None;
-                        let mut sync_needed = false;
-
-                        if bookmark_mgr.skip_intervals.is_empty() {
-                            ui.add_space(20.0);
-                            ui.vertical_centered(|ui| {
-                                ui.label(
-                                    RichText::new("No skip intervals configured for this video.")
-                                        .color(Color32::from_rgb(140, 145, 160)),
-                                );
-                                ui.label(
-                                    RichText::new("Add custom intervals above or click 'Import OP/ED from Chapters'.")
-                                        .size(10.5)
-                                        .color(Color32::from_rgb(110, 115, 130)),
-                                );
-                            });
-                            ui.add_space(20.0);
-                        } else {
-                            for (idx, interval) in bookmark_mgr.skip_intervals.iter_mut().enumerate() {
-                                let row_bg = if idx % 2 == 0 {
-                                    Color32::from_rgba_unmultiplied(255, 255, 255, 4)
-                                } else {
-                                    Color32::TRANSPARENT
-                                };
-
-                                let row_response = ui.horizontal(|ui| {
-                                    if row_bg != Color32::TRANSPARENT {
-                                        let rect = ui.available_rect_before_wrap();
-                                        ui.painter().rect_filled(rect, CornerRadius::ZERO, row_bg);
-                                    }
-
-                                    // 1. Active Checkbox
-                                    if ui.checkbox(&mut interval.enabled, "").changed() {
-                                        sync_needed = true;
-                                    }
-
-                                    // 2. Label
-                                    let label_col = if interval.enabled {
-                                        Color32::from_rgb(230, 235, 245)
-                                    } else {
-                                        Color32::from_rgb(120, 125, 135)
-                                    };
-                                    ui.add(egui::Label::new(
-                                        RichText::new(&interval.label).strong().color(label_col)
-                                    ).truncate()).on_hover_text(&interval.label);
-
-                                    // 3. Timestamps & Duration
-                                    let dur_sec = (interval.end - interval.start).max(0.0);
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        // Actions
-                                        if ui.small_button("✕").on_hover_text("Delete this skip interval").clicked() {
-                                            delete_index = Some(idx);
-                                        }
-                                        if let Some(p) = player {
-                                            if ui.small_button("▶ Jump").on_hover_text("Seek to start of this interval").clicked() {
-                                                p.seek_absolute(interval.start);
-                                            }
-                                        }
-
-                                        ui.add_space(16.0);
-                                        // Duration
-                                        ui.label(
-                                            RichText::new(format_time(dur_sec))
-                                                .monospace()
-                                                .color(Color32::from_rgb(100, 180, 240)),
-                                        );
-
-                                        ui.add_space(20.0);
-                                        // End Time
-                                        ui.label(
-                                            RichText::new(format_time(interval.end))
-                                                .monospace()
-                                                .color(Color32::from_rgb(200, 205, 220)),
-                                        );
-
-                                        ui.add_space(20.0);
-                                        // Start Time
-                                        ui.label(
-                                            RichText::new(format_time(interval.start))
-                                                .monospace()
-                                                .color(Color32::from_rgb(200, 205, 220)),
-                                        );
-                                    });
-                                });
-                                let _ = row_response;
-                            }
-                        }
-
-                        if let Some(del_idx) = delete_index {
-                            bookmark_mgr.remove_skip_interval(del_idx);
-                        } else if sync_needed {
-                            bookmark_mgr.sync_skip_intervals_to_bookmarks();
-                        }
-                    });
-
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("💡 Configured skip ranges are automatically saved in the video's .pbf bookmark file.")
-                            .size(10.5)
-                            .color(Color32::from_rgb(140, 145, 160)),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("  Close  ").clicked() {
-                            should_close = true;
-                        }
-                    });
-                });
-            });
-
-        if should_close {
-            open = false;
+                    self.selected_index =
+                        Some(self.intervals.len().saturating_sub(1));
+                }
+                self.is_modal_open = false;
+            } else if !modal_open {
+                self.is_modal_open = false;
+            }
         }
-        self.is_open = open;
+
+        // =====================================================================
+        // Finalize OK / Cancel
+        // =====================================================================
+        if save_and_close {
+            // Apply all settings to AppConfig and persist to JSON
+            config.skip_intro_enabled = self.enable_skip_feature;
+            config.skip_intro_at_start = self.intro_at_start;
+            config.skip_intro_sec =
+                parse_time_hms(&self.intro_time_str).unwrap_or(0.0);
+            config.skip_ending_at_end = self.ending_at_end;
+            config.skip_outro_sec =
+                parse_time_hms(&self.ending_time_str).unwrap_or(0.0);
+            config.skip_chapters_enabled = self.chapters_enabled;
+            config.skip_chapter_titles = tags_to_config_string(&self.tags);
+            config.skip_intervals = self.intervals.clone();
+            let _ = config.save();
+
+            // Sync with bookmark manager
+            bookmark_mgr.auto_skip_bookmarks = self.enable_skip_feature;
+            bookmark_mgr.skip_intervals.clear();
+            for item in &self.intervals {
+                bookmark_mgr.add_skip_interval(
+                    item.start,
+                    item.start + item.length,
+                    "Skip Interval".to_string(),
+                );
+            }
+            bookmark_mgr.sync_skip_intervals_to_bookmarks();
+
+            self.is_open = false;
+            self.was_open = false;
+        } else if cancel_and_close || !open {
+            self.is_open = false;
+            self.was_open = false;
+        }
+
         window_resp.map(|r| r.response.rect)
     }
 }

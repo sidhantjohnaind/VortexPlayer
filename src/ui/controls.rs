@@ -756,8 +756,12 @@ impl ControlBar {
 
         // 4b. Skip OP / Intro (28px - dedicated skip button!)
         let is_in_intro = stats.chapters.iter().any(|c| {
-            let u = c.title.to_uppercase();
-            (u.contains("OP") || u.contains("OPENING") || u.contains("INTRO") || u.contains("PROLOGUE"))
+            let is_match = crate::config::matches_skip_keyword(&c.title, "op")
+                || crate::config::matches_skip_keyword(&c.title, "opening")
+                || crate::config::matches_skip_keyword(&c.title, "intro")
+                || crate::config::matches_skip_keyword(&c.title, "prologue")
+                || crate::config::matches_skip_keyword(&c.title, "recap");
+            is_match
                 && stats.time_pos >= c.time_pos
                 && stats.chapters.iter().find(|n| n.index == c.index + 1).map_or(true, |n| stats.time_pos < n.time_pos)
         }) || (stats.time_pos < 90.0 && stats.duration > 180.0);

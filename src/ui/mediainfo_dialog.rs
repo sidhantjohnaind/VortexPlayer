@@ -103,7 +103,7 @@ impl MediaInfoDialog {
                 .exact_size(32.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(20, 22, 28))
+                        .fill(Color32::from_rgb(0, 0, 0))
                         .inner_margin(Margin::ZERO),
                 )
                 .show(ctx, |ui| {
@@ -136,11 +136,11 @@ impl MediaInfoDialog {
                         {
                             let painter = ui.painter();
                             let bg_color = if is_active {
-                                Color32::from_rgb(34, 38, 48)
+                                Color32::from_rgb(22, 24, 30)
                             } else if hover {
-                                Color32::from_rgb(26, 29, 36)
+                                Color32::from_rgb(16, 18, 24)
                             } else {
-                                Color32::from_rgb(20, 22, 28)
+                                Color32::from_rgb(0, 0, 0)
                             };
 
                             painter.rect_filled(
@@ -151,7 +151,7 @@ impl MediaInfoDialog {
                             painter.rect_stroke(
                                 t_rect,
                                 CornerRadius { nw: 3, ne: 3, sw: 0, se: 0 },
-                                Stroke::new(1.0, if is_active { Color32::from_rgb(52, 56, 70) } else { Color32::from_rgb(34, 37, 46) }),
+                                Stroke::new(1.0, if is_active { Color32::from_rgb(60, 65, 80) } else { Color32::from_rgb(28, 30, 40) }),
                                 StrokeKind::Inside,
                             );
 
@@ -182,10 +182,10 @@ impl MediaInfoDialog {
                     {
                         let painter = ui.painter();
                         if is_pinned {
-                            painter.rect_filled(pin_rect, CornerRadius::same(3), Color32::from_rgb(45, 50, 68));
-                            painter.rect_stroke(pin_rect, CornerRadius::same(3), Stroke::new(1.0, Color32::from_rgb(70, 75, 100)), StrokeKind::Inside);
+                            painter.rect_filled(pin_rect, CornerRadius::same(3), Color32::from_rgb(35, 40, 56));
+                            painter.rect_stroke(pin_rect, CornerRadius::same(3), Stroke::new(1.0, Color32::from_rgb(60, 65, 88)), StrokeKind::Inside);
                         } else if pin_hover {
-                            painter.rect_filled(pin_rect, CornerRadius::same(3), Color32::from_rgb(38, 42, 54));
+                            painter.rect_filled(pin_rect, CornerRadius::same(3), Color32::from_rgb(25, 28, 38));
                         }
                         painter.text(
                             pin_rect.center(),
@@ -199,7 +199,7 @@ impl MediaInfoDialog {
                     // Divider below tab bar
                     ui.painter().line_segment(
                         [tab_bar_rect.left_bottom(), tab_bar_rect.right_bottom()],
-                        Stroke::new(1.0, Color32::from_rgb(44, 48, 62)),
+                        Stroke::new(1.0, Color32::from_rgb(35, 38, 48)),
                     );
                 });
 
@@ -208,7 +208,7 @@ impl MediaInfoDialog {
                 .exact_size(44.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(24, 26, 32))
+                        .fill(Color32::from_rgb(0, 0, 0))
                         .inner_margin(Margin::same(6)),
                 )
                 .show(ctx, |ui| {
@@ -267,19 +267,19 @@ impl MediaInfoDialog {
                         let painter = ui.painter();
                         painter.line_segment(
                             [footer_rect.left_top(), footer_rect.right_top()],
-                            Stroke::new(1.0, Color32::from_rgb(44, 48, 62)),
+                            Stroke::new(1.0, Color32::from_rgb(35, 38, 48)),
                         );
 
                         // Render Copy Button
                         painter.rect_filled(
                             copy_rect,
                             CornerRadius::same(3),
-                            if is_copied { Color32::from_rgb(28, 75, 42) } else if copy_hover { Color32::from_rgb(38, 42, 54) } else { Color32::from_rgb(30, 32, 40) },
+                            if is_copied { Color32::from_rgb(20, 60, 32) } else if copy_hover { Color32::from_rgb(26, 30, 40) } else { Color32::from_rgb(14, 16, 22) },
                         );
                         painter.rect_stroke(
                             copy_rect,
                             CornerRadius::same(3),
-                            Stroke::new(1.0, if is_copied { Color32::from_rgb(60, 180, 95) } else if copy_hover { Color32::from_rgb(70, 75, 95) } else { Color32::from_rgb(48, 52, 65) }),
+                            Stroke::new(1.0, if is_copied { Color32::from_rgb(50, 160, 80) } else if copy_hover { Color32::from_rgb(60, 66, 85) } else { Color32::from_rgb(38, 42, 54) }),
                             StrokeKind::Inside,
                         );
                         painter.text(
@@ -294,12 +294,12 @@ impl MediaInfoDialog {
                         painter.rect_filled(
                             wrap_btn_rect,
                             CornerRadius::same(3),
-                            if is_word_wrap { Color32::from_rgb(32, 45, 65) } else if wrap_hover { Color32::from_rgb(38, 42, 54) } else { Color32::from_rgb(30, 32, 40) },
+                            if is_word_wrap { Color32::from_rgb(20, 36, 56) } else if wrap_hover { Color32::from_rgb(26, 30, 40) } else { Color32::from_rgb(14, 16, 22) },
                         );
                         painter.rect_stroke(
                             wrap_btn_rect,
                             CornerRadius::same(3),
-                            Stroke::new(1.0, if is_word_wrap { Color32::from_rgb(65, 125, 215) } else if wrap_hover { Color32::from_rgb(70, 75, 95) } else { Color32::from_rgb(48, 52, 65) }),
+                            Stroke::new(1.0, if is_word_wrap { Color32::from_rgb(50, 110, 190) } else if wrap_hover { Color32::from_rgb(60, 66, 85) } else { Color32::from_rgb(38, 42, 54) }),
                             StrokeKind::Inside,
                         );
                         painter.text(
@@ -314,12 +314,12 @@ impl MediaInfoDialog {
                         painter.rect_filled(
                             close_btn_rect,
                             CornerRadius::same(3),
-                            if cb_hover { Color32::from_rgb(45, 48, 62) } else { Color32::from_rgb(34, 36, 46) },
+                            if cb_hover { Color32::from_rgb(35, 38, 50) } else { Color32::from_rgb(18, 20, 26) },
                         );
                         painter.rect_stroke(
                             close_btn_rect,
                             CornerRadius::same(3),
-                            Stroke::new(1.0, if cb_hover { Color32::from_rgb(75, 80, 105) } else { Color32::from_rgb(48, 52, 65) }),
+                            Stroke::new(1.0, if cb_hover { Color32::from_rgb(65, 70, 92) } else { Color32::from_rgb(38, 42, 54) }),
                             StrokeKind::Inside,
                         );
                         painter.text(
@@ -336,7 +336,7 @@ impl MediaInfoDialog {
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(20, 22, 28))
+                        .fill(Color32::from_rgb(0, 0, 0))
                         .inner_margin(Margin::same(6)),
                 )
                 .show(ctx, |ui| {
@@ -577,8 +577,8 @@ impl MediaInfoDialog {
 
                         // ── 1. Video Info Group Box ──────────────────────────────────────────────
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(18, 20, 26))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(44, 48, 62)))
+                            .fill(Color32::from_rgb(0, 0, 0))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
@@ -631,8 +631,8 @@ impl MediaInfoDialog {
                         // ── 2. Audio Info Group Box ──────────────────────────────────────────────
                         let is_ex = stats.is_wasapi_exclusive;
                         egui::Frame::new()
-                            .fill(if is_ex { Color32::from_rgb(28, 25, 18) } else { Color32::from_rgb(18, 20, 26) })
-                            .stroke(Stroke::new(1.0, if is_ex { Color32::from_rgb(145, 105, 28) } else { Color32::from_rgb(44, 48, 62) }))
+                            .fill(if is_ex { Color32::from_rgb(20, 16, 8) } else { Color32::from_rgb(0, 0, 0) })
+                            .stroke(Stroke::new(1.0, if is_ex { Color32::from_rgb(145, 105, 28) } else { Color32::from_rgb(35, 38, 48) }))
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
@@ -696,8 +696,8 @@ impl MediaInfoDialog {
                         // ── 3. Detail Info Group Box ─────────────────────────────────────────────
                         let detail_text = Self::generate_detailed_raw_info(stats);
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(18, 20, 26))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(44, 48, 62)))
+                            .fill(Color32::from_rgb(0, 0, 0))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
@@ -705,8 +705,8 @@ impl MediaInfoDialog {
                                 ui.add_space(3.0);
 
                                 egui::Frame::new()
-                                    .fill(Color32::from_rgb(12, 13, 17))
-                                    .stroke(Stroke::new(1.0, Color32::from_rgb(38, 41, 52)))
+                                    .fill(Color32::from_rgb(0, 0, 0))
+                                    .stroke(Stroke::new(1.0, Color32::from_rgb(28, 30, 40)))
                                     .corner_radius(CornerRadius::same(2))
                                     .inner_margin(Margin::same(6))
                                     .show(ui, |ui| {
@@ -749,8 +749,8 @@ impl MediaInfoDialog {
         let file_info_text = Self::generate_file_info_text(stats);
 
         egui::Frame::new()
-            .fill(Color32::from_rgb(12, 13, 17))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(38, 41, 52)))
+            .fill(Color32::from_rgb(0, 0, 0))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(28, 30, 40)))
             .corner_radius(CornerRadius::same(3))
             .inner_margin(Margin::same(8))
             .show(ui, |ui| {
@@ -784,8 +784,8 @@ impl MediaInfoDialog {
         let system_info_text = Self::generate_system_info_text(stats);
 
         egui::Frame::new()
-            .fill(Color32::from_rgb(12, 13, 17))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(38, 41, 52)))
+            .fill(Color32::from_rgb(0, 0, 0))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(28, 30, 40)))
             .corner_radius(CornerRadius::same(3))
             .inner_margin(Margin::same(8))
             .show(ui, |ui| {

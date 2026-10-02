@@ -80,8 +80,16 @@ const SUBCLASS_ID: usize = 0x5442; // "TB"
 
 #[cfg(windows)]
 static CBT_HOOK: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+static IS_NATIVE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-#[cfg(windows)]
+pub fn set_native_fullscreen_state(v: bool) {
+    IS_NATIVE_FULLSCREEN.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn is_native_fullscreen() -> bool {
+    IS_NATIVE_FULLSCREEN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 #[cfg(windows)]
 pub unsafe fn apply_border_suppression(hwnd: windows_sys::Win32::Foundation::HWND) {
     apply_border_suppression_internal(hwnd, 2 /* DWMWCP_ROUND - circular / rounded borders */);
@@ -283,7 +291,7 @@ unsafe extern "system" fn thumbbar_subclass_proc(
 
     // Handle native hardware window resizing on all 4 borders and 4 corners
     if msg == WM_NCHITTEST {
-        if IsZoomed(hwnd) == 0 {
+        if !is_native_fullscreen() && IsZoomed(hwnd) == 0 {
             use windows_sys::Win32::Foundation::RECT;
             let mut wr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
             if GetWindowRect(hwnd, &mut wr) != 0 {
@@ -318,8 +326,9 @@ unsafe extern "system" fn thumbbar_subclass_proc(
 
     // Remove 1-pixel top line inset caused by Windows DefWindowProc on borderless windows,
     // and when maximized, align the client rectangle exactly to the monitor work area.
+    // In fullscreen mode, client rectangle is always the 100% full monitor bounds.
     if msg == WM_NCCALCSIZE && wparam != 0 {
-        if IsZoomed(hwnd) != 0 {
+        if !is_native_fullscreen() && IsZoomed(hwnd) != 0 {
             use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
             let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
             let mut mi: MONITORINFO = std::mem::zeroed();
@@ -334,8 +343,8 @@ unsafe extern "system" fn thumbbar_subclass_proc(
     }
 
     // Undocumented non-client themed frame/caption draw messages (WM_NCUAHDRAWCAPTION / WM_NCUAHDRAWFRAME)
+    // Suppress without invoking heavy synchronous DWM RPC calls on hover
     if msg == 0x00AE || msg == 0x00AF {
-        apply_border_suppression(hwnd);
         return 0;
     }
 

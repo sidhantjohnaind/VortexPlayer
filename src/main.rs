@@ -240,7 +240,25 @@ pub fn show_error_box(title: &str, message: &str) {
 fn setup_unicode_fonts(ctx: &eframe::egui::Context) {
     let mut fonts = eframe::egui::FontDefinitions::default();
 
-    // 1. Primary Latin UI Font: Segoe UI or DejaVu / Roboto / FreeSans on Linux
+    // 0. Primary Bundled Modern UI Font: Inter Medium & Regular (embedded, zero runtime OS dependency)
+    fonts.font_data.insert(
+        "inter_medium".to_owned(),
+        std::sync::Arc::new(eframe::egui::FontData::from_static(include_bytes!(
+            "../assets/fonts/Inter-Medium.ttf"
+        ))),
+    );
+    fonts.font_data.insert(
+        "inter_regular".to_owned(),
+        std::sync::Arc::new(eframe::egui::FontData::from_static(include_bytes!(
+            "../assets/fonts/Inter-Regular.ttf"
+        ))),
+    );
+    if let Some(prop) = fonts.families.get_mut(&eframe::egui::FontFamily::Proportional) {
+        prop.insert(0, "inter_medium".to_owned());
+        prop.insert(1, "inter_regular".to_owned());
+    }
+
+    // 1. Primary Latin UI Font: Segoe UI or DejaVu / Roboto / FreeSans on Linux (fallback)
     let latin_candidates = [
         "C:\\Windows\\Fonts\\segoeui.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -257,7 +275,7 @@ fn setup_unicode_fonts(ctx: &eframe::egui::Context) {
                 std::sync::Arc::new(eframe::egui::FontData::from_owned(data)),
             );
             if let Some(prop) = fonts.families.get_mut(&eframe::egui::FontFamily::Proportional) {
-                prop.insert(0, "primary_ui_font".to_owned());
+                prop.push("primary_ui_font".to_owned());
             }
             break;
         }

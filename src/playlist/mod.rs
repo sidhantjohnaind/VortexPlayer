@@ -31,12 +31,10 @@ impl PlaylistItem {
             .unwrap_or("Unknown")
             .to_string();
 
-        let duration_secs = probe_media_duration(&path);
-
         Self {
             path,
             title,
-            duration_secs,
+            duration_secs: None,
             file_size_bytes: None,
         }
     }

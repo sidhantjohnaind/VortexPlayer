@@ -332,6 +332,7 @@ impl AudioFilterState {
 pub struct Player {
     ffi: MpvFfi,
     ctx: *mut c_void,
+    render_context: Arc<Mutex<Option<*mut c_void>>>,
     pub stats: Arc<Mutex<MediaStats>>,
     is_running: Arc<AtomicBool>,
     pub audio_bus: crate::engine::AudioAnalysisBus,
@@ -353,17 +354,17 @@ impl Player {
         }
 
         // Configure default options for optimal performance, AV1/HEVC decoding, and HDR
+        let mpv_log = std::env::temp_dir().join("vortex_mpv.log");
+        Self::set_opt_str(&ffi, ctx, "log-file", &mpv_log.to_string_lossy());
+        Self::set_opt_str(&ffi, ctx, "msg-level", "all=v");
         Self::set_opt_str(&ffi, ctx, "keep-open", "yes");
         Self::set_opt_str(&ffi, ctx, "idle", "yes");
         Self::set_opt_str(&ffi, ctx, "ytdl", "no"); // Faster startup for local files
         Self::set_opt_str(&ffi, ctx, "hwdec", "auto-safe"); // Full D3D11VA / VA-API / NVDEC HW decoding
-        Self::set_opt_str(&ffi, ctx, "vo", "gpu");
+        Self::set_opt_str(&ffi, ctx, "vo", "libmpv");
 
         #[cfg(windows)]
         {
-            Self::set_opt_str(&ffi, ctx, "gpu-context", "d3d11");
-            Self::set_opt_str(&ffi, ctx, "gpu-api", "d3d11");
-            Self::set_opt_str(&ffi, ctx, "d3d11-flip", "no");
             Self::set_opt_str(&ffi, ctx, "dscale", "bilinear");
             Self::set_opt_str(&ffi, ctx, "sws-scaler", "fast-bilinear");
             Self::set_opt_str(&ffi, ctx, "vd-lavc-fast", "yes");
@@ -372,8 +373,6 @@ impl Player {
 
         #[cfg(not(windows))]
         {
-            Self::set_opt_str(&ffi, ctx, "gpu-context", "auto");
-            Self::set_opt_str(&ffi, ctx, "gpu-api", "auto");
             Self::set_opt_str(&ffi, ctx, "ao", "pipewire,alsa,pulse"); // Native Linux PipeWire & ALSA 5.1/7.1 direct audio
         }
         Self::set_opt_str(&ffi, ctx, "audio-channels", "auto"); // Native multichannel audio passthrough (5.1/7.1)
@@ -417,22 +416,10 @@ impl Player {
         Self::set_opt_str(&ffi, ctx, "sub-font-size", "28");
         Self::set_opt_str(&ffi, ctx, "volume-max", "200");
 
-        // Ultra-Crisp High-Contrast On-Screen Display (OSD) Rendering
-        Self::set_opt_str(&ffi, ctx, "osd-level", "1");
-        Self::set_opt_str(&ffi, ctx, "osd-font", "Segoe UI");
-        Self::set_opt_str(&ffi, ctx, "osd-font-size", "34");
-        Self::set_opt_str(&ffi, ctx, "osd-color", "#FFFFFFFF");
-        Self::set_opt_str(&ffi, ctx, "osd-border-color", "#E0000000");
-        Self::set_opt_str(&ffi, ctx, "osd-border-size", "2.0");
-        Self::set_opt_str(&ffi, ctx, "osd-shadow-offset", "1.5");
-        Self::set_opt_str(&ffi, ctx, "osd-shadow-color", "#88000000");
-        Self::set_opt_str(&ffi, ctx, "osd-align-x", "left");
-        Self::set_opt_str(&ffi, ctx, "osd-align-y", "top");
-        Self::set_opt_str(&ffi, ctx, "osd-margin-x", "30");
-        Self::set_opt_str(&ffi, ctx, "osd-margin-y", "35");
-        Self::set_opt_str(&ffi, ctx, "osd-duration", "1500");
-        Self::set_opt_str(&ffi, ctx, "osd-bar", "yes");
-        Self::set_opt_str(&ffi, ctx, "osc", "yes");
+        // Disable internal mpv OSD & OSC so our custom modern egui OSD engine has exclusive rendering control
+        Self::set_opt_str(&ffi, ctx, "osd-level", "0");
+        Self::set_opt_str(&ffi, ctx, "osd-bar", "no");
+        Self::set_opt_str(&ffi, ctx, "osc", "no");
 
         Self::set_opt_str(&ffi, ctx, "input-default-bindings", "no");
         Self::set_opt_str(&ffi, ctx, "input-vo-keyboard", "no");
@@ -517,9 +504,12 @@ impl Player {
             }
         });
 
+        let render_context = Arc::new(Mutex::new(None));
+
         Ok(Self {
             ffi,
             ctx,
+            render_context,
             stats,
             is_running,
             audio_bus,
@@ -546,7 +536,8 @@ impl Player {
     }
 
     fn set_opt_str(ffi: &MpvFfi, ctx: *mut c_void, name: &str, val: &str) {
-        if let (Ok(c_name), Ok(c_val)) = (CString::new(name), CString::new(val)) {
+        let actual_val = if name == "vo" && val == "gpu" { "libmpv" } else { val };
+        if let (Ok(c_name), Ok(c_val)) = (CString::new(name), CString::new(actual_val)) {
             unsafe {
                 (ffi.mpv_set_option_string)(ctx, c_name.as_ptr(), c_val.as_ptr());
             }
@@ -554,7 +545,8 @@ impl Player {
     }
 
     pub fn set_property_string(&self, name: &str, val: &str) {
-        if let (Ok(c_name), Ok(c_val)) = (CString::new(name), CString::new(val)) {
+        let actual_val = if name == "vo" && val == "gpu" { "libmpv" } else { val };
+        if let (Ok(c_name), Ok(c_val)) = (CString::new(name), CString::new(actual_val)) {
             unsafe {
                 (self.ffi.mpv_set_property_string)(self.ctx, c_name.as_ptr(), c_val.as_ptr());
             }
@@ -631,10 +623,131 @@ impl Player {
         self.command(&["loadfile", path_or_url, "replace"]);
     }
 
-    /// Attach playback surface to a Win32 HWND
-    pub fn set_wid(&self, hwnd: isize) {
-        let hwnd_str = format!("{}", hwnd);
-        self.set_property_string("wid", &hwnd_str);
+    /// Attach playback surface (kept for API compatibility, no-op in libmpv render context mode)
+    pub fn set_wid(&self, _hwnd: isize) {}
+
+    /// Initialize the mpv_render_context with the current OpenGL context
+    pub fn init_render_context(&self, egui_ctx: eframe::egui::Context) -> Result<(), String> {
+        let mut guard = self.render_context.lock().map_err(|e| e.to_string())?;
+        if guard.is_some() {
+            return Ok(());
+        }
+
+        let api_type = CString::new("opengl").map_err(|e| e.to_string())?;
+        let mut gl_params = MpvOpenglInitParams {
+            get_proc_address: Some(get_proc_address_mpv),
+            get_proc_address_ctx: std::ptr::null_mut(),
+        };
+
+        let mut params = [
+            MpvRenderParam {
+                type_: MPV_RENDER_PARAM_API_TYPE,
+                data: api_type.as_ptr() as *mut c_void,
+            },
+            MpvRenderParam {
+                type_: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,
+                data: &mut gl_params as *mut MpvOpenglInitParams as *mut c_void,
+            },
+            MpvRenderParam {
+                type_: MPV_RENDER_PARAM_INVALID,
+                data: std::ptr::null_mut(),
+            },
+        ];
+
+        let mut render_ctx: *mut c_void = std::ptr::null_mut();
+        let res = unsafe {
+            (self.ffi.mpv_render_context_create)(&mut render_ctx, self.ctx, params.as_mut_ptr())
+        };
+
+        if res < 0 || render_ctx.is_null() {
+            let err_msg = unsafe {
+                let p = (self.ffi.mpv_error_string)(res);
+                if !p.is_null() {
+                    CStr::from_ptr(p).to_string_lossy().to_string()
+                } else {
+                    format!("error code {}", res)
+                }
+            };
+            return Err(format!("mpv_render_context_create failed: {}", err_msg));
+        }
+
+        unsafe extern "C" fn on_mpv_update(ctx: *mut c_void) {
+            if !ctx.is_null() {
+                let egui_ctx = unsafe { &*(ctx as *const eframe::egui::Context) };
+                egui_ctx.request_repaint();
+            }
+        }
+
+        let boxed_ctx = Box::into_raw(Box::new(egui_ctx));
+        unsafe {
+            (self.ffi.mpv_render_context_set_update_callback)(
+                render_ctx,
+                Some(on_mpv_update),
+                boxed_ctx as *mut c_void,
+            );
+        }
+
+        *guard = Some(render_ctx);
+        crate::log_step("mpv_render_context initialized successfully");
+        Ok(())
+    }
+
+    pub fn has_render_context(&self) -> bool {
+        self.render_context.lock().map(|g| g.is_some()).unwrap_or(false)
+    }
+
+    pub fn ensure_render_context(&self, egui_ctx: &eframe::egui::Context) -> Result<(), String> {
+        if self.has_render_context() {
+            return Ok(());
+        }
+        self.init_render_context(egui_ctx.clone())
+    }
+
+    pub fn render_frame(&self, fbo: i32, width: i32, height: i32) {
+        if width <= 0 || height <= 0 {
+            return;
+        }
+        if let Ok(guard) = self.render_context.lock() {
+            if let Some(render_ctx) = *guard {
+                unsafe {
+                    let _ = (self.ffi.mpv_render_context_update)(render_ctx);
+                }
+                let mut flip_y: i32 = 1;
+                let mut fbo_param = MpvOpenglFbo {
+                    fbo,
+                    w: width,
+                    h: height,
+                    internal_format: 0,
+                };
+                let mut params = [
+                    MpvRenderParam {
+                        type_: MPV_RENDER_PARAM_OPENGL_FBO,
+                        data: &mut fbo_param as *mut MpvOpenglFbo as *mut c_void,
+                    },
+                    MpvRenderParam {
+                        type_: MPV_RENDER_PARAM_FLIP_Y,
+                        data: &mut flip_y as *mut i32 as *mut c_void,
+                    },
+                    MpvRenderParam {
+                        type_: MPV_RENDER_PARAM_INVALID,
+                        data: std::ptr::null_mut(),
+                    },
+                ];
+                unsafe {
+                    (self.ffi.mpv_render_context_render)(render_ctx, params.as_mut_ptr());
+                }
+            }
+        }
+    }
+
+    pub fn report_swap(&self) {
+        if let Ok(guard) = self.render_context.lock() {
+            if let Some(render_ctx) = *guard {
+                unsafe {
+                    (self.ffi.mpv_render_context_report_swap)(render_ctx);
+                }
+            }
+        }
     }
 
     pub fn play(&self) {
@@ -801,6 +914,13 @@ impl Player {
     }
 
     pub fn set_video_align_y(&self, align: &str) {
+        static CURRENT_ALIGN: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+        if let Ok(mut lock) = CURRENT_ALIGN.lock() {
+            if *lock == align {
+                return;
+            }
+            *lock = align.to_string();
+        }
         let val = match align {
             "top" => -1.0,    // Video aligned to Top -> Black bar at Bottom
             "bottom" => 1.0,  // Video aligned to Bottom -> Black bar at Top
@@ -1027,11 +1147,15 @@ impl Player {
     }
 
     pub fn update_osd_diagnostics_hud(&self, show: bool, stats: &MediaStats, win_w: u32, win_h: u32) {
+        static WAS_SHOWING: AtomicBool = AtomicBool::new(false);
         if !show {
-            self.command(&["osd-overlay", "1", "none", ""]);
-            self.set_property_string("osd-msg1", "");
+            if WAS_SHOWING.swap(false, Ordering::Relaxed) {
+                self.command(&["osd-overlay", "1", "none", ""]);
+                self.set_property_string("osd-msg1", "");
+            }
             return;
         }
+        WAS_SHOWING.store(true, Ordering::Relaxed);
 
         let (proc_cpu, sys_cpu, used_ram, total_ram) = sys_metrics::get_metrics();
 
@@ -1625,6 +1749,79 @@ impl Player {
 
     pub fn set_subtitle_border_size(&self, size: f32) {
         self.set_property_string("sub-border-size", &format!("{:.1}", size));
+    }
+
+    pub fn set_subtitle_bold(&self, bold: bool) {
+        self.set_property_string("sub-bold", if bold { "yes" } else { "no" });
+    }
+
+    pub fn set_subtitle_italic(&self, italic: bool) {
+        self.set_property_string("sub-italic", if italic { "yes" } else { "no" });
+    }
+
+    pub fn set_subtitle_border_blur(&self, blur: f32) {
+        self.set_property_string("sub-blur", &format!("{:.1}", blur));
+    }
+
+    pub fn set_subtitle_shadow_offset(&self, offset: f32) {
+        self.set_property_string("sub-shadow-offset", &format!("{:.1}", offset));
+    }
+
+    pub fn set_subtitle_shadow_color(&self, color: &str) {
+        self.set_property_string("sub-shadow-color", color);
+    }
+
+    pub fn set_subtitle_background_box(&self, enabled: bool, color: &str) {
+        if enabled {
+            self.set_property_string("sub-back-color", color);
+        } else {
+            self.set_property_string("sub-back-color", "#00000000");
+        }
+    }
+
+    pub fn set_subtitle_align_x(&self, align: &str) {
+        self.set_property_string("sub-align-x", align);
+    }
+
+    pub fn set_subtitle_align_y(&self, align: &str) {
+        self.set_property_string("sub-align-y", align);
+    }
+
+    pub fn set_subtitle_letter_spacing(&self, spacing: f32) {
+        self.set_property_string("sub-spacing", &format!("{:.1}", spacing));
+    }
+
+    pub fn set_subtitle_margins(&self, margin_x: i32, margin_y: i32) {
+        self.set_property_string("sub-margin-x", &format!("{}", margin_x));
+        self.set_property_string("sub-margin-y", &format!("{}", margin_y));
+    }
+
+    pub fn set_subtitle_ass_override(&self, mode: &str) {
+        self.set_property_string("sub-ass-override", mode);
+    }
+
+    pub fn apply_all_subtitle_settings(&self, config: &crate::config::AppConfig) {
+        if !config.subtitle_sub_font.is_empty() {
+            self.set_subtitle_font(&config.subtitle_sub_font);
+        }
+        self.set_subtitle_font_size(config.subtitle_font_size);
+        self.set_subtitle_color(&config.subtitle_color);
+        self.set_subtitle_bold(config.subtitle_bold);
+        self.set_subtitle_italic(config.subtitle_italic);
+        self.set_subtitle_border_color(&config.subtitle_outline_color);
+        self.set_subtitle_border_size(config.subtitle_outline_width);
+        self.set_subtitle_border_blur(config.subtitle_border_blur);
+        self.set_subtitle_shadow_offset(config.subtitle_shadow_offset);
+        self.set_subtitle_shadow_color(&config.subtitle_shadow_color);
+        self.set_subtitle_background_box(config.subtitle_background_box, &config.subtitle_background_color);
+        self.set_subtitle_pos(config.subtitle_vertical_pos);
+        self.set_subtitle_align_x(&config.subtitle_align_x);
+        self.set_subtitle_align_y(&config.subtitle_align_y);
+        self.set_subtitle_letter_spacing(config.subtitle_letter_spacing);
+        self.set_subtitle_margins(config.subtitle_margin_x, config.subtitle_margin_y);
+        self.set_subtitle_ass_override(&config.subtitle_ass_override);
+        self.set_property_string("sub-use-margins", if config.subtitle_render_to_video { "no" } else { "yes" });
+        self.set_secondary_subtitle_pos(config.subtitle_secondary_pos);
     }
 
     pub fn set_secondary_subtitle_pos(&self, pos: f64) {
@@ -2482,6 +2679,14 @@ impl Drop for Player {
         self.is_running.store(false, Ordering::SeqCst);
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
+        }
+        if let Ok(mut guard) = self.render_context.lock() {
+            if let Some(render_ctx) = guard.take() {
+                unsafe {
+                    (self.ffi.mpv_render_context_set_update_callback)(render_ctx, None, std::ptr::null_mut());
+                    (self.ffi.mpv_render_context_free)(render_ctx);
+                }
+            }
         }
         unsafe {
             (self.ffi.mpv_terminate_destroy)(self.ctx);

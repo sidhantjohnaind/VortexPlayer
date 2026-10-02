@@ -324,6 +324,7 @@ impl PotApp {
                 p.set_gamut_mapping(&config.gamut_mapping_mode);
                 p.set_speed(config.playback_speed);
                 p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                let _ = p.ensure_render_context(&cc.egui_ctx);
                 Ok(p)
             }
             Err(e) => {
@@ -2811,11 +2812,12 @@ impl eframe::App for PotApp {
         }
         let ctx = ui.ctx().clone();
 
-        // Attach MPV to dedicated window surface on initial render
+        // Setup single window handles and SMTC on initial render
         if !self.attached_hwnd {
             crate::log_step("10a. !self.attached_hwnd entered");
             if let Ok(ref player) = self.player {
                 crate::log_step("10b. player is Ok");
+                let _ = player.ensure_render_context(&ctx);
                 if let Ok(handle) = frame.window_handle() {
                     crate::log_step("10c. got window_handle");
                     match handle.as_raw() {
@@ -2823,20 +2825,11 @@ impl eframe::App for PotApp {
                             let parent_hwnd = win32_handle.hwnd.get();
                             crate::log_step(&format!("10d. parent_hwnd = {}", parent_hwnd));
                             self.parent_hwnd = parent_hwnd;
+                            self.child_hwnd = 0;
                             #[cfg(windows)]
                             PARENT_HWND.store(parent_hwnd, std::sync::atomic::Ordering::Relaxed);
                             enable_native_borderless_resizing(parent_hwnd);
                             crate::log_step("10e. enable_native_borderless_resizing done");
-
-                            let child_hwnd = create_child_video_window(parent_hwnd);
-                            crate::log_step(&format!("10f. child_hwnd = {}", child_hwnd));
-                            if child_hwnd != 0 {
-                                player.set_wid(child_hwnd);
-                                self.child_hwnd = child_hwnd;
-                            } else {
-                                player.set_wid(parent_hwnd);
-                            }
-                            crate::log_step("10g. set_wid done");
 
                             self.smtc.init(parent_hwnd);
                             crate::log_step("10h. smtc.init done");
@@ -2846,37 +2839,25 @@ impl eframe::App for PotApp {
                         RawWindowHandle::Xlib(xlib_handle) => {
                             let parent_wid = xlib_handle.window as isize;
                             self.parent_hwnd = parent_wid;
-                            let child_wid = create_child_video_window(parent_wid);
-                            if child_wid != 0 {
-                                player.set_wid(child_wid);
-                                self.child_hwnd = child_wid;
-                            } else {
-                                player.set_wid(parent_wid);
-                            }
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         RawWindowHandle::Xcb(xcb_handle) => {
                             let parent_wid = xcb_handle.window.get() as isize;
                             self.parent_hwnd = parent_wid;
-                            let child_wid = create_child_video_window(parent_wid);
-                            if child_wid != 0 {
-                                player.set_wid(child_wid);
-                                self.child_hwnd = child_wid;
-                            } else {
-                                player.set_wid(parent_wid);
-                            }
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         RawWindowHandle::Wayland(wayland_handle) => {
                             let wid = wayland_handle.surface.as_ptr() as isize;
                             self.parent_hwnd = wid;
-                            player.set_wid(wid);
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         RawWindowHandle::AppKit(appkit_handle) => {
                             let wid = appkit_handle.ns_view.as_ptr() as isize;
                             self.parent_hwnd = wid;
-                            player.set_wid(wid);
+                            self.child_hwnd = 0;
                             self.attached_hwnd = true;
                         }
                         _ => {}
@@ -3218,11 +3199,9 @@ impl eframe::App for PotApp {
             let idle_secs = self.last_mouse_activity.elapsed().as_secs_f32();
             let is_idle = idle_secs > 2.5;
 
-            // In fullscreen: top bar only shows when mouse hovers within top edge (<= 40px),
-            // or if the menu was explicitly clicked from the top bar icon (y <= 36.0).
-            // Right-clicking video in fullscreen will NEVER reveal the top bar!
-            let menu_opened_from_top = self.show_main_menu && self.menu_position.map_or(false, |p| p.y <= 36.0);
-            let show_top = menu_opened_from_top 
+            // Top bar shows when hovered near top, menu open, or dragging
+            // Hides IMMEDIATELY when mouse moves away!
+            let show_top = self.show_main_menu 
                 || ((in_top_hover || (pointer_down && self.is_top_hovered)) && (!is_idle || pointer_down));
 
             // Bottom bar shows when hovered near bottom, popups open, or dragging
@@ -3934,6 +3913,25 @@ impl eframe::App for PotApp {
                 let response = ui.allocate_rect(effective_rect, Sense::click_and_drag());
                 self.last_video_rect = effective_rect;
 
+                // Render video into OpenGL framebuffer via mpv_render_context
+                // Panels use Order::Foreground so they paint ON TOP of this
+                if is_active_video {
+                    if let Ok(ref player) = self.player {
+
+                        let player_clone = Arc::clone(player);
+                        let egui_ctx = ui.ctx().clone();
+                        let callback = egui_glow::CallbackFn::new(move |info, _painter| {
+                            let _ = player_clone.ensure_render_context(&egui_ctx);
+                            let [w, h] = info.screen_size_px;
+                            player_clone.render_frame(0, w as i32, h as i32);
+                            player_clone.report_swap();
+                        });
+                        ui.painter().add(egui::PaintCallback {
+                            rect: effective_rect,
+                            callback: Arc::new(callback),
+                        });
+                    }
+                }
 
                 let pointer_pos = ui.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()));
                 let over_bars = if is_fullscreen_active {
@@ -4920,15 +4918,14 @@ impl eframe::App for PotApp {
             };
 
             // Y: open directly at cursor / button, flip up or shift up only if overflowing bottom edge
-            let min_y = if show_top_menu { 32.0 } else { 4.0 };
             let clamped_y = if raw_pos.y + menu_h > win_size.y - 8.0 {
-                if raw_pos.y - menu_h >= min_y {
+                if raw_pos.y - menu_h >= 32.0 {
                     raw_pos.y - menu_h
                 } else {
-                    (win_size.y - menu_h - 8.0).max(min_y)
+                    (win_size.y - menu_h - 8.0).max(32.0)
                 }
             } else {
-                raw_pos.y.max(min_y)
+                raw_pos.y.max(30.0)
             };
 
             let menu_pos = Pos2::new(clamped_x, clamped_y);
@@ -6270,49 +6267,23 @@ impl eframe::App for PotApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
 
-        // Position the native mpv child window to cover the full client area,
-        // with transparent holes punched for visible UI bars (title bar, control bar, menus)
-        {
+        #[cfg(windows)]
+        if self.parent_hwnd != 0 {
             let ppp = ctx.pixels_per_point();
+            let is_song_playback = MusicBackgroundView::is_song(&stats);
             let is_active_video = !stats.is_idle && !stats.file_path.is_empty() && !is_song_playback;
-
-            // Add top/bottom bar exclusion rects so the child window has holes for them
-            if show_top_menu {
-                self.active_popup_rects.push(Rect::from_min_size(Pos2::ZERO, Vec2::new(screen_w, 32.0)));
-            }
-            if show_bottom_menu {
-                self.active_popup_rects.push(Rect::from_min_max(
-                    Pos2::new(0.0, screen_h - bar_h),
-                    Pos2::new(screen_w, screen_h),
-                ));
-            }
-
-            // Collect all active cascading submenu rects
-            if self.show_main_menu {
-                let sub_rects: Vec<Rect> = ctx.data(|d| d.get_temp(egui::Id::new("all_active_submenu_rects"))).unwrap_or_default();
-                for r in sub_rects {
-                    self.active_popup_rects.push(r);
-                }
-            }
-
-            // Child window covers the full client area; holes let UI bars show through
-            let x = 0;
-            let y = 0;
-            let w = (screen_w * ppp).round() as i32;
-            let h = (screen_h * ppp).round() as i32;
-
-            let native_exclusions = &self.active_popup_rects[..];
-            update_child_window_geometry(self.child_hwnd, x, y, w, h, is_active_video, native_exclusions, ppp);
-
-            #[cfg(windows)]
-            if self.parent_hwnd != 0 {
-                let clip = if is_active_video {
-                    Some([x, y, x + w, y + h])
-                } else {
-                    None
-                };
-                self.taskbar.set_thumbnail_clip(self.parent_hwnd, clip);
-            }
+            let clip = if is_active_video {
+                let r = self.last_video_rect;
+                Some([
+                    (r.min.x * ppp).round() as i32,
+                    (r.min.y * ppp).round() as i32,
+                    (r.max.x * ppp).round() as i32,
+                    (r.max.y * ppp).round() as i32,
+                ])
+            } else {
+                None
+            };
+            self.taskbar.set_thumbnail_clip(self.parent_hwnd, clip);
         }
         static LAST_FRAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
         if LAST_FRAME.swap(false, std::sync::atomic::Ordering::Relaxed) {

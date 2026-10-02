@@ -1,10 +1,10 @@
-//! preferences_dialog.rs — Advanced In-Depth PotPlayer-Style Preferences Studio
+//! preferences_dialog.rs — Advanced In-Depth Vortex-Style Preferences Studio
 
 #![allow(dead_code)]
 
 use super::theme::VortexTheme;
 use crate::config::{AppConfig, DoubleClickAction, PlaylistEndAction, ThemeMode};
-use crate::engine::audio_dsp::{FREQS, POT_EQ_PRESETS};
+use crate::engine::audio_dsp::{FREQS, VORTEX_EQ_PRESETS};
 use crate::engine::shaders::{Anime4kPreset, VideoScaler};
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2, ViewportBuilder, ViewportId};
 
@@ -19,7 +19,7 @@ pub fn fluent_switch(ui: &mut egui::Ui, value: &mut bool) -> egui::Response {
     if ui.is_rect_visible(rect) {
         let how_on = ui.ctx().animate_bool(response.id, *value);
         let track_color = if *value {
-            VortexTheme::POT_YELLOW
+            VortexTheme::VORTEX_YELLOW
         } else if response.hovered() {
             Color32::from_rgb(55, 60, 75)
         } else {
@@ -89,7 +89,7 @@ pub fn settings_row_resettable<R>(
             ui.horizontal(|ui| {
                 if is_modified {
                     let (resp, painter) = ui.allocate_painter(Vec2::new(7.0, 7.0), Sense::hover());
-                    painter.circle_filled(resp.rect.center(), 2.5, VortexTheme::POT_YELLOW);
+                    painter.circle_filled(resp.rect.center(), 2.5, VortexTheme::VORTEX_YELLOW);
                 }
                 ui.label(RichText::new(title).size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
                 if is_modified {
@@ -638,7 +638,7 @@ impl PreferencesDialog {
                                     let now = ui.ctx().input(|i| i.time);
                                     if now - self.save_feedback_time < 3.5 {
                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                            ui.label(RichText::new(&self.feedback_message).size(10.5).color(VortexTheme::POT_YELLOW).strong());
+                                            ui.label(RichText::new(&self.feedback_message).size(10.5).color(VortexTheme::VORTEX_YELLOW).strong());
                                         });
                                     }
                                 }
@@ -682,15 +682,15 @@ impl PreferencesDialog {
 
                                         ui.add_space(8.0);
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(*icon).size(12.0).color(if is_section_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(140, 146, 168) }));
+                                            ui.label(RichText::new(*icon).size(12.0).color(if is_section_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 146, 168) }));
                                             ui.label(
                                                 RichText::new(*section)
                                                     .strong()
                                                     .size(11.5)
-                                                    .color(if is_section_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(180, 186, 205) }),
+                                                    .color(if is_section_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(180, 186, 205) }),
                                             );
                                             if mod_cnt > 0 {
-                                                ui.label(RichText::new(format!("● {}", mod_cnt)).size(9.0).color(VortexTheme::POT_YELLOW).strong());
+                                                ui.label(RichText::new(format!("● {}", mod_cnt)).size(9.0).color(VortexTheme::VORTEX_YELLOW).strong());
                                             }
                                         });
                                         ui.add_space(2.0);
@@ -698,7 +698,7 @@ impl PreferencesDialog {
                                         for sub in *sub_items {
                                             let is_selected = is_section_active && self.active_sub_category == *sub;
                                             let text_color = if is_selected {
-                                                VortexTheme::POT_YELLOW
+                                                VortexTheme::VORTEX_YELLOW
                                             } else {
                                                 Color32::from_rgb(150, 155, 172)
                                             };
@@ -725,7 +725,7 @@ impl PreferencesDialog {
                                                 ui.painter().rect_filled(
                                                     Rect::from_min_size(r.left_top() + Vec2::new(2.0, 4.0), Vec2::new(3.0, r.height() - 8.0)),
                                                     CornerRadius::same(2),
-                                                    VortexTheme::POT_YELLOW,
+                                                    VortexTheme::VORTEX_YELLOW,
                                                 );
                                             }
 
@@ -754,7 +754,7 @@ impl PreferencesDialog {
                                     let query = self.search_query.trim().to_lowercase();
                                     if !query.is_empty() {
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(format!("🔍 Search Results for \"{}\":", self.search_query)).strong().color(VortexTheme::POT_YELLOW).size(13.0));
+                                            ui.label(RichText::new(format!("🔍 Search Results for \"{}\":", self.search_query)).strong().color(VortexTheme::VORTEX_YELLOW).size(13.0));
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 if ui.small_button("Clear Search ✕").clicked() {
                                                     self.search_query.clear();
@@ -781,7 +781,7 @@ impl PreferencesDialog {
                                                         });
                                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                             let jump_btn = ui.add(
-                                                                egui::Button::new(RichText::new("Jump to Setting →").size(11.0).color(VortexTheme::POT_YELLOW))
+                                                                egui::Button::new(RichText::new("Jump to Setting →").size(11.0).color(VortexTheme::VORTEX_YELLOW))
                                                                     .fill(Color32::from_rgb(32, 36, 48))
                                                                     .stroke(Stroke::new(1.0, Color32::from_rgb(55, 60, 80)))
                                                                     .corner_radius(CornerRadius::same(5))
@@ -1012,8 +1012,8 @@ impl PreferencesDialog {
                                         });
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Real-time Diagnostics Overlay (Tab Key)").size(11.5).strong().color(VortexTheme::POT_YELLOW));
-                                            ui.label(RichText::new("Pressing Tab renders the PotPlayer technical telemetry overlay with real-time stats:\n• Video Codec, Hardware Decoder, Resolution, Framerate, Dropped Frames\n• Audio Codec, Channel Layout, Sample Rate, Bitrate, Buffer Latency").size(10.5).color(Color32::from_rgb(140, 146, 165)));
+                                            ui.label(RichText::new("Real-time Diagnostics Overlay (Tab Key)").size(11.5).strong().color(VortexTheme::VORTEX_YELLOW));
+                                            ui.label(RichText::new("Pressing Tab renders the Vortex technical telemetry overlay with real-time stats:\n• Video Codec, Hardware Decoder, Resolution, Framerate, Dropped Frames\n• Audio Codec, Channel Layout, Sample Rate, Bitrate, Buffer Latency").size(10.5).color(Color32::from_rgb(140, 146, 165)));
                                         });
                                     }
 
@@ -1058,7 +1058,7 @@ impl PreferencesDialog {
                                         });
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("💡 Intelligent Pitch Preservation").size(11.5).strong().color(VortexTheme::POT_YELLOW));
+                                            ui.label(RichText::new("💡 Intelligent Pitch Preservation").size(11.5).strong().color(VortexTheme::VORTEX_YELLOW));
                                             ui.label(RichText::new("VortexPlayer employs Scaletempo2 and Rubberband DSP to maintain crystal-clear vocal timbre and pitch fidelity at any accelerated or decelerated speed.").size(10.5).color(Color32::from_rgb(140, 146, 165)));
                                         });
                                     }
@@ -1125,7 +1125,7 @@ impl PreferencesDialog {
                                         });
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("💡 Intelligent Decoder Failover").size(11.5).strong().color(VortexTheme::POT_YELLOW));
+                                            ui.label(RichText::new("💡 Intelligent Decoder Failover").size(11.5).strong().color(VortexTheme::VORTEX_YELLOW));
                                             ui.label(RichText::new("'Auto Safe' automatically selects Direct3D 11 / NVDEC hardware pipelines. If unsupported 12-bit or damaged bitstreams occur, it automatically and silently falls back to multi-threaded CPU software decoding.").size(10.5).color(Color32::from_rgb(140, 146, 165)));
                                         });
                                     }
@@ -1378,7 +1378,7 @@ impl PreferencesDialog {
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
                                             ui.horizontal(|ui| {
-                                                if ui.button(RichText::new("↺ Reset All Color Levels to 100%").color(VortexTheme::POT_YELLOW)).clicked() {
+                                                if ui.button(RichText::new("↺ Reset All Color Levels to 100%").color(VortexTheme::VORTEX_YELLOW)).clicked() {
                                                     config.video_brightness = 100.0;
                                                     config.video_contrast = 100.0;
                                                     config.video_saturation = 100.0;
@@ -1612,7 +1612,7 @@ impl PreferencesDialog {
                                             ui.horizontal(|ui| {
                                                 let is_eq = config.eq_enabled;
                                                 let mut eq_en = config.eq_enabled;
-                                                if ui.checkbox(&mut eq_en, RichText::new("Enable Equalizer").strong().color(if is_eq { VortexTheme::POT_YELLOW } else { Color32::WHITE })).changed() {
+                                                if ui.checkbox(&mut eq_en, RichText::new("Enable Equalizer").strong().color(if is_eq { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE })).changed() {
                                                     config.eq_enabled = eq_en;
                                                     if let Some(p) = player {
                                                         p.set_equalizer(eq_en, &config.eq_bands);
@@ -1645,10 +1645,10 @@ impl PreferencesDialog {
 
                                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                     egui::ComboBox::from_id_salt("pref_eq_preset_sel")
-                                                        .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::POT_YELLOW).strong())
+                                                        .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::VORTEX_YELLOW).strong())
                                                         .show_ui(ui, |ui| {
                                                             ui.label(RichText::new("── Built-in Presets ──").size(10.0).color(Color32::from_rgb(120, 125, 140)));
-                                                            for preset in POT_EQ_PRESETS {
+                                                            for preset in VORTEX_EQ_PRESETS {
                                                                 if ui.selectable_label(config.eq_preset == preset.name, preset.name).clicked() {
                                                                     config.eq_preset = preset.name.to_string();
                                                                     config.eq_bands = preset.bands.to_vec();
@@ -1661,7 +1661,7 @@ impl PreferencesDialog {
 
                                                             if !config.custom_eq_presets.is_empty() {
                                                                 ui.separator();
-                                                                ui.label(RichText::new("── Custom Presets ──").size(10.0).color(VortexTheme::POT_YELLOW));
+                                                                ui.label(RichText::new("── Custom Presets ──").size(10.0).color(VortexTheme::VORTEX_YELLOW));
                                                                 let mut to_delete: Option<String> = None;
                                                                 let custom_names: Vec<String> = config.custom_eq_presets.keys().cloned().collect();
                                                                 for c_name in custom_names {
@@ -1704,7 +1704,7 @@ impl PreferencesDialog {
                                                     .inner_margin(Margin::symmetric(10, 6))
                                                     .show(ui, |ui| {
                                                         ui.horizontal(|ui| {
-                                                            ui.label(RichText::new("New Custom Preset Name:").size(11.0).color(VortexTheme::POT_YELLOW).strong());
+                                                            ui.label(RichText::new("New Custom Preset Name:").size(11.0).color(VortexTheme::VORTEX_YELLOW).strong());
                                                             let text_resp = ui.add(
                                                                 egui::TextEdit::singleline(&mut self.new_preset_name)
                                                                     .desired_width(200.0)
@@ -1783,7 +1783,7 @@ impl PreferencesDialog {
 
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Saved Custom Presets Library").size(12.5).strong().color(VortexTheme::POT_YELLOW));
+                                            ui.label(RichText::new("Saved Custom Presets Library").size(12.5).strong().color(VortexTheme::VORTEX_YELLOW));
                                             if config.custom_eq_presets.is_empty() {
                                                 ui.label(RichText::new("No custom EQ presets created yet. Adjust the sliders above and click \"➕ Save As Custom Preset...\" to save your personalized sound curve.").size(10.5).color(Color32::from_rgb(140, 145, 160)));
                                             } else {
@@ -1810,11 +1810,11 @@ impl PreferencesDialog {
                                                                 .inner_margin(Margin::symmetric(10, 6))
                                                                 .show(ui, |ui| {
                                                                     ui.horizontal(|ui| {
-                                                                        let star_col = if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(160, 165, 180) };
+                                                                        let star_col = if is_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 180) };
                                                                         ui.label(RichText::new(format!("★ {}", name)).strong().color(star_col));
 
                                                                         if is_active {
-                                                                            ui.label(RichText::new("[Active]").size(9.5).color(VortexTheme::POT_YELLOW));
+                                                                            ui.label(RichText::new("[Active]").size(9.5).color(VortexTheme::VORTEX_YELLOW));
                                                                         }
 
                                                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1897,7 +1897,7 @@ impl PreferencesDialog {
                                     }
 
                                     // ──────────────────────────────────────────────
-                                    // 5. SUBTITLES (POTPLAYER-GRADE CUSTOMIZATION)
+                                    // 5. SUBTITLES (VORTEX-GRADE CUSTOMIZATION)
                                     // ──────────────────────────────────────────────
                                     ("Subtitles", "Font & Typography") | ("Subtitles", "Typography & Positioning") => {
                                         section_header(ui, "Subtitles  ›  Font & Typography", "Font & Typography", "Custom typeface, font scaling, bold/italic weights, and letter spacing.");
@@ -1969,7 +1969,7 @@ impl PreferencesDialog {
                                                 ui.label(RichText::new("Preset Colors:").size(11.0).color(Color32::from_rgb(140, 146, 168)));
                                                 let swatches = [
                                                     ("White", "#FFFFFF"),
-                                                    ("PotPlayer Yellow", "#FFE600"),
+                                                    ("Vortex Gold", "#FFE600"),
                                                     ("Bright Yellow", "#FFFF00"),
                                                     ("Soft Amber", "#FFCC00"),
                                                     ("Cyan", "#00FFFF"),
@@ -2032,7 +2032,7 @@ impl PreferencesDialog {
                                             ui.separator();
 
                                             // Background Bounding Box
-                                            settings_row(ui, "Background Bounding Box", "Display opaque or semi-transparent strip behind subtitles (PotPlayer style)", |ui| {
+                                            settings_row(ui, "Background Bounding Box", "Display opaque or semi-transparent strip behind subtitles (Vortex style)", |ui| {
                                                 fluent_switch(ui, &mut config.subtitle_background_box);
                                             });
                                             if config.subtitle_background_box {
@@ -2154,7 +2154,7 @@ impl PreferencesDialog {
                                             ui.label(RichText::new("Automatic Track Matching Priority").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
                                             ui.label(RichText::new("VortexPlayer automatically scans embedded and external subtitle files in order of priority:\n1. Hindi (hi / hin)\n2. English (en / eng)\n3. Japanese (ja / jpn)").size(11.0).color(Color32::from_rgb(140, 146, 165)));
                                             ui.add_space(4.0);
-                                            ui.label(RichText::new("💡 Press Ctrl + L at any time during playback to open the OpenSubtitles search modal and fetch matched subtitles instantly.").size(10.5).color(VortexTheme::POT_YELLOW));
+                                            ui.label(RichText::new("💡 Press Ctrl + L at any time during playback to open the OpenSubtitles search modal and fetch matched subtitles instantly.").size(10.5).color(VortexTheme::VORTEX_YELLOW));
                                         });
                                     }
 
@@ -2315,10 +2315,10 @@ impl PreferencesDialog {
                             }
                         };
 
-                        // Apply & Close: Primary PotPlayer Gold
+                        // Apply & Close: Primary Vortex Gold
                         let apply_close_btn = ui.add(
                             egui::Button::new(RichText::new("Apply & Close (Enter)").strong().color(Color32::from_rgb(18, 20, 26)))
-                                .fill(VortexTheme::POT_YELLOW)
+                                .fill(VortexTheme::VORTEX_YELLOW)
                                 .corner_radius(CornerRadius::same(6))
                                 .min_size(Vec2::new(140.0, 28.0))
                         );

@@ -92,7 +92,31 @@ pub fn is_native_fullscreen() -> bool {
 
 #[cfg(windows)]
 pub unsafe fn apply_border_suppression(hwnd: windows_sys::Win32::Foundation::HWND) {
-    apply_border_suppression_internal(hwnd, 2 /* DWMWCP_ROUND - circular / rounded borders */);
+    let is_fullscreen_or_zoomed = is_native_fullscreen() || windows_sys::Win32::UI::WindowsAndMessaging::IsZoomed(hwnd) != 0 || {
+        use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
+        use windows_sys::Win32::Foundation::RECT;
+        let mut wr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+        if GetWindowRect(hwnd, &mut wr) != 0 {
+            let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            let mut mi: MONITORINFO = std::mem::zeroed();
+            mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            if GetMonitorInfoW(hmon, &mut mi) != 0 {
+                (wr.right - wr.left) >= (mi.rcMonitor.right - mi.rcMonitor.left)
+                    && (wr.bottom - wr.top) >= (mi.rcMonitor.bottom - mi.rcMonitor.top)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    };
+    let corner = if is_fullscreen_or_zoomed {
+        1 /* DWMWCP_DONOTROUND - completely square, no rounded corners in fullscreen or maximized */
+    } else {
+        2 /* DWMWCP_ROUND - circular / rounded borders for normal windowed mode */
+    };
+    apply_border_suppression_internal(hwnd, corner);
 }
 
 #[cfg(windows)]
@@ -709,7 +733,7 @@ impl WindowsTaskbarAdapter {
         // 2. Prepare button icons
         let icons = self.icons.get_or_insert_with(build_button_icons);
 
-        // 3. Register the 7 thumbnail toolbar buttons (matches PotPlayer layout)
+        // 3. Register the 7 thumbnail toolbar buttons (matches Vortex layout)
         let buttons = [
             THUMBBUTTON {
                 dwMask: THB_ICON | THB_TOOLTIP | THB_FLAGS,

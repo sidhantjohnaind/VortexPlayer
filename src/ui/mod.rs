@@ -54,7 +54,7 @@ pub use icons::Icons;
 pub use library_view::LibraryView;
 pub use lyrics_overlay::LyricsOverlay;
 pub use mediainfo_dialog::MediaInfoDialog;
-pub use menu::PotMenu;
+pub use menu::VortexMenu;
 pub use network_browser_dialog::NetworkBrowserDialog;
 pub use osd::OsdEngine;
 pub use parametric_eq_dialog::ParametricEqDialog;

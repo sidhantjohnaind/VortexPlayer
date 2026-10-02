@@ -102,7 +102,7 @@ fn test_sami_subtitle_parse_and_srt_conversion() {
     let sami_content = r#"<SAMI>
 <BODY>
 <SYNC Start=1000><P Class=ENCC>Hello World!</P>
-<SYNC Start=4000><P Class=ENCC>Welcome to PotPlayer in Rust.</P>
+<SYNC Start=4000><P Class=ENCC>Welcome to Vortex in Rust.</P>
 <SYNC Start=8000><P Class=ENCC>&nbsp;</P>
 </BODY>
 </SAMI>"#;
@@ -112,13 +112,13 @@ fn test_sami_subtitle_parse_and_srt_conversion() {
     assert_eq!(entries[0].start_ms, 1000);
     assert_eq!(entries[0].text, "Hello World!");
     assert_eq!(entries[1].start_ms, 4000);
-    assert_eq!(entries[1].text, "Welcome to PotPlayer in Rust.");
+    assert_eq!(entries[1].text, "Welcome to Vortex in Rust.");
 
     let srt = SamiParser::convert_to_srt(&entries);
     assert!(srt.contains("00:00:01,000 -->"));
     assert!(srt.contains("Hello World!"));
     assert!(srt.contains("00:00:04,000 -->"));
-    assert!(srt.contains("Welcome to PotPlayer in Rust."));
+    assert!(srt.contains("Welcome to Vortex in Rust."));
 }
 
 #[test]

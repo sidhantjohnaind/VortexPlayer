@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-//! playlist_panel.rs — PotPlayer Multi-Tab Right Sidebar Drawer:
+//! playlist_panel.rs — Vortex Multi-Tab Right Sidebar Drawer:
 //! 1. Playlist Studio (Default, Albums, Favorites, History, Search, Bottom Action Bar)
 //! 2. File Explorer (Drives, Quick Folders, Directory Tree, Double-Click Play, Enqueue)
 //! 3. Chapters & Bookmarks (Embedded Chapters, PBF Bookmarks, Instant Jump, Add/Remove)
@@ -52,7 +52,7 @@ fn safe_truncate(s: &str, max_chars: usize) -> String {
     }
 }
 
-fn format_duration_potplayer(secs: f64) -> String {
+fn format_duration_vortex(secs: f64) -> String {
     if secs <= 0.0 {
         return "--:--".to_string();
     }
@@ -127,7 +127,7 @@ impl PlaylistPanel {
             ui.spacing_mut().item_spacing = Vec2::new(0.0, 4.0);
 
             if is_detached {
-                // ── PotPlayer Standalone Playlist Window Header Tabs ──────────────
+                // ── Vortex Standalone Playlist Window Header Tabs ──────────────
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(3.0, 0.0);
 
@@ -171,7 +171,7 @@ impl PlaylistPanel {
                         let pin_btn = egui::Button::new(
                             egui::RichText::new(if is_pinned { "📌" } else { "📍" })
                                 .size(11.0)
-                                .color(if is_pinned { VortexTheme::POT_YELLOW } else { Color32::from_rgb(140, 145, 160) })
+                                .color(if is_pinned { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 160) })
                         );
                         if ui.add(pin_btn).on_hover_text(if is_pinned { "Pinned Always on Top" } else { "Pin window always on top" }).clicked() {
                             actions.toggle_pin = true;
@@ -179,44 +179,7 @@ impl PlaylistPanel {
                     });
                 });
             } else {
-                // ── Docked Sidebar Top Header Bar: Title + Detach / Close Controls ──────────────
-                ui.horizontal(|ui| {
-                    ui.add_space(2.0);
-                    let title_label = match *active_drawer_tab {
-                        DrawerTab::Playlist => "PLAYLIST STUDIO",
-                        DrawerTab::FileBrowser => "FILE EXPLORER",
-                        DrawerTab::ChaptersBookmarks => "CHAPTERS & MARKS",
-                        DrawerTab::Subtitles => "SUBTITLE TRANSCRIPT",
-                    };
-                    ui.label(
-                        egui::RichText::new(title_label)
-                            .color(VortexTheme::POT_YELLOW)
-                            .font(FontId::proportional(11.5))
-                            .strong(),
-                    );
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let close_btn = egui::Button::new(egui::RichText::new("✕").size(11.0).color(Color32::from_rgb(170, 175, 190)))
-                            .frame(false);
-                        if ui.add(close_btn).on_hover_text("Close Drawer (F8)").clicked() {
-                            actions.close_playlist = true;
-                        }
-
-                        let detach_btn = egui::Button::new(
-                            egui::RichText::new("⤢ Pop Out")
-                                .size(10.0)
-                                .color(Color32::from_rgb(180, 185, 200))
-                        );
-                        if ui.add(detach_btn)
-                            .on_hover_text("Detach into floating window")
-                            .clicked()
-                        {
-                            actions.toggle_detach = true;
-                        }
-                    });
-                });
-
-                // Primary 4-Tab Drawer Switcher
+                // ── Docked Sidebar Top Header Bar: 4-Tab Switcher + Compact Actions ──────────────
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
                     let main_tabs = [
@@ -226,7 +189,8 @@ impl PlaylistPanel {
                         (DrawerTab::Subtitles, "💬 Subs"),
                     ];
 
-                    let tab_w = ((ui.available_width() - 6.0) / 4.0).max(48.0);
+                    let action_w = 46.0;
+                    let tab_w = ((ui.available_width() - action_w - 6.0) / 4.0).max(42.0);
                     for (tab, label) in main_tabs {
                         let is_active = *active_drawer_tab == tab;
                         let (r, resp) = ui.allocate_exact_size(Vec2::new(tab_w, 24.0), Sense::click());
@@ -244,7 +208,7 @@ impl PlaylistPanel {
                         painter.rect_stroke(
                             r,
                             CornerRadius::same(3),
-                            Stroke::new(1.0, if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(30, 32, 40) }),
+                            Stroke::new(1.0, if is_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(30, 32, 40) }),
                             StrokeKind::Inside,
                         );
 
@@ -252,13 +216,32 @@ impl PlaylistPanel {
                             r.center(),
                             Align2::CENTER_CENTER,
                             label,
-                            FontId::proportional(11.0),
+                            FontId::proportional(10.5),
                             if is_active { Color32::WHITE } else { Color32::from_rgb(155, 160, 175) },
                         );
 
                         if resp.clicked() {
                             *active_drawer_tab = tab;
                         }
+                    }
+
+                    let detach_btn = egui::Button::new(
+                        egui::RichText::new("⤢").size(11.0).color(Color32::from_rgb(180, 185, 200))
+                    )
+                    .frame(false);
+                    if ui.add(detach_btn)
+                        .on_hover_text("Pop out into floating window")
+                        .clicked()
+                    {
+                        actions.toggle_detach = true;
+                    }
+
+                    let close_btn = egui::Button::new(
+                        egui::RichText::new("✕").size(11.0).color(Color32::from_rgb(170, 175, 190))
+                    )
+                    .frame(false);
+                    if ui.add(close_btn).on_hover_text("Close Drawer (F8)").clicked() {
+                        actions.close_playlist = true;
                     }
                 });
             }
@@ -299,7 +282,7 @@ impl PlaylistPanel {
                                 Align2::CENTER_CENTER,
                                 label,
                                 FontId::proportional(10.0),
-                                if is_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(140, 145, 160) },
+                                if is_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 160) },
                             );
 
                             if resp.clicked() {
@@ -381,7 +364,7 @@ impl PlaylistPanel {
                                         let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("Unknown").to_string();
                                         let is_cur = active_video_path.map(|av| av == p.to_string_lossy()).unwrap_or(false);
                                         let dur_str = if is_cur && stats.duration > 0.0 {
-                                            format_duration_potplayer(stats.duration)
+                                            format_duration_vortex(stats.duration)
                                         } else {
                                             "--:--".to_string()
                                         };
@@ -392,7 +375,7 @@ impl PlaylistPanel {
                                         let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("Unknown").to_string();
                                         let is_cur = active_video_path.map(|av| av == p.to_string_lossy()).unwrap_or(false);
                                         let dur_str = if is_cur && stats.duration > 0.0 {
-                                            format_duration_potplayer(stats.duration)
+                                            format_duration_vortex(stats.duration)
                                         } else {
                                             "--:--".to_string()
                                         };
@@ -406,7 +389,7 @@ impl PlaylistPanel {
                                         } else {
                                             it.duration_secs.filter(|s| *s > 0.0)
                                         };
-                                        let dur_str = dur_val.map(format_duration_potplayer).unwrap_or_else(|| "--:--".to_string());
+                                        let dur_str = dur_val.map(format_duration_vortex).unwrap_or_else(|| "--:--".to_string());
                                         (it.path.clone(), it.title.clone(), dur_str, is_cur)
                                     }
                                 };
@@ -438,7 +421,7 @@ impl PlaylistPanel {
                                 painter.rect_stroke(badge_r, CornerRadius::same(2), Stroke::new(1.0, badge_stroke), StrokeKind::Inside);
                                 painter.text(badge_r.center(), Align2::CENTER_CENTER, badge_label, FontId::monospace(7.5), badge_text_col);
 
-                                // Track label with track number prefix matching PotPlayer: "01. 01 - Title.flac"
+                                // Track label with track number prefix matching Vortex: "01. 01 - Title.flac"
                                 let display_title = format!("{:02}. {}", orig_idx + 1, item_title);
                                 let text_col = if is_current {
                                     Color32::WHITE
@@ -474,27 +457,47 @@ impl PlaylistPanel {
                                 }
 
                                 resp.context_menu(|ui| {
-                                    if ui.button("▶  Play Now").clicked() {
+                                    if ui.button("Play Now").clicked() {
                                         actions.play_path = Some(item_path.clone());
                                         ui.close();
                                     }
                                     let is_fav = playlist.favorites.contains(&item_path);
-                                    let fav_text = if is_fav { "★  Remove from Favorites" } else { "☆  Add to Favorites" };
+                                    let fav_text = if is_fav { "Remove from Favorites" } else { "Add to Favorites" };
                                     if ui.button(fav_text).clicked() {
                                         toggle_fav_path = Some(item_path.clone());
                                         ui.close();
                                     }
                                     ui.separator();
-                                    if ui.button("▲  Move Up").clicked() {
+                                    if ui.button("Reveal in File Explorer").clicked() {
+                                        #[cfg(windows)]
+                                        {
+                                            let _ = std::process::Command::new("explorer")
+                                                .arg(format!("/select,\"{}\"", item_path.display()))
+                                                .spawn();
+                                        }
+                                        ui.close();
+                                    }
+                                    if ui.button("Copy File Path").clicked() {
+                                        ui.ctx().copy_text(item_path.display().to_string());
+                                        ui.close();
+                                    }
+                                    ui.separator();
+                                    if ui.button("Move Up").clicked() {
                                         to_move_up = Some(orig_idx);
                                         ui.close();
                                     }
-                                    if ui.button("▼  Move Down").clicked() {
+                                    if ui.button("Move Down").clicked() {
                                         to_move_down = Some(orig_idx);
                                         ui.close();
                                     }
-                                    if ui.button("🗑  Remove from List").clicked() {
+                                    if ui.button("Remove from List").clicked() {
                                         to_remove_idx = Some(orig_idx);
+                                        ui.close();
+                                    }
+                                    ui.separator();
+                                    if ui.button("Clear Playlist").clicked() {
+                                        playlist.items.clear();
+                                        playlist.current_index = None;
                                         ui.close();
                                     }
                                 });
@@ -554,7 +557,7 @@ impl PlaylistPanel {
                         let rep_btn = egui::Button::new(
                             egui::RichText::new(rep_label)
                                 .size(10.0)
-                                .color(if is_rep_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(160, 165, 175) })
+                                .color(if is_rep_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
                         );
                         if ui.add(rep_btn).on_hover_text("Cycle Repeat Mode").clicked() {
                             playlist.cycle_repeat_mode();
@@ -565,7 +568,7 @@ impl PlaylistPanel {
                         let shuf_btn = egui::Button::new(
                             egui::RichText::new("🔀")
                                 .size(10.0)
-                                .color(if is_shuf_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(160, 165, 175) })
+                                .color(if is_shuf_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
                         );
                         if ui.add(shuf_btn).on_hover_text("Toggle Shuffle Playback").clicked() {
                             playlist.toggle_shuffle();
@@ -575,7 +578,7 @@ impl PlaylistPanel {
                         let restore_btn = egui::Button::new(
                             egui::RichText::new(if restore_prev { "💾 Prev: ON" } else { "💾 Prev: OFF" })
                                 .size(10.0)
-                                .color(if restore_prev { VortexTheme::POT_YELLOW } else { Color32::from_rgb(140, 145, 155) })
+                                .color(if restore_prev { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 155) })
                         );
                         if ui.add(restore_btn).on_hover_text("Toggle restoring previous playlist on direct launch (switched OFF by default)").clicked() {
                             actions.toggle_restore_prev = true;
@@ -623,7 +626,7 @@ impl PlaylistPanel {
                         let folder_name = browser_dir.file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or_else(|| browser_dir.to_str().unwrap_or("Root"));
-                        ui.label(egui::RichText::new(folder_name).strong().color(VortexTheme::POT_YELLOW));
+                        ui.label(egui::RichText::new(folder_name).strong().color(VortexTheme::VORTEX_YELLOW));
                     });
 
                     // Search box in current folder
@@ -740,7 +743,7 @@ impl PlaylistPanel {
                 // =========================================================================
                 DrawerTab::ChaptersBookmarks => {
                     ui.horizontal(|ui| {
-                        if ui.button(egui::RichText::new("➕ Add Bookmark (P)").color(VortexTheme::POT_YELLOW).strong()).clicked() {
+                        if ui.button(egui::RichText::new("➕ Add Bookmark (P)").color(VortexTheme::VORTEX_YELLOW).strong()).clicked() {
                             actions.add_bookmark = true;
                         }
                     });
@@ -760,7 +763,7 @@ impl PlaylistPanel {
                                     let time_str = format_time(ch.time_pos);
                                     let title = if ch.title.is_empty() { format!("Chapter {}", idx + 1) } else { ch.title.clone() };
                                     ui.horizontal(|ui| {
-                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::POT_YELLOW)).clicked() {
+                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::VORTEX_YELLOW)).clicked() {
                                             actions.seek_to = Some(ch.time_pos);
                                         }
                                         if ui.selectable_label(false, &title).clicked() {
@@ -773,7 +776,7 @@ impl PlaylistPanel {
                             }
 
                             // 2. User PBF Bookmarks
-                            ui.label(egui::RichText::new(format!("USER BOOKMARKS ({})", bookmark_mgr.bookmarks.len())).strong().color(VortexTheme::POT_YELLOW));
+                            ui.label(egui::RichText::new(format!("USER BOOKMARKS ({})", bookmark_mgr.bookmarks.len())).strong().color(VortexTheme::VORTEX_YELLOW));
                             if bookmark_mgr.bookmarks.is_empty() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(20.0);
@@ -784,7 +787,7 @@ impl PlaylistPanel {
                                 for (b_idx, bm) in bookmark_mgr.bookmarks.iter().enumerate() {
                                     let time_str = format_time(bm.time_pos);
                                     ui.horizontal(|ui| {
-                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::POT_YELLOW)).clicked() {
+                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::VORTEX_YELLOW)).clicked() {
                                             actions.seek_to = Some(bm.time_pos);
                                         }
                                         if ui.selectable_label(false, &bm.title).clicked() {
@@ -843,7 +846,7 @@ impl PlaylistPanel {
                                         count += 1;
                                         let time_str = format_time(*start);
                                         ui.horizontal(|ui| {
-                                            if ui.button(egui::RichText::new(&time_str).monospace().size(10.0).color(VortexTheme::POT_YELLOW)).clicked() {
+                                            if ui.button(egui::RichText::new(&time_str).monospace().size(10.0).color(VortexTheme::VORTEX_YELLOW)).clicked() {
                                                 actions.seek_to = Some(*start);
                                             }
                                             if ui.selectable_label(false, text).clicked() {

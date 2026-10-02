@@ -28,7 +28,7 @@ pub const FREQS: [f64; 18] = [
     8000.0, 12500.0, 16000.0, 18000.0, 20000.0,
 ];
 
-pub const POT_EQ_PRESETS: &[EqPresetItem] = &[
+pub const VORTEX_EQ_PRESETS: &[EqPresetItem] = &[
     EqPresetItem { name: "Flat", bands: &[0.0; 18] },
     EqPresetItem { name: "Rock", bands: &[2.0, 3.0, 4.0, 2.0, 0.0, -1.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 3.0, 2.0, 1.0, 0.0, 0.0] },
     EqPresetItem { name: "Pop", bands: &[-1.0, 0.0, 2.0, 3.0, 3.0, 2.0, 0.0, -1.0, -1.0, 0.0, 1.0, 2.0, 2.0, 1.0, 0.0, -1.0, 0.0, 0.0] },

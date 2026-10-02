@@ -37,7 +37,7 @@ pub mod web_remote;
 
 pub use archive::ArchiveEngine;
 pub use audio_calibration::SpeakerCalibrationMatrix;
-pub use audio_dsp::{AudioDspConfig, ChannelDownmixMode, POT_EQ_PRESETS};
+pub use audio_dsp::{AudioDspConfig, ChannelDownmixMode, VORTEX_EQ_PRESETS};
 pub use chapters::ChapterItem;
 pub use crash_recovery::{CrashRecoverySentinel, SessionState};
 pub use disc::{DiscEngine, DiscType};

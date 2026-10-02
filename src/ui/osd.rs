@@ -66,7 +66,7 @@ impl OsdEngine {
 
     pub fn show_volume(&mut self, volume: f64, is_muted: bool) {
         if is_muted {
-            self.show("🔇 Volume: MUTE".to_string(), 1200);
+            self.show("Volume: MUTE".to_string(), 1200);
         } else {
             let total_bars = 16;
             let norm_vol = volume.clamp(0.0, 100.0);
@@ -74,64 +74,64 @@ impl OsdEngine {
             let mut bar_str = String::new();
             for i in 0..total_bars {
                 if i < filled_bars {
-                    bar_str.push('█');
+                    bar_str.push('|');
                 } else {
-                    bar_str.push('░');
+                    bar_str.push('.');
                 }
             }
-            self.show(format!("🔊 Volume: {:3.0}%  {}", norm_vol, bar_str), 1200);
+            self.show(format!("Volume: {:3.0}%  [{}]", norm_vol, bar_str), 1200);
         }
     }
 
     pub fn show_seek(&mut self, target_time: f64, duration: f64, delta: Option<f64>) {
-        let (icon, delta_str) = match delta {
-            Some(d) if d > 0.0 => ("⏩", format!("  [+{:.1}s]", d)),
-            Some(d) if d < 0.0 => ("⏪", format!("  [{:.1}s]", d)),
-            _ => ("⏱", String::new()),
+        let delta_str = match delta {
+            Some(d) if d > 0.0 => format!("  [+{:.1}s]", d),
+            Some(d) if d < 0.0 => format!("  [{:.1}s]", d),
+            _ => String::new(),
         };
         self.show(
-            format!("{} {} / {}{}", icon, format_time(target_time), format_time(duration), delta_str),
+            format!("Seek: {} / {}{}", format_time(target_time), format_time(duration), delta_str),
             1200,
         );
     }
 
     pub fn show_play_pause(&mut self, is_paused: bool) {
         if is_paused {
-            self.show("⏸ Paused".to_string(), 1000);
+            self.show("Paused".to_string(), 1000);
         } else {
-            self.show("▶ Playing".to_string(), 1000);
+            self.show("Playing".to_string(), 1000);
         }
     }
 
     pub fn show_speed(&mut self, speed: f64) {
-        self.show(format!("⚡ Playback Speed: {:.2}×", speed), 1200);
+        self.show(format!("Playback Speed: {:.2}x", speed), 1200);
     }
 
     pub fn show_sub_delay(&mut self, delay_secs: f64) {
         let delay_ms = (delay_secs * 1000.0).round() as i64;
         let sign = if delay_secs > 0.0001 { "+" } else { "" };
         let status_str = if delay_ms.abs() < 5 {
-            "💬 Subtitle Sync: 0.00s (Default / Synced)".to_string()
+            "Subtitle Sync: 0.00s (Default / Synced)".to_string()
         } else {
-            format!("💬 Subtitle Sync: {}{:.3} s ({}{:+0} ms)", sign, delay_secs, sign, delay_ms)
+            format!("Subtitle Sync: {}{:.3} s ({}{:+0} ms)", sign, delay_secs, sign, delay_ms)
         };
         self.show(status_str, 1500);
     }
 
     pub fn show_audio_delay(&mut self, delay_ms: i64) {
-        self.show(format!("🎧 Audio Sync: {:+0} ms", delay_ms), 1200);
+        self.show(format!("Audio Sync: {:+0} ms", delay_ms), 1200);
     }
 
     pub fn show_pan_scan(&mut self, zoom: f64, preset: &str) {
-        self.show(format!("🔍 Zoom: {:.0}% [{}]", zoom * 100.0, preset), 1200);
+        self.show(format!("Zoom: {:.0}% [{}]", zoom * 100.0, preset), 1200);
     }
 
     pub fn show_jump_percent(&mut self, percent: u32, time: f64) {
-        self.show(format!("🎯 Jump: {}% [{}]", percent, format_time(time)), 1200);
+        self.show(format!("Jump: {}% [{}]", percent, format_time(time)), 1200);
     }
 
     pub fn show_chapter(&mut self, index: usize, total: usize, title: &str) {
-        self.show(format!("📑 Chapter {}/{}: {}", index, total, title), 1800);
+        self.show(format!("Chapter {}/{}: {}", index, total, title), 1800);
     }
 
     pub fn show_resize(&mut self, width: u32, height: u32, video_w: u32, video_h: u32) {
@@ -143,7 +143,7 @@ impl OsdEngine {
             String::new()
         };
 
-        let msg = format!("📐 {} × {} [{}]{}", width, height, ar_str, pct_str);
+        let msg = format!("Window Size: {} x {} [{}]{}", width, height, ar_str, pct_str);
         self.show(msg, 1200);
     }
 
@@ -214,63 +214,8 @@ impl OsdEngine {
         }
 
         // ── 3. Playback Info Diagnostics HUD (Tab / Ctrl+F1) ─────────────────
-        if self.show_media_info {
-            let hud_rect = Rect::from_min_size(
-                video_rect.min + Vec2::new(16.0, 48.0),
-                Vec2::new(480.0, 280.0),
-            );
-
-            // Dark semi-transparent HUD background
-            painter.rect_filled(hud_rect, CornerRadius::same(8), Color32::from_rgba_unmultiplied(10, 12, 16, 240));
-            painter.rect_stroke(hud_rect, CornerRadius::same(8), Stroke::new(1.0, Color32::from_rgb(45, 65, 95)), StrokeKind::Inside);
-
-            let font_head = FontId::proportional(13.0);
-            let font_mono = FontId::monospace(10.5);
-
-            painter.text(
-                hud_rect.left_top() + Vec2::new(14.0, 12.0),
-                Align2::LEFT_TOP,
-                "⚡ VortexPlayer Playback Diagnostics & Codec HUD",
-                font_head,
-                VortexTheme::POT_YELLOW,
-            );
-
-            let bit_depth_str = if stats.pixel_format.contains("10") || stats.pixel_format.contains("p010") {
-                "10-bit"
-            } else if stats.pixel_format.contains("12") {
-                "12-bit"
-            } else {
-                "8-bit"
-            };
-
-            let v_codec = if stats.video_codec.is_empty() { "None".to_string() } else { stats.video_codec.to_uppercase() };
-            let a_codec = if stats.audio_codec.is_empty() { "None".to_string() } else { stats.audio_codec.to_uppercase() };
-
-            let lines = [
-                format!("File: {}", if stats.file_path.is_empty() { "No Media Loaded" } else { &stats.file_path }),
-                format!("Video Codec: {} ({}x{} @ {:.2} fps, {})", v_codec, stats.video_width, stats.video_height, stats.video_fps, bit_depth_str),
-                format!("Color Matrix / HDR: {} | {} ({})", if stats.colormatrix.is_empty() { "BT.709" } else { &stats.colormatrix }, stats.hdr_format, if stats.is_hdr { "Wide Gamut HDR" } else { "SDR" }),
-                format!("Video Bitrate: {} kbps | PixFmt: {}", stats.video_bitrate / 1000, if stats.pixel_format.is_empty() { "yuv420p" } else { &stats.pixel_format }),
-                format!("Audio Codec: {} ({} ch, {} Hz, {} kbps)", a_codec, stats.audio_channels, stats.audio_sample_rate, stats.audio_bitrate / 1000),
-                format!("Hardware Decoder: {}", stats.hwdec_current),
-                format!("HDR Tone Mapping: {}", stats.hdr_tone_mapping),
-                format!("Playback Time: {} / {} ({:.1}%)", format_time(stats.time_pos), format_time(stats.duration), stats.percent_pos),
-                format!("Speed: {:.2}× | Volume: {:.0}%", stats.speed, stats.volume),
-                format!("Dropped Frames: {} | Buffer Cache: {:.1}%", stats.dropped_frames, stats.cache_buffer_percent),
-            ];
-
-            let mut y = hud_rect.top() + 36.0;
-            for line in lines {
-                painter.text(
-                    Pos2::new(hud_rect.left() + 14.0, y),
-                    Align2::LEFT_TOP,
-                    line,
-                    font_mono.clone(),
-                    Color32::from_rgb(130, 230, 160),
-                );
-                y += 18.0;
-            }
-        }
+        // Rendered entirely by mpv ASS OSD overlay (update_osd_diagnostics_hud in player.rs)
+        // No egui drawing needed here — mpv paints the full-text HUD directly on the video.
     }
 }
 

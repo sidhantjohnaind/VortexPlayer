@@ -1,4 +1,4 @@
-//! video_crop_dialog.rs — Custom Video Crop & Pan-Scan Region Tool (PotPlayer/VLC style)
+//! video_crop_dialog.rs — Custom Video Crop & Pan-Scan Region Tool (Vortex/VLC style)
 
 #![allow(dead_code)]
 

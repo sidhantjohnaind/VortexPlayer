@@ -1,4 +1,4 @@
-//! rich_bookmark_notes_dialog.rs — Rich Thumbnail Bookmarking & Study Notes Studio (PotPlayer style)
+//! rich_bookmark_notes_dialog.rs — Rich Thumbnail Bookmarking & Study Notes Studio (Vortex style)
 
 #![allow(dead_code)]
 

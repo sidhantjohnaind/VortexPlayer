@@ -1,4 +1,4 @@
-//! titlebar.rs — Pixel-perfect PotPlayer titlebar matching media_1787017395599.png.
+//! titlebar.rs — Pixel-perfect Vortex titlebar matching media_1787017395599.png.
 
 use super::icons::Icons;
 use super::theme::VortexTheme;
@@ -252,7 +252,7 @@ impl TitleBar {
             hovered_tooltip = Some((Pos2::new(pin_rect.center().x, pin_rect.bottom() + 4.0), if *always_on_top { "Always On Top: ON (Click to toggle)".to_string() } else { "Always On Top: OFF (Click to toggle)".to_string() }));
         }
         let pin_color = if *always_on_top {
-            VortexTheme::POT_YELLOW
+            VortexTheme::VORTEX_YELLOW
         } else if pin_resp.hovered() {
             Color32::WHITE
         } else {

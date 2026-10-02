@@ -24,16 +24,15 @@ pub struct SkinColors {
 pub struct VortexTheme;
 
 impl VortexTheme {
-    pub const POT_YELLOW: Color32        = Color32::from_rgb(245, 166, 35);
-    pub const POT_YELLOW_BRIGHT: Color32 = Color32::from_rgb(255, 185, 45);
-    pub const POT_CYAN: Color32          = Color32::from_rgb(60, 165, 240);
-    pub const POT_LIME_OSD: Color32      = Color32::from_rgb(0, 255, 80);
-    pub const POT_RED: Color32           = Color32::from_rgb(235, 40, 40);
+    pub const VORTEX_YELLOW: Color32        = Color32::from_rgb(245, 166, 35);
+    pub const VORTEX_YELLOW_BRIGHT: Color32 = Color32::from_rgb(255, 185, 45);
+    pub const VORTEX_CYAN: Color32          = Color32::from_rgb(60, 165, 240);
+    pub const VORTEX_LIME_OSD: Color32      = Color32::from_rgb(0, 255, 80);
+    pub const VORTEX_RED: Color32           = Color32::from_rgb(235, 40, 40);
 
     // Compatibility aliases
-    pub const VORTEX_PURPLE: Color32     = Self::POT_YELLOW;
-    pub const VORTEX_CYAN: Color32       = Self::POT_CYAN;
-    pub const VORTEX_BLUE: Color32       = Color32::from_rgb(60, 140, 240);
+    pub const VORTEX_PURPLE: Color32     = Self::VORTEX_YELLOW;
+        pub const VORTEX_BLUE: Color32       = Color32::from_rgb(60, 140, 240);
     pub const TEXT_PRIMARY: Color32      = Color32::from_rgb(230, 233, 240);
     pub const TEXT_SECONDARY: Color32    = Color32::from_rgb(155, 160, 175);
     pub const TEXT_MUTED: Color32        = Color32::from_rgb(100, 105, 118);
@@ -45,7 +44,7 @@ impl VortexTheme {
 
     pub fn get_skin(mode: ThemeMode) -> SkinColors {
         match mode {
-            ThemeMode::PotPlayerClassic => SkinColors {
+            ThemeMode::VortexClassic => SkinColors {
                 bg_canvas: Color32::from_rgb(12, 13, 15),
                 bg_titlebar: Color32::from_rgb(22, 23, 27),
                 bg_toolbar: Color32::from_rgb(24, 25, 30),

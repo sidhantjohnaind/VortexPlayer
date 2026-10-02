@@ -14,7 +14,7 @@ mod playlist;
 mod subtitles;
 mod ui;
 
-use app::PotApp;
+use app::VortexApp;
 use config::AppConfig;
 use eframe::egui::{IconData, ViewportBuilder};
 use std::env;
@@ -117,12 +117,46 @@ fn main() {
         }
     }
 
+    #[cfg(windows)]
+    let (init_pos, init_size) = {
+        use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTOPRIMARY};
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+        let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
+        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        let mut pt = POINT { x: 0, y: 0 };
+        unsafe { GetCursorPos(&mut pt) };
+        let hmon = unsafe { MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY) };
+        if !hmon.is_null() && unsafe { GetMonitorInfoW(hmon, &mut mi) } != 0 {
+            let mon_w = (mi.rcMonitor.right - mi.rcMonitor.left).max(1) as f32;
+            let mon_h = (mi.rcMonitor.bottom - mi.rcMonitor.top).max(1) as f32;
+            let mon_ar = mon_w / mon_h;
+            let work_w = (mi.rcWork.right - mi.rcWork.left).max(400) as f32;
+            let work_h = (mi.rcWork.bottom - mi.rcWork.top).max(300) as f32;
+
+            let target_scale = 0.75;
+            let mut win_w = (work_w * target_scale).round();
+            let mut win_h = (win_w / mon_ar).round();
+            if win_h > work_h * target_scale {
+                win_h = (work_h * target_scale).round();
+                win_w = (win_h * mon_ar).round();
+            }
+            let left = mi.rcWork.left as f32 + ((work_w - win_w) / 2.0).round();
+            let top = mi.rcWork.top as f32 + ((work_h - win_h) / 2.0).round();
+            ([left, top], [win_w, win_h])
+        } else {
+            ([100.0, 80.0], [1280.0, 720.0])
+        }
+    };
+    #[cfg(not(windows))]
+    let (init_pos, init_size) = ([100.0, 80.0], [config.window_width, config.window_height]);
+
     let mut viewport = ViewportBuilder::default()
         .with_title("VortexPlayer - egui")
         .with_app_id("VortexPlayer.AudioVideoPlayer.1")
-        .with_inner_size([config.window_width, config.window_height])
+        .with_inner_size(init_size)
         .with_min_inner_size([380.0, 180.0])
-        .with_position([100.0, 80.0])
+        .with_position(init_pos)
         .with_visible(true)
         .with_decorations(false)
         .with_resizable(true)
@@ -180,8 +214,8 @@ fn main() {
             }
             setup_unicode_fonts(&cc.egui_ctx);
             log_step("6. setup_unicode_fonts done");
-            let app = PotApp::new(cc, initial_file);
-            log_step("7. PotApp::new returned successfully");
+            let app = VortexApp::new(cc, initial_file);
+            log_step("7. VortexApp::new returned successfully");
             Ok(Box::new(app))
         }),
     );
@@ -281,50 +315,29 @@ fn setup_unicode_fonts(ctx: &eframe::egui::Context) {
         }
     }
 
-    // 2. UI Symbol Fallback Font (Segoe UI Symbol / Segoe UI Historic) - contains checkmarks (✓), media controls, arrows, UI glyphs
+    // 2. UI Symbol Fallback Font (Segoe MDL2 Assets / Segoe UI Symbol / Segoe UI Historic)
     let symbol_candidates = [
+        "C:\\Windows\\Fonts\\segmdl2.ttf",
         "C:\\Windows\\Fonts\\seguisym.ttf",
         "C:\\Windows\\Fonts\\seguihis.ttf",
+        "C:\\Windows\\Fonts\\arialuni.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ];
 
     for path in symbol_candidates {
         if let Ok(data) = std::fs::read(path) {
+            let font_name = format!("ui_symbol_{}", std::path::Path::new(path).file_stem().and_then(|s| s.to_str()).unwrap_or("font"));
             fonts.font_data.insert(
-                "ui_symbol_font".to_owned(),
+                font_name.clone(),
                 std::sync::Arc::new(eframe::egui::FontData::from_owned(data)),
             );
             if let Some(prop) = fonts.families.get_mut(&eframe::egui::FontFamily::Proportional) {
-                prop.push("ui_symbol_font".to_owned());
+                prop.push(font_name.clone());
             }
             if let Some(mono) = fonts.families.get_mut(&eframe::egui::FontFamily::Monospace) {
-                mono.push("ui_symbol_font".to_owned());
+                mono.push(font_name);
             }
-            break;
-        }
-    }
-
-    // 3. Emoji Fallback Font (Segoe UI Emoji / Noto Color Emoji)
-    let emoji_candidates = [
-        "C:\\Windows\\Fonts\\seguiemj.ttf",
-        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-        "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
-    ];
-
-    for path in emoji_candidates {
-        if let Ok(data) = std::fs::read(path) {
-            fonts.font_data.insert(
-                "ui_emoji_font".to_owned(),
-                std::sync::Arc::new(eframe::egui::FontData::from_owned(data)),
-            );
-            if let Some(prop) = fonts.families.get_mut(&eframe::egui::FontFamily::Proportional) {
-                prop.push("ui_emoji_font".to_owned());
-            }
-            if let Some(mono) = fonts.families.get_mut(&eframe::egui::FontFamily::Monospace) {
-                mono.push("ui_emoji_font".to_owned());
-            }
-            break;
         }
     }
 

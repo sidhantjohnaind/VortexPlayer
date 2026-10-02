@@ -15,3 +15,6 @@ launch_test.bat
 *.ps1
 libmpv-2.dll
 mpv-dev/
+*.png
+test_*.py
+list_windows.py

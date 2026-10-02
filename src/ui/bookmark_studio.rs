@@ -40,7 +40,7 @@ impl BookmarkStudioDialog {
             .default_height(450.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("BOOKMARKS & SCENE NOTES").strong().color(VortexTheme::POT_YELLOW));
+                    ui.label(RichText::new("BOOKMARKS & SCENE NOTES").strong().color(VortexTheme::VORTEX_YELLOW));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.text_edit_singleline(&mut self.search_query);
                         ui.label("🔍 Search:");
@@ -60,7 +60,7 @@ impl BookmarkStudioDialog {
                             let matches = self.search_query.is_empty() || bm.title.to_lowercase().contains(&self.search_query.to_lowercase());
                             if matches {
                                 ui.horizontal(|ui| {
-                                    if ui.button(RichText::new(format!("▶ Jump to {:.1}s", bm.time_pos)).strong().color(VortexTheme::POT_YELLOW)).clicked() {
+                                    if ui.button(RichText::new(format!("▶ Jump to {:.1}s", bm.time_pos)).strong().color(VortexTheme::VORTEX_YELLOW)).clicked() {
                                         *seek_to_time = Some(bm.time_pos);
                                     }
                                     ui.label(RichText::new(&bm.title).monospace());

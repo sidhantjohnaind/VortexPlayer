@@ -1,4 +1,4 @@
-//! subtitle_translator_dialog.rs — Language Learner & Interactive Subtitle Translator (PotPlayer style)
+//! subtitle_translator_dialog.rs — Language Learner & Interactive Subtitle Translator (Vortex style)
 
 #![allow(dead_code)]
 

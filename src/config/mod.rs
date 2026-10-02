@@ -29,7 +29,8 @@ use crate::engine::shaders::ShaderConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeMode {
-    PotPlayerClassic, // Black & Gold
+    #[serde(alias = "VortexClassic")]
+    VortexClassic, // Black & Gold
     OnyxDiamond,      // OLED Pitch Black & Emerald
     MidnightNavy,     // Deep Ocean Blue & Sapphire
     CyberpunkNeon,    // Dark Violet & Neon Magenta
@@ -41,13 +42,13 @@ pub enum ThemeMode {
 
 impl Default for ThemeMode {
     fn default() -> Self {
-        ThemeMode::PotPlayerClassic
+        ThemeMode::VortexClassic
     }
 }
 
 impl ThemeMode {
     pub const ALL: [ThemeMode; 8] = [
-        ThemeMode::PotPlayerClassic,
+        ThemeMode::VortexClassic,
         ThemeMode::OnyxDiamond,
         ThemeMode::MidnightNavy,
         ThemeMode::CyberpunkNeon,
@@ -59,7 +60,7 @@ impl ThemeMode {
 
     pub fn display_name(&self) -> &'static str {
         match self {
-            Self::PotPlayerClassic => "Vertex Classic (Black & Gold)",
+            Self::VortexClassic => "Vertex Classic (Black & Gold)",
             Self::OnyxDiamond => "Onyx Diamond (OLED Pure Black)",
             Self::MidnightNavy => "Midnight Sapphire (Deep Blue)",
             Self::CyberpunkNeon => "Cyberpunk Neon (Violet & Rose)",
@@ -72,14 +73,14 @@ impl ThemeMode {
 
     pub fn next(&self) -> Self {
         match self {
-            Self::PotPlayerClassic => Self::OnyxDiamond,
+            Self::VortexClassic => Self::OnyxDiamond,
             Self::OnyxDiamond => Self::MidnightNavy,
             Self::MidnightNavy => Self::CyberpunkNeon,
             Self::CyberpunkNeon => Self::TitaniumSilver,
             Self::TitaniumSilver => Self::EmeraldForest,
             Self::EmeraldForest => Self::CrimsonRuby,
             Self::CrimsonRuby => Self::NordicFrost,
-            Self::NordicFrost => Self::PotPlayerClassic,
+            Self::NordicFrost => Self::VortexClassic,
         }
     }
 }
@@ -256,7 +257,7 @@ pub struct AppConfig {
     pub skip_intervals: Vec<ConfigSkipInterval>,
     pub secondary_subtitle_track: i64,
 
-    // Advanced PotPlayer Power Additions
+    // Advanced Vortex Power Additions
     pub lut_file: Option<String>,
     pub crop_left: u32,
     pub crop_right: u32,
@@ -292,7 +293,7 @@ pub struct AppConfig {
     pub fps_background: u32,
     pub zero_gpu_minimized: bool,
 
-    // Advanced PotPlayer Power Settings & Engine Overrides
+    // Advanced Vortex Power Settings & Engine Overrides
     pub custom_mpv_options: String,
     pub cache_demuxer_sec: f64,
     pub cache_demuxer_mb: u32,
@@ -309,7 +310,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            theme_mode: ThemeMode::PotPlayerClassic,
+            theme_mode: ThemeMode::VortexClassic,
             fps_interaction: 60,
             fps_playback: 30,
             fps_background: 20,
@@ -471,7 +472,7 @@ impl AppConfig {
                     if cfg.eq_bands.len() != 18 {
                         cfg.eq_bands = vec![0.0; 18];
                     }
-                    // Upgrade legacy 0.0 default color values to 100.0% PotPlayer neutral baseline
+                    // Upgrade legacy 0.0 default color values to 100.0% Vortex neutral baseline
                     if cfg.video_brightness == 0.0 && cfg.video_contrast == 0.0 && cfg.video_saturation == 0.0 {
                         cfg.video_brightness = 100.0;
                         cfg.video_contrast = 100.0;

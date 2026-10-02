@@ -286,7 +286,7 @@ impl MusicBackgroundView {
         let (w, h) = (rgba.width() as usize, rgba.height() as usize);
         let sharp_ci = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba.as_raw());
 
-        // Heavy atmospheric diffusion blur matching PotPlayer's creamy, smooth color backdrop
+        // Heavy atmospheric diffusion blur matching Vortex's creamy, smooth color backdrop
         let downsampled = image::imageops::resize(&img, 48, 48, image::imageops::FilterType::Triangle);
         let blurred = image::imageops::blur(&downsampled, 14.0);
         let blur_ci = egui::ColorImage::from_rgba_unmultiplied([48, 48], blurred.as_raw());
@@ -423,7 +423,7 @@ impl MusicBackgroundView {
         let painter = ui.painter().with_clip_rect(rect);
 
         // ── 1. FULL-CANVAS ATMOSPHERIC DIFFUSE GAUSSIAN BLURRED BACKDROP ────────
-        // In compact mode (height < 180px), use seamless matte dark fill to match PotPlayer mini player.
+        // In compact mode (height < 180px), use seamless matte dark fill to match Vortex mini player.
         // In normal / expanded mode (height >= 180px), render atmospheric blurred color wash.
         if rect.height() >= 180.0 {
             if let Some(ref blur_tex) = self.blurred_texture {
@@ -456,7 +456,7 @@ impl MusicBackgroundView {
                 let (tex_w, tex_h) = (s.x.max(1.0), s.y.max(1.0));
                 let aspect = tex_w / tex_h;
 
-                // Proportional album art scaling matching PotPlayer's ~58% viewport coverage
+                // Proportional album art scaling matching Vortex's ~58% viewport coverage
                 let max_w = (rect.width() * 0.58).clamp(80.0, 1400.0);
                 let max_h = (rect.height() * 0.58).clamp(80.0, 1400.0);
 
@@ -468,7 +468,7 @@ impl MusicBackgroundView {
 
                 let card_rect = Rect::from_center_size(center, Vec2::new(card_w, card_h));
 
-                // Deep, soft multi-pass atmospheric drop shadow matching PotPlayer's floating album jacket
+                // Deep, soft multi-pass atmospheric drop shadow matching Vortex's floating album jacket
                 let shadow_passes = [
                     (22.0, 12.0, 14),
                     (16.0, 8.0, 26),
@@ -492,7 +492,7 @@ impl MusicBackgroundView {
                     Color32::WHITE,
                 );
 
-                // Crisp thin 1px border around the album art matching PotPlayer
+                // Crisp thin 1px border around the album art matching Vortex
                 painter.rect_stroke(
                     card_rect,
                     CornerRadius::ZERO,

@@ -15,7 +15,7 @@ pub struct SkipTag {
     pub enabled: bool,
 }
 
-/// Default built-in keywords that PotPlayer ships.
+/// Default built-in keywords that Vortex ships.
 const DEFAULT_KEYWORDS: &[&str] = &[
     "opening", "begin", "ending", "intro", "credits", "op", "ed",
     "prologue", "recap", "preview", "theme", "outro",
@@ -177,7 +177,7 @@ impl AutoSkipDialog {
         let mut cancel_and_close = false;
 
         let window_resp = egui::Window::new("Skip Setup")
-            .id(egui::Id::new("potplayer_skip_setup_window"))
+            .id(egui::Id::new("vortex_skip_setup_window"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
@@ -460,7 +460,7 @@ impl AutoSkipDialog {
 
                         // Table Body
                         egui::ScrollArea::vertical()
-                            .id_salt("potplayer_skip_setup_table_scroll")
+                            .id_salt("vortex_skip_setup_table_scroll")
                             .max_height(180.0)
                             .min_scrolled_height(140.0)
                             .show(ui, |ui| {
@@ -579,7 +579,7 @@ impl AutoSkipDialog {
                                                 .color(if is_selected {
                                                     Color32::WHITE
                                                 } else {
-                                                    VortexTheme::POT_YELLOW
+                                                    VortexTheme::VORTEX_YELLOW
                                                 }),
                                             ));
                                         });

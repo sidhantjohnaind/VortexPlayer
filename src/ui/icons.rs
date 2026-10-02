@@ -34,10 +34,6 @@ impl Icons {
         ));
     }
 
-    pub fn draw_potplayer_logo(painter: &Painter, center: Pos2, radius: f32) {
-        Self::draw_vertex_logo(painter, center, radius);
-    }
-
     pub fn draw_vortex_logo(painter: &Painter, center: Pos2, radius: f32) {
         Self::draw_vertex_logo(painter, center, radius);
     }

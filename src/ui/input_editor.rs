@@ -36,7 +36,7 @@ impl InputEditorDialog {
             .default_height(500.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("ACTIVE PROFILE:").strong().color(VortexTheme::POT_YELLOW));
+                    ui.label(RichText::new("ACTIVE PROFILE:").strong().color(VortexTheme::VORTEX_YELLOW));
                     egui::ComboBox::from_id_salt("profile_select")
                         .selected_text(store.active_profile.display_name())
                         .show_ui(ui, |ui| {
@@ -76,7 +76,7 @@ impl InputEditorDialog {
                                         if self.recording_index == Some(i) {
                                             ui.label(RichText::new("🔴 Press key...").color(Color32::from_rgb(220, 50, 50)).strong());
                                         } else {
-                                            ui.label(RichText::new(binding.trigger.display_str()).monospace().color(VortexTheme::POT_YELLOW));
+                                            ui.label(RichText::new(binding.trigger.display_str()).monospace().color(VortexTheme::VORTEX_YELLOW));
                                         }
 
                                         ui.label(RichText::new(format!("{:?}", binding.command)).monospace().color(Color32::from_rgb(140, 140, 160)));

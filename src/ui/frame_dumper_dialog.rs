@@ -1,4 +1,4 @@
-//! frame_dumper_dialog.rs — Continuous Burst Frame Dumper & Sequence Extractor Studio (PotPlayer style)
+//! frame_dumper_dialog.rs — Continuous Burst Frame Dumper & Sequence Extractor Studio (Vortex style)
 
 #![allow(dead_code)]
 

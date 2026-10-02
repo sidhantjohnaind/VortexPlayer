@@ -76,7 +76,7 @@ impl StreamUrlDialog {
                         should_close = true;
                     }
 
-                    if ui.button(RichText::new("▶ Play Stream").strong().color(VortexTheme::POT_YELLOW)).clicked() {
+                    if ui.button(RichText::new("▶ Play Stream").strong().color(VortexTheme::VORTEX_YELLOW)).clicked() {
                         let trimmed = self.url.trim();
                         if !trimmed.is_empty() {
                             player.load_file(trimmed);

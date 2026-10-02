@@ -29,7 +29,7 @@ impl PbfFile {
         pbf_path
     }
 
-    /// Parse a PotPlayer .pbf bookmark file
+    /// Parse a Vortex .pbf bookmark file
     pub fn parse(content: &str) -> Vec<BookmarkItem> {
         let mut bookmarks = Vec::new();
         let mut in_bookmark_section = false;
@@ -97,7 +97,7 @@ impl PbfFile {
         None
     }
 
-    /// Serialize bookmarks into PotPlayer .pbf format
+    /// Serialize bookmarks into Vortex .pbf format
     pub fn serialize(bookmarks: &[BookmarkItem]) -> String {
         let mut out = String::from("[Bookmark]\n");
         let mut sorted = bookmarks.to_vec();

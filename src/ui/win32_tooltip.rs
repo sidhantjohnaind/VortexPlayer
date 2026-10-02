@@ -1,5 +1,5 @@
 //! win32_tooltip.rs — Native Win32 WS_EX_TOPMOST Floating Tooltip Window
-//! Exact PotPlayer architecture: creates an independent OS popup HWND that sits on top
+//! Exact Vortex architecture: creates an independent OS popup HWND that sits on top
 //! of the video window (child HWND) without any occlusion or clipping.
 
 #![allow(dead_code)]

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-pub struct PotApp {
+pub struct VortexApp {
     smtc: crate::engine::SmtcEngine,
     shader_studio: ShaderStudioDialog,
     broadcast_dialog: BroadcastDialog,
@@ -179,6 +179,7 @@ pub struct PotApp {
     pending_subtitle_track: Option<i64>,
     last_mouse_activity: std::time::Instant,
     last_maximize_time: std::time::Instant,
+    last_fullscreen_change: std::time::Instant,
     last_mouse_pos: Option<Pos2>,
     is_top_hovered: bool,
     is_bottom_hovered: bool,
@@ -202,7 +203,9 @@ pub struct PotApp {
     intro_btn_shown_at: Option<std::time::Instant>,
     intro_last_time_pos: f64,
     last_skipped_chapter_index: Option<i64>,
+    has_initial_centered: bool,
 }
+
 
 
 #[cfg(windows)]
@@ -210,22 +213,6 @@ static PARENT_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIs
 
 /// Get the window's local client rectangle in logical points, guaranteed to start at (0, 0)
 fn get_window_client_rect(ctx: &egui::Context) -> Rect {
-    #[cfg(windows)]
-    {
-        let hwnd = PARENT_HWND.load(std::sync::atomic::Ordering::Relaxed);
-        if hwnd != 0 {
-            use windows_sys::Win32::Foundation::RECT;
-            use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
-            let mut rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-            if unsafe { GetClientRect(hwnd as _, &mut rc) } != 0 && rc.right > rc.left && rc.bottom > rc.top {
-                let ppp = ctx.pixels_per_point().max(0.1);
-                return Rect::from_min_size(
-                    Pos2::ZERO,
-                    Vec2::new((rc.right - rc.left) as f32 / ppp, (rc.bottom - rc.top) as f32 / ppp),
-                );
-            }
-        }
-    }
     ctx.input(|i| {
         if let Some(r) = i.raw.screen_rect {
             Rect::from_min_size(Pos2::ZERO, r.size())
@@ -298,9 +285,9 @@ fn show_bottom_control_surface(
         });
 }
 
-impl PotApp {
+impl VortexApp {
     pub fn new(cc: &eframe::CreationContext<'_>, initial_file: Option<PathBuf>) -> Self {
-        crate::log_step("6a. entering PotApp::new");
+        crate::log_step("6a. entering VortexApp::new");
         let config = AppConfig::load();
         VortexTheme::apply(&cc.egui_ctx, config.theme_mode);
 
@@ -504,6 +491,7 @@ impl PotApp {
             active_popup_rects: Vec::new(),
             last_mouse_activity: std::time::Instant::now(),
             last_maximize_time: std::time::Instant::now() - std::time::Duration::from_secs(10),
+            last_fullscreen_change: std::time::Instant::now() - std::time::Duration::from_secs(10),
             last_mouse_pos: None,
             is_top_hovered: false,
             is_bottom_hovered: false,
@@ -524,6 +512,7 @@ impl PotApp {
             intro_btn_shown_at: None,
             intro_last_time_pos: 0.0,
             last_skipped_chapter_index: None,
+            has_initial_centered: false,
             queue_repaint_active: {
                 let active = Arc::new(AtomicBool::new(false));
                 let repaint_ctx = cc.egui_ctx.clone();
@@ -651,7 +640,7 @@ impl PotApp {
             });
         }
 
-        crate::log_step("6c. PotApp::new returning app");
+        crate::log_step("6c. VortexApp::new returning app");
         app
     }
 
@@ -828,7 +817,7 @@ impl PotApp {
             for s in subs {
                 if s.to_string_lossy().ends_with(".smi") {
                     if let Ok(srt) = SamiParser::load_sami_file_as_srt(&s) {
-                        let temp_srt = std::env::temp_dir().join("pot_auto_smi.srt");
+                        let temp_srt = std::env::temp_dir().join("vortex_auto_smi.srt");
                         let _ = std::fs::write(&temp_srt, srt);
                         player.load_external_subtitle(&temp_srt.to_string_lossy());
                     }
@@ -842,7 +831,7 @@ impl PotApp {
     pub fn open_folder(&mut self, folder: PathBuf) {
         let (tx, rx) = std::sync::mpsc::channel();
         self.folder_scan_receiver = Some(rx);
-        self.osd.show("📂 Scanning folder...".to_string(), 1500);
+        self.osd.show("Scanning folder...".to_string(), 1500);
 
         std::thread::spawn(move || {
             let media_files = scanner::scan_folder_recursive(&folder);
@@ -857,6 +846,7 @@ impl PotApp {
         let mut exit_fullscreen_requested = false;
         let mut toggle_pip_requested = false;
         let mut window_resize_preset: Option<f32> = None;
+        let mut center_window_requested = false;
         let mut do_skip_intro_key = false;
         let mut toggle_playlist_unified_requested = false;
         let mut do_close_file = false;
@@ -1178,6 +1168,9 @@ impl PotApp {
                 }
                 if input.key_pressed(egui::Key::Num4) {
                     window_resize_preset = Some(2.0);
+                }
+                if input.key_pressed(egui::Key::Num5) || input.key_pressed(egui::Key::Num0) {
+                    center_window_requested = true;
                 }
                 if input.key_pressed(egui::Key::PageUp) {
                     self.config.subtitle_font_size = (self.config.subtitle_font_size + 2.0).clamp(10.0, 80.0);
@@ -1757,6 +1750,9 @@ impl PotApp {
                 self.resize_window_to_preset(ctx, factor, &stats);
             }
         }
+        if center_window_requested {
+            self.center_window_with_monitor_aspect_ratio(ctx);
+        }
 
         if let Some(path) = open_file_path {
             self.open_media_file(path);
@@ -1786,7 +1782,7 @@ impl PotApp {
                 if let Ok(ref player) = self.player {
                     if path.to_string_lossy().ends_with(".smi") {
                         if let Ok(srt) = SamiParser::load_sami_file_as_srt(&path) {
-                            let temp_srt = std::env::temp_dir().join("pot_drag_smi.srt");
+                            let temp_srt = std::env::temp_dir().join("vortex_drag_smi.srt");
                             let _ = std::fs::write(&temp_srt, srt);
                             player.load_external_subtitle(&temp_srt.to_string_lossy());
                         }
@@ -2049,7 +2045,7 @@ impl PotApp {
     }
 }
 
-impl PotApp {
+impl VortexApp {
     pub fn has_open_dialog(&self) -> bool {
         self.show_library_view
             || self.show_preferences
@@ -2168,34 +2164,149 @@ fn is_window_maximized_or_workarea(_hwnd: isize, ctx: &egui::Context) -> bool {
     ctx.input(|i| i.viewport().maximized.unwrap_or(false))
 }
 
-impl PotApp {
+impl VortexApp {
+    /// Center the window on the active monitor with the exact same aspect ratio as the monitor,
+    /// scaled to comfortably fit without overflowing the work area in windowed mode.
+    pub fn center_window_with_monitor_aspect_ratio(&mut self, ctx: &egui::Context) {
+        if self.is_fullscreen {
+            self.set_fullscreen(ctx, false);
+        }
+
+        #[cfg(windows)]
+        if self.parent_hwnd != 0 {
+            use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+            use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
+
+            let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
+            mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            let hmon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
+            if !hmon.is_null() && unsafe { GetMonitorInfoW(hmon, &mut mi) } != 0 {
+                let mon_w = (mi.rcMonitor.right - mi.rcMonitor.left).max(1) as f32;
+                let mon_h = (mi.rcMonitor.bottom - mi.rcMonitor.top).max(1) as f32;
+                let mon_ar = mon_w / mon_h;
+
+                let work_w = (mi.rcWork.right - mi.rcWork.left).max(400) as f32;
+                let work_h = (mi.rcWork.bottom - mi.rcWork.top).max(300) as f32;
+
+                // Scale to 75% of work area while preserving the exact monitor aspect ratio
+                let target_scale = 0.75;
+                let mut win_w = (work_w * target_scale).round();
+                let mut win_h = (win_w / mon_ar).round();
+
+                if win_h > work_h * target_scale {
+                    win_h = (work_h * target_scale).round();
+                    win_w = (win_h * mon_ar).round();
+                }
+
+                // Clamped so it strictly never overflows the monitor work area
+                win_w = win_w.min(work_w - 40.0).max(480.0);
+                win_h = win_h.min(work_h - 40.0).max(320.0);
+
+                let left = mi.rcWork.left + ((work_w - win_w) / 2.0).round() as i32;
+                let top = mi.rcWork.top + ((work_h - win_h) / 2.0).round() as i32;
+
+                unsafe {
+                    SetWindowPos(
+                        self.parent_hwnd as _,
+                        0 as _,
+                        left,
+                        top,
+                        win_w as i32,
+                        win_h as i32,
+                        SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                    );
+                }
+
+                let ppp = ctx.pixels_per_point().max(0.1);
+                let log_w = win_w / ppp;
+                let log_h = win_h / ppp;
+                let log_left = left as f32 / ppp;
+                let log_top = top as f32 / ppp;
+
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(log_w, log_h)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(Pos2::new(log_left, log_top)));
+
+                self.last_windowed_rect = Some(Rect::from_min_size(
+                    Pos2::new(log_left, log_top),
+                    Vec2::new(log_w, log_h),
+                ));
+                self.config.window_width = log_w;
+                self.config.window_height = log_h;
+                let _ = self.config.save();
+                self.osd.show(format!("Window Centered ({:.0}×{:.0}, {:.2}:1)", win_w, win_h, mon_ar), 1500);
+            }
+        }
+    }
+
     pub fn resize_window_to_preset(&mut self, ctx: &egui::Context, factor: f32, stats: &MediaStats) {
         if self.is_fullscreen {
             self.set_fullscreen(ctx, false);
         }
         let vw = if stats.video_width > 0 { stats.video_width as f32 } else { 1280.0 };
         let vh = if stats.video_height > 0 { stats.video_height as f32 } else { 720.0 };
-        let target_w = (vw * factor).max(480.0);
-        let target_h = (vh * factor + 84.0).max(320.0); // 32px top titlebar + 52px bottom control bar
+        let is_docked_pl = self.show_playlist && !self.config.playlist_detached;
+        let extra_w = if is_docked_pl { 330.0 } else { 0.0 };
+        let target_w = (vw * factor + extra_w).max(480.0);
+        let target_h = (vh * factor).max(270.0);
 
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
         #[cfg(windows)]
         if self.parent_hwnd != 0 {
-            use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
-            let ppp = ctx.pixels_per_point().max(0.1);
-            let pw = (target_w * ppp).round() as i32;
-            let ph = (target_h * ppp).round() as i32;
-            unsafe {
-                SetWindowPos(self.parent_hwnd as _, 0 as _, 0, 0, pw, ph, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+            use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+            use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
+
+            let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
+            mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            let hmon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
+            if !hmon.is_null() && unsafe { GetMonitorInfoW(hmon, &mut mi) } != 0 {
+                let work_w = (mi.rcWork.right - mi.rcWork.left).max(400) as f32;
+                let work_h = (mi.rcWork.bottom - mi.rcWork.top).max(300) as f32;
+
+                let ppp = ctx.pixels_per_point().max(0.1);
+                let mut pw = (target_w * ppp).round();
+                let mut ph = (target_h * ppp).round();
+
+                // Clamp to monitor work area so it NEVER overflows the monitor!
+                if pw > work_w - 40.0 || ph > work_h - 40.0 {
+                    let scale = ((work_w - 40.0) / pw).min((work_h - 40.0) / ph);
+                    pw = (pw * scale).round();
+                    ph = (ph * scale).round();
+                }
+
+                // Center in monitor work area
+                let left = mi.rcWork.left + ((work_w - pw) / 2.0).round() as i32;
+                let top = mi.rcWork.top + ((work_h - ph) / 2.0).round() as i32;
+
+                unsafe {
+                    SetWindowPos(self.parent_hwnd as _, 0 as _, left, top, pw as i32, ph as i32, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                }
+
+                let log_w = pw / ppp;
+                let log_h = ph / ppp;
+                let log_left = left as f32 / ppp;
+                let log_top = top as f32 / ppp;
+
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(log_w, log_h)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(Pos2::new(log_left, log_top)));
+
+                self.last_windowed_rect = Some(Rect::from_min_size(
+                    Pos2::new(log_left, log_top),
+                    Vec2::new(log_w, log_h),
+                ));
+                self.config.window_width = log_w;
+                self.config.window_height = log_h;
+                let _ = self.config.save();
             }
         }
+        #[cfg(not(windows))]
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
+
         let pct = (factor * 100.0).round() as i32;
-        self.osd.show(format!("Window Size: {}% ({:.0}×{:.0})", pct, target_w, target_h - 84.0), 1500);
+        self.osd.show(format!("Window Size: {}% ({:.0}×{:.0})", pct, target_w - extra_w, target_h), 1500);
     }
 
     /// Toggle the playlist panel, and if in docked (non-detached) mode and the window is not
     /// maximized/fullscreen, automatically expand/contract the window width by 330px so the video
-    /// area is preserved at the same size — PotPlayer / MPC-HC style.
+    /// area is preserved at the same size — Vortex / MPC-HC style.
     pub fn toggle_playlist_unified(&mut self, ctx: &egui::Context) {
         let opening = !self.show_playlist;
         self.show_playlist = opening;
@@ -2205,26 +2316,42 @@ impl PotApp {
             let is_max = is_window_maximized_or_workarea(self.parent_hwnd, ctx);
             if !is_max {
                 const SIDEBAR_W: f32 = 330.0;
-                if let Some(cur) = ctx.input(|i| i.viewport().inner_rect) {
-                    let cur_w = cur.width();
-                    let cur_h = cur.height();
-                    let new_w = if opening {
-                        cur_w + SIDEBAR_W
-                    } else {
-                        (cur_w - SIDEBAR_W).max(480.0)
-                    };
-                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
-                    #[cfg(windows)]
-                    if self.parent_hwnd != 0 {
-                        use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
+                let client_r = get_window_client_rect(ctx);
+                let cur_w = client_r.width().max(480.0);
+                let cur_h = client_r.height().max(320.0);
+                let new_w = if opening {
+                    cur_w + SIDEBAR_W
+                } else {
+                    (cur_w - SIDEBAR_W).max(480.0)
+                };
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
+                #[cfg(windows)]
+                if self.parent_hwnd != 0 {
+                    use windows_sys::Win32::Foundation::RECT;
+                    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+                    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
+                    let mut win_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                    if unsafe { GetWindowRect(self.parent_hwnd as _, &mut win_rc) } != 0 {
                         let ppp = ctx.pixels_per_point().max(0.1);
                         let pw = (new_w * ppp).round() as i32;
                         let ph = (cur_h * ppp).round() as i32;
+                        let mut new_left = win_rc.left;
+                        let h_mon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
+                        let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
+                        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                        if unsafe { GetMonitorInfoW(h_mon, &mut mi) } != 0 {
+                            if opening && (new_left + pw) > mi.rcWork.right {
+                                new_left = (mi.rcWork.right - pw).max(mi.rcWork.left);
+                            }
+                        }
                         unsafe {
-                            SetWindowPos(self.parent_hwnd as _, 0 as _, 0, 0, pw, ph, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                            SetWindowPos(self.parent_hwnd as _, 0 as _, new_left, win_rc.top, pw, ph, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
                         }
                     }
                 }
+                self.config.window_width = new_w;
+                self.config.window_height = cur_h;
+                let _ = self.config.save();
             }
         }
     }
@@ -2242,7 +2369,10 @@ impl PotApp {
             #[cfg(windows)]
             if self.parent_hwnd != 0 {
                 use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_RESTORE};
-                unsafe { ShowWindow(self.parent_hwnd as _, SW_RESTORE); }
+                unsafe {
+                    ShowWindow(self.parent_hwnd as _, SW_RESTORE);
+                    crate::platform::apply_border_suppression(self.parent_hwnd as _);
+                }
             }
         } else {
             #[cfg(windows)]
@@ -2283,6 +2413,9 @@ impl PotApp {
                     unsafe {
                         ShowWindow(self.parent_hwnd as _, SW_MAXIMIZE);
                     }
+                }
+                unsafe {
+                    crate::platform::apply_border_suppression(self.parent_hwnd as _);
                 }
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
@@ -2338,6 +2471,10 @@ impl PotApp {
                 }
 
                 self.is_fullscreen = true;
+                self.is_top_hovered = false;
+                self.is_bottom_hovered = false;
+                self.last_fullscreen_change = std::time::Instant::now();
+                self.last_mouse_activity = std::time::Instant::now() - std::time::Duration::from_secs(10);
                 #[cfg(not(windows))]
                 ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
                 #[cfg(windows)]
@@ -2350,6 +2487,9 @@ impl PotApp {
             } else {
                 // Leaving fullscreen
                 self.is_fullscreen = false;
+                self.is_top_hovered = false;
+                self.is_bottom_hovered = false;
+                self.last_fullscreen_change = std::time::Instant::now();
                 #[cfg(not(windows))]
                 ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
                 #[cfg(windows)]
@@ -2496,7 +2636,7 @@ impl PotApp {
         }
     }
 
-    /// Render invisible 8-way resize handles along all window edges and corners & display pixel dimensions OSD (PotPlayer style)
+    /// Render invisible 8-way resize handles along all window edges and corners & display pixel dimensions OSD (Vortex style)
     fn handle_window_resizing(&mut self, ctx: &egui::Context, stats: &MediaStats) {
         if self.restore_frames_pending > 0 {
             self.restore_frames_pending -= 1;
@@ -2792,7 +2932,7 @@ impl PotApp {
     }
 }
 
-impl eframe::App for PotApp {
+impl eframe::App for VortexApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         if let Ok(ref player) = self.player {
             let stats = player.stats();
@@ -2808,7 +2948,7 @@ impl eframe::App for PotApp {
         static FRAME_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let f_cnt = FRAME_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if f_cnt < 5 {
-            crate::log_step(&format!("PotApp::ui frame {} entered", f_cnt + 1));
+            crate::log_step(&format!("VortexApp::ui frame {} entered", f_cnt + 1));
         }
         let ctx = ui.ctx().clone();
 
@@ -2835,6 +2975,10 @@ impl eframe::App for PotApp {
                             crate::log_step("10h. smtc.init done");
                             self.taskbar.init_thumbbar(parent_hwnd);
                             self.attached_hwnd = true;
+                            if !self.has_initial_centered && !self.is_fullscreen {
+                                self.center_window_with_monitor_aspect_ratio(&ctx);
+                                self.has_initial_centered = true;
+                            }
                         }
                         RawWindowHandle::Xlib(xlib_handle) => {
                             let parent_wid = xlib_handle.window as isize;
@@ -2974,44 +3118,12 @@ impl eframe::App for PotApp {
             }
         }
 
-        // Global Right-Click Detection: Captures instant pointer position on any right click
-        if ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary) || i.pointer.secondary_clicked()) {
-            let click_pos = ctx.input(|i| {
-                i.pointer.latest_pos()
-                    .or_else(|| i.pointer.hover_pos())
-                    .or_else(|| i.pointer.press_origin())
-                    .or_else(|| i.pointer.interact_pos())
-            });
-            if let Some(pos) = click_pos {
-                self.menu_position = Some(pos);
-            }
-            self.show_main_menu = true;
-            self.menu_opened_frame = self.frame_counter;
-        }
-
         // Process seekbar hover preview frame textures, shortcuts, drag-and-drop, window resizing, A-B loop
         self.seek_preview.pump(&ctx);
         self.handle_shortcuts(&ctx, &mut stats);
         self.handle_drag_and_drop(&ctx);
         self.handle_window_resizing(&ctx, &stats);
         self.check_ab_loop_and_resume();
-
-        // Universal Right-Click Context Menu Trigger across the window
-        let global_right_click = ctx.input(|i| {
-            i.pointer.button_clicked(egui::PointerButton::Secondary) || i.pointer.secondary_clicked()
-        });
-        if global_right_click {
-            if let Some(pos) = ctx.input(|i| {
-                i.pointer.latest_pos()
-                    .or_else(|| i.pointer.hover_pos())
-                    .or_else(|| i.pointer.press_origin())
-                    .or_else(|| i.pointer.interact_pos())
-            }) {
-                self.menu_position = Some(pos);
-                self.show_main_menu = true;
-                self.menu_opened_frame = self.frame_counter;
-            }
-        }
 
         // ── Windows Taskbar Navigation Hover Thumbnail Controls (7 Buttons) ──
         #[cfg(windows)]
@@ -3156,7 +3268,9 @@ impl eframe::App for PotApp {
             _ => false,
         };
         if mouse_moved {
-            self.last_mouse_activity = std::time::Instant::now();
+            if self.last_fullscreen_change.elapsed().as_millis() > 600 {
+                self.last_mouse_activity = std::time::Instant::now();
+            }
             self.last_mouse_pos = mouse_pos;
             ctx.request_repaint();
         }
@@ -3178,7 +3292,24 @@ impl eframe::App for PotApp {
             self.is_bottom_hovered = false;
             (true, true)
         } else {
-            let pointer_down = ctx.input(|i| i.pointer.any_down());
+            let pointer_down = {
+                let egui_down = ctx.input(|i| i.pointer.any_down());
+                #[cfg(windows)]
+                {
+                    if egui_down {
+                        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON, VK_MBUTTON};
+                        unsafe {
+                            (GetAsyncKeyState(VK_LBUTTON as i32) as i16) < 0
+                                || (GetAsyncKeyState(VK_RBUTTON as i32) as i16) < 0
+                                || (GetAsyncKeyState(VK_MBUTTON as i32) as i16) < 0
+                        }
+                    } else {
+                        false
+                    }
+                }
+                #[cfg(not(windows))]
+                egui_down
+            };
             let popups_open = self.show_speed_popup || self.show_audio_channels_popup;
 
             // Top titlebar: 32px height.
@@ -3199,15 +3330,17 @@ impl eframe::App for PotApp {
             let idle_secs = self.last_mouse_activity.elapsed().as_secs_f32();
             let is_idle = idle_secs > 2.5;
 
-            // Top bar shows when hovered near top, menu open, or dragging
-            // Hides IMMEDIATELY when mouse moves away!
-            let show_top = self.show_main_menu 
-                || ((in_top_hover || (pointer_down && self.is_top_hovered)) && (!is_idle || pointer_down));
+            // Top bar shows when hovered near top, titlebar menu button is open, or dragging
+            // Does NOT show when opening the right-click context menu in fullscreen!
+            let show_top = (self.show_main_menu && self.menu_anchor_pos.is_some()) 
+                || (in_top_hover && !is_idle)
+                || (pointer_down && self.is_top_hovered);
 
             // Bottom bar shows when hovered near bottom, popups open, or dragging
             // Hides IMMEDIATELY when mouse moves away!
             let show_bottom = popups_open 
-                || ((in_bottom_hover || (pointer_down && self.is_bottom_hovered)) && (!is_idle || pointer_down));
+                || (in_bottom_hover && !is_idle)
+                || (pointer_down && self.is_bottom_hovered);
 
             if show_top != self.is_top_hovered || show_bottom != self.is_bottom_hovered {
                 ctx.request_repaint();
@@ -3445,7 +3578,10 @@ impl eframe::App for PotApp {
                 ControlBar::HEIGHT_COMPACT
             };
 
-            show_bottom_control_surface(ui, &ctx, is_fullscreen_active, screen_w, screen_h, bar_height, |ui| {
+            let is_docked_pl = self.show_playlist && !self.config.playlist_detached && !is_fullscreen_active;
+            let ctrl_w = if is_docked_pl { (screen_w - 330.0).max(320.0) } else { screen_w };
+
+            show_bottom_control_surface(ui, &ctx, is_fullscreen_active, ctrl_w, screen_h, bar_height, |ui| {
                     let player_opt = self.player.as_ref().ok().map(|p| p.as_ref());
                     let actions = ControlBar::render(
                         ui,
@@ -3458,11 +3594,12 @@ impl eframe::App for PotApp {
                         &self.config,
                         &mut self.seek_preview,
                         is_fullscreen_active,
+                        self.show_playlist,
                     );
 
                         let active_tip_opt = actions.hover_tooltip.or(titlebar_tooltip);
                         if let Some((pos, ref tip)) = active_tip_opt {
-                            // Universal cross-platform GPU tooltip renderer with crisp PotPlayer styling
+                            // Universal cross-platform GPU tooltip renderer with crisp Vortex styling
                             let painter = ctx.layer_painter(egui::LayerId::new(
                                 egui::Order::Tooltip,
                                 egui::Id::new("control_bar_hover_tooltip"),
@@ -3728,165 +3865,12 @@ impl eframe::App for PotApp {
         }
 
         // =========================================================================
-        // 2.5. RIGHT PANEL: DOCKED SIDEBAR PLAYLIST (Exact width 330.0)
-        // =========================================================================
-        if self.show_playlist && !self.config.playlist_detached && !self.is_fullscreen {
-            egui::Panel::right("vortex_side_playlist")
-                .exact_size(330.0)
-                .frame(
-                    egui::Frame::new()
-                        .fill(Color32::from_rgb(0, 0, 0))
-                        .stroke(Stroke::new(1.0, Color32::from_rgb(32, 34, 42)))
-                        .inner_margin(Margin::same(6)),
-                )
-                .show(ui, |ui| {
-                    let pl_actions = PlaylistPanel::render(
-                        ui,
-                        &mut *self.playlist.lock().unwrap(),
-                        Some(&stats.file_path),
-                        false,
-                        false,
-                        &mut self.drawer_tab,
-                        &stats,
-                        &self.bookmark_mgr,
-                        &self.subtitle_explorer.lines,
-                        &mut self.drawer_browser_dir,
-                        &mut self.drawer_browser_search,
-                        &mut self.drawer_sub_search,
-                        self.config.restore_last_playlist,
-                    );
-                    if let Some(path) = pl_actions.play_path {
-                        file_to_open = Some(path);
-                    }
-                    if let Some(path) = pl_actions.enqueue_path {
-                        self.playlist.lock().unwrap().add_item(path);
-                        self.osd.show("Added to Playlist".to_string(), 1200);
-                    }
-                    if let Some(seek_t) = pl_actions.seek_to {
-                        if let Ok(ref player) = self.player {
-                            player.seek_absolute(seek_t);
-                        }
-                    }
-                    if pl_actions.add_bookmark {
-                        self.bookmark_mgr.add_bookmark(stats.time_pos, None);
-                        self.osd.show(format!("Bookmark Added: {}", format_time(stats.time_pos)), 1500);
-                    }
-                    if let Some(b_idx) = pl_actions.delete_bookmark_idx {
-                        if b_idx < self.bookmark_mgr.bookmarks.len() {
-                            self.bookmark_mgr.bookmarks.remove(b_idx);
-                        }
-                    }
-                    if pl_actions.add_files {
-                        if let Some(files) = rfd::FileDialog::new().pick_files() {
-                            self.playlist.lock().unwrap().add_items(files);
-                            self.config.last_playlist = self.playlist.lock().unwrap().items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
-                            self.config.last_playlist_index = self.playlist.lock().unwrap().current_index;
-                            let _ = self.config.save();
-                        }
-                    }
-                    if pl_actions.add_folder {
-                        if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                            self.open_folder(folder);
-                        }
-                    }
-                    if pl_actions.clear_playlist {
-                        self.playlist.lock().unwrap().items.clear();
-                        self.playlist.lock().unwrap().current_index = None;
-                        self.config.last_playlist.clear();
-                        self.config.last_playlist_index = None;
-                        let _ = self.config.save();
-                    }
-                    if pl_actions.add_url {
-                        self.show_stream_url_dialog = true;
-                    }
-                    if pl_actions.cycle_repeat {
-                        let mode = self.playlist.lock().unwrap().repeat_mode;
-                        self.config.playlist_repeat_mode = match mode {
-                            crate::playlist::RepeatMode::RepeatAll => "RepeatAll".to_string(),
-                            crate::playlist::RepeatMode::RepeatTrack => "RepeatTrack".to_string(),
-                            _ => "Off".to_string(),
-                        };
-                        let _ = self.config.save();
-                        let msg = match mode {
-                            crate::playlist::RepeatMode::RepeatAll => "Repeat: All Tracks",
-                            crate::playlist::RepeatMode::RepeatTrack => "Repeat: Current Track",
-                            crate::playlist::RepeatMode::Off => "Repeat: Off",
-                        };
-                        self.osd.show(msg.to_string(), 1500);
-                    }
-                    if pl_actions.toggle_shuffle {
-                        let is_shuf = self.playlist.lock().unwrap().is_shuffle();
-                        self.config.playlist_shuffle = is_shuf;
-                        let _ = self.config.save();
-                        let msg = if is_shuf { "Shuffle: ON" } else { "Shuffle: OFF" };
-                        self.osd.show(msg.to_string(), 1500);
-                    }
-                    if pl_actions.toggle_restore_prev {
-                        self.config.restore_last_playlist = !self.config.restore_last_playlist;
-                        let _ = self.config.save();
-                        let msg = if self.config.restore_last_playlist {
-                            "Restore Prev Playlist: Enabled"
-                        } else {
-                            "Restore Prev Playlist: Disabled"
-                        };
-                        self.osd.show(msg.to_string(), 1500);
-                    }
-                    if pl_actions.toggle_detach {
-                        self.config.playlist_detached = true;
-                        let _ = self.config.save();
-                        self.toast.info("Playlist: Detached (Floating Window)");
-                        // Shrink window by sidebar width since it's becoming a floating window
-                        if !self.is_fullscreen {
-                            let is_max = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
-                            if !is_max {
-                                if let Some(cur) = ctx.input(|i| i.viewport().inner_rect) {
-                                    let new_w = (cur.width() - 330.0).max(480.0);
-                                    let cur_h = cur.height();
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
-                                    #[cfg(windows)]
-                                    if self.parent_hwnd != 0 {
-                                        use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
-                                        let ppp = ctx.pixels_per_point().max(0.1);
-                                        let pw = (new_w * ppp).round() as i32;
-                                        let ph = (cur_h * ppp).round() as i32;
-                                        unsafe {
-                                            SetWindowPos(self.parent_hwnd as _, 0 as _, 0, 0, pw, ph, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if pl_actions.close_playlist {
-                        self.show_playlist = false;
-                        // Shrink window when closing the docked sidebar
-                        if !self.config.playlist_detached && !self.is_fullscreen {
-                            let is_max = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
-                            if !is_max {
-                                if let Some(cur) = ctx.input(|i| i.viewport().inner_rect) {
-                                    let new_w = (cur.width() - 330.0).max(480.0);
-                                    let cur_h = cur.height();
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
-                                    #[cfg(windows)]
-                                    if self.parent_hwnd != 0 {
-                                        use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
-                                        let ppp = ctx.pixels_per_point().max(0.1);
-                                        let pw = (new_w * ppp).round() as i32;
-                                        let ph = (cur_h * ppp).round() as i32;
-                                        unsafe {
-                                            SetWindowPos(self.parent_hwnd as _, 0 as _, 0, 0, pw, ph, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-        }
-
-        // =========================================================================
         // 3. CENTRAL PANEL: VIDEO VIEWPORT
         // =========================================================================
+        let is_docked_pl = self.show_playlist && !self.config.playlist_detached && !self.is_fullscreen;
+        let sidebar_w = 330.0;
+        let video_w = if is_docked_pl { (screen_w - sidebar_w).max(320.0) } else { screen_w };
+
         let is_song_playback = MusicBackgroundView::is_song(&stats);
         let is_active_video = !stats.is_idle && !stats.file_path.is_empty() && !is_song_playback;
         let central_fill = if is_active_video {
@@ -3898,18 +3882,15 @@ impl eframe::App for PotApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(central_fill).inner_margin(Margin::ZERO))
             .show(ui, |ui| {
-                let rect = ui.available_rect_before_wrap();
                 let is_fullscreen_active = self.is_fullscreen;
-                // Since panels are now Foreground Areas (not consuming layout space),
-                // always use full client rect for the video viewport
                 let client_rect = get_window_client_rect(ui.ctx());
-                let effective_rect = if is_fullscreen_active {
-                    ui.set_clip_rect(client_rect);
-                    client_rect
+                let effective_rect = if is_docked_pl {
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(video_w, screen_h))
                 } else {
-                    // In windowed mode, the CentralPanel still gets full space since panels are Areas
                     client_rect
                 };
+                let rect = effective_rect;
+                ui.set_clip_rect(effective_rect);
                 let response = ui.allocate_rect(effective_rect, Sense::click_and_drag());
                 self.last_video_rect = effective_rect;
 
@@ -3921,9 +3902,37 @@ impl eframe::App for PotApp {
                         let player_clone = Arc::clone(player);
                         let egui_ctx = ui.ctx().clone();
                         let callback = egui_glow::CallbackFn::new(move |info, _painter| {
+                            #[cfg(windows)]
+                            {
+                                static VSYNC_INITIALIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                                if !VSYNC_INITIALIZED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                                    type WglGetProcAddressFn = unsafe extern "system" fn(*const u8) -> *const std::ffi::c_void;
+                                    type WglSwapIntervalEXTFn = unsafe extern "system" fn(i32) -> i32;
+                                    unsafe {
+                                        use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
+                                        let opengl32 = GetModuleHandleA(b"opengl32.dll\0".as_ptr());
+                                        if opengl32 != std::ptr::null_mut() {
+                                            if let Some(wgl_gpa) = GetProcAddress(opengl32, b"wglGetProcAddress\0".as_ptr()) {
+                                                let wglGetProcAddress: WglGetProcAddressFn = std::mem::transmute(wgl_gpa);
+                                                let ext_proc = wglGetProcAddress(b"wglSwapIntervalEXT\0".as_ptr());
+                                                if !ext_proc.is_null() {
+                                                    let swap_interval: WglSwapIntervalEXTFn = std::mem::transmute(ext_proc);
+                                                    swap_interval(1);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             let _ = player_clone.ensure_render_context(&egui_ctx);
                             let [w, h] = info.screen_size_px;
-                            player_clone.render_frame(0, w as i32, h as i32);
+                            let ppp = egui_ctx.pixels_per_point().max(0.1);
+                            let render_w = if is_docked_pl {
+                                (effective_rect.width() * ppp).round() as i32
+                            } else {
+                                w as i32
+                            };
+                            player_clone.render_frame(0, render_w, h as i32);
                             player_clone.report_swap();
                         });
                         ui.painter().add(egui::PaintCallback {
@@ -4164,7 +4173,7 @@ impl eframe::App for PotApp {
 
                             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(shelf_rect.shrink(8.0)));
                             child_ui.horizontal(|ui| {
-                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(12.0).strong().color(VortexTheme::POT_YELLOW));
+                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(12.0).strong().color(VortexTheme::VORTEX_YELLOW));
                                 let total_items = if !self.playback_history.entries.is_empty() {
                                     self.playback_history.entries.len()
                                 } else {
@@ -4214,7 +4223,7 @@ impl eframe::App for PotApp {
                                                     if entry.completed {
                                                         ui.label(RichText::new("✓").size(13.0).color(Color32::from_rgb(60, 200, 100)));
                                                     } else if pct > 0 {
-                                                        ui.label(RichText::new(format!("{:2}%", pct)).size(11.0).strong().color(VortexTheme::POT_YELLOW));
+                                                        ui.label(RichText::new(format!("{:2}%", pct)).size(11.0).strong().color(VortexTheme::VORTEX_YELLOW));
                                                     } else {
                                                         ui.label(RichText::new("•").size(15.0).color(Color32::from_rgb(140, 145, 165)));
                                                     }
@@ -4260,9 +4269,9 @@ impl eframe::App for PotApp {
                                                             file_to_open = Some(pb.clone());
                                                         }
                                                         if resume_pos > 1.0 && entry.duration > 0.0 {
-                                                            ui.label(RichText::new(format!("Resume {} / {}", format_time(resume_pos), format_time(entry.duration))).size(10.5).color(VortexTheme::POT_YELLOW));
+                                                            ui.label(RichText::new(format!("Resume {} / {}", format_time(resume_pos), format_time(entry.duration))).size(10.5).color(VortexTheme::VORTEX_YELLOW));
                                                         } else if resume_pos > 1.0 {
-                                                            ui.label(RichText::new(format!("Resume {}", format_time(resume_pos))).size(10.5).color(VortexTheme::POT_YELLOW));
+                                                            ui.label(RichText::new(format!("Resume {}", format_time(resume_pos))).size(10.5).color(VortexTheme::VORTEX_YELLOW));
                                                         } else if entry.duration > 0.0 {
                                                             ui.label(RichText::new(format_time(entry.duration)).size(10.5).color(Color32::from_rgb(160, 170, 195)));
                                                         }
@@ -4293,7 +4302,7 @@ impl eframe::App for PotApp {
                                                 let text_w = (card_w - action_w - 75.0).max(180.0);
 
                                                 ui.horizontal(|ui| {
-                                                    ui.label(RichText::new("•").size(15.0).color(VortexTheme::POT_YELLOW));
+                                                    ui.label(RichText::new("•").size(15.0).color(VortexTheme::VORTEX_YELLOW));
 
                                                     let ext = pb.extension().and_then(|e| e.to_str()).unwrap_or("").to_uppercase();
                                                     if !ext.is_empty() {
@@ -4333,7 +4342,7 @@ impl eframe::App for PotApp {
                                                             file_to_open = Some(pb.clone());
                                                         }
                                                         if let Some(rt) = resume_time {
-                                                            ui.label(RichText::new(format!("Resume {}", format_time(rt))).size(10.5).color(VortexTheme::POT_YELLOW));
+                                                            ui.label(RichText::new(format!("Resume {}", format_time(rt))).size(10.5).color(VortexTheme::VORTEX_YELLOW));
                                                         }
                                                     });
                                                 });
@@ -4497,6 +4506,7 @@ impl eframe::App for PotApp {
                     }
 
                     // Right-Click Context Menu Trigger (Opens precisely at mouse pointer)
+                    // Only opens when right-clicking on the active video canvas, NEVER on bottom bar, seekbar, topbar, or playlist
                     let right_clicked = response.secondary_clicked()
                         || ctx.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary) || i.pointer.secondary_clicked());
 
@@ -4508,15 +4518,170 @@ impl eframe::App for PotApp {
                                 .or_else(|| i.pointer.interact_pos())
                         });
                         if let Some(pos) = click_pos {
-                            self.menu_position = Some(pos);
+                            let is_over_bottom_bar = show_bottom_menu && pos.y >= screen_h - (bar_h + 8.0);
+                            let is_over_top_bar = show_top_menu && pos.y <= 36.0;
+                            let is_over_docked_pl = is_docked_pl && pos.x >= screen_w - 330.0;
+                            let is_over_popups = self.active_popup_rects.iter().any(|r| r.contains(pos));
+                            let is_over_dialog = self.has_open_dialog() || self.show_main_menu || self.show_speed_popup || self.show_audio_channels_popup;
+                            let is_in_video_rect = effective_rect.contains(pos);
+
+                            if is_in_video_rect && !is_over_bottom_bar && !is_over_top_bar && !is_over_docked_pl && !is_over_popups && !is_over_dialog {
+                                self.menu_position = Some(pos);
+                                self.menu_anchor_pos = None;
+                                self.show_main_menu = true;
+                                self.menu_opened_frame = self.frame_counter;
+                            }
                         }
-                        self.show_main_menu = true;
-                        self.menu_opened_frame = self.frame_counter;
                     }
                 });
 
         // =========================================================================
-        
+        // 4. DOCKED SIDEBAR PLAYLIST (Exact width 330.0, sits below 32px titlebar)
+        // =========================================================================
+        if is_docked_pl {
+            let pl_top = 32.0;
+            let pl_h = (screen_h - pl_top).max(100.0);
+            let pl_rect = Rect::from_min_size(Pos2::new(video_w, pl_top), Vec2::new(sidebar_w, pl_h));
+            self.active_popup_rects.push(pl_rect);
+
+            egui::Area::new(egui::Id::new("vortex_docked_playlist"))
+                .fixed_pos(Pos2::new(video_w, pl_top))
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    ui.allocate_ui(Vec2::new(sidebar_w, pl_h), |ui| {
+                        ui.set_width(sidebar_w);
+                        ui.set_height(pl_h);
+                        egui::Frame::new()
+                            .fill(Color32::from_rgb(14, 15, 18))
+                            .stroke(Stroke::new(1.0, Color32::from_rgb(32, 34, 42)))
+                            .inner_margin(Margin::same(6))
+                            .show(ui, |ui| {
+                                let pl_actions = PlaylistPanel::render(
+                                    ui,
+                                    &mut *self.playlist.lock().unwrap(),
+                                    Some(&stats.file_path),
+                                    false,
+                                    false,
+                                    &mut self.drawer_tab,
+                                    &stats,
+                                    &self.bookmark_mgr,
+                                    &self.subtitle_explorer.lines,
+                                    &mut self.drawer_browser_dir,
+                                    &mut self.drawer_browser_search,
+                                    &mut self.drawer_sub_search,
+                                    self.config.restore_last_playlist,
+                                );
+                                if let Some(path) = pl_actions.play_path {
+                                    file_to_open = Some(path);
+                                }
+                                if let Some(path) = pl_actions.enqueue_path {
+                                    self.playlist.lock().unwrap().add_item(path);
+                                    self.osd.show("Added to Playlist".to_string(), 1200);
+                                }
+                                if let Some(seek_t) = pl_actions.seek_to {
+                                    if let Ok(ref player) = self.player {
+                                        player.seek_absolute(seek_t);
+                                    }
+                                }
+                                if pl_actions.add_bookmark {
+                                    self.bookmark_mgr.add_bookmark(stats.time_pos, None);
+                                    self.osd.show(format!("Bookmark Added: {}", format_time(stats.time_pos)), 1500);
+                                }
+                                if let Some(b_idx) = pl_actions.delete_bookmark_idx {
+                                    if b_idx < self.bookmark_mgr.bookmarks.len() {
+                                        self.bookmark_mgr.bookmarks.remove(b_idx);
+                                    }
+                                }
+                                if pl_actions.add_files {
+                                    if let Some(files) = rfd::FileDialog::new().pick_files() {
+                                        self.playlist.lock().unwrap().add_items(files);
+                                        self.config.last_playlist = self.playlist.lock().unwrap().items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
+                                        self.config.last_playlist_index = self.playlist.lock().unwrap().current_index;
+                                        let _ = self.config.save();
+                                    }
+                                }
+                                if pl_actions.add_folder {
+                                    if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                                        self.open_folder(folder);
+                                    }
+                                }
+                                if pl_actions.clear_playlist {
+                                    self.playlist.lock().unwrap().items.clear();
+                                    self.playlist.lock().unwrap().current_index = None;
+                                    self.config.last_playlist.clear();
+                                    self.config.last_playlist_index = None;
+                                    let _ = self.config.save();
+                                }
+                                if pl_actions.add_url {
+                                    self.show_stream_url_dialog = true;
+                                }
+                                if pl_actions.cycle_repeat {
+                                    let mode = self.playlist.lock().unwrap().repeat_mode;
+                                    self.config.playlist_repeat_mode = match mode {
+                                        crate::playlist::RepeatMode::RepeatAll => "RepeatAll".to_string(),
+                                        crate::playlist::RepeatMode::RepeatTrack => "RepeatTrack".to_string(),
+                                        _ => "Off".to_string(),
+                                    };
+                                    let _ = self.config.save();
+                                    let msg = match mode {
+                                        crate::playlist::RepeatMode::RepeatAll => "Repeat: All Tracks",
+                                        crate::playlist::RepeatMode::RepeatTrack => "Repeat: Current Track",
+                                        crate::playlist::RepeatMode::Off => "Repeat: Off",
+                                    };
+                                    self.osd.show(msg.to_string(), 1500);
+                                }
+                                if pl_actions.toggle_shuffle {
+                                    let is_shuf = self.playlist.lock().unwrap().is_shuffle();
+                                    self.config.playlist_shuffle = is_shuf;
+                                    let _ = self.config.save();
+                                    let msg = if is_shuf { "Shuffle: ON" } else { "Shuffle: OFF" };
+                                    self.osd.show(msg.to_string(), 1500);
+                                }
+                                if pl_actions.toggle_restore_prev {
+                                    self.config.restore_last_playlist = !self.config.restore_last_playlist;
+                                    let _ = self.config.save();
+                                    let msg = if self.config.restore_last_playlist {
+                                        "Restore Prev Playlist: Enabled"
+                                    } else {
+                                        "Restore Prev Playlist: Disabled"
+                                    };
+                                    self.osd.show(msg.to_string(), 1500);
+                                }
+                                if pl_actions.toggle_detach {
+                                    self.config.playlist_detached = true;
+                                    let _ = self.config.save();
+                                    self.toast.info("Playlist: Detached (Floating Window)");
+                                    if !self.is_fullscreen {
+                                        let is_max = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
+                                        if !is_max {
+                                            let client_r = get_window_client_rect(&ctx);
+                                            let new_w = (client_r.width() - sidebar_w).max(480.0);
+                                            let cur_h = client_r.height().max(320.0);
+                                            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
+                                            #[cfg(windows)]
+                                            if self.parent_hwnd != 0 {
+                                                use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
+                                                let ppp = ctx.pixels_per_point().max(0.1);
+                                                let pw = (new_w * ppp).round() as i32;
+                                                let ph = (cur_h * ppp).round() as i32;
+                                                unsafe {
+                                                    SetWindowPos(self.parent_hwnd as _, 0 as _, 0, 0, pw, ph, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                                                }
+                                            }
+                                            self.config.window_width = new_w;
+                                            self.config.window_height = cur_h;
+                                            let _ = self.config.save();
+                                        }
+                                    }
+                                }
+                                if pl_actions.close_playlist {
+                                    self.toggle_playlist_unified(&ctx);
+                                }
+                            });
+                    });
+                });
+        }
+
         // =========================================================================
         // EXTENDED POWER DIALOGS & OVERLAYS
         // =========================================================================
@@ -4907,7 +5072,7 @@ impl eframe::App for PotApp {
         if self.show_main_menu {
             let win_size = get_window_client_rect(&ctx).size();
             let raw_pos = self.menu_position.unwrap_or(Pos2::new(6.0, 32.0));
-            let menu_w = 172.0;
+            let menu_w = 260.0;
             let menu_h = 360.0;
 
             // X: open directly at cursor / button, flip left if overflowing right edge
@@ -4936,9 +5101,11 @@ impl eframe::App for PotApp {
             let mut menu_toggle_fullscreen = false;
             let mut menu_exit_fullscreen = false;
             let mut menu_resize_window_factor: Option<f32> = None;
+            let mut menu_center_window = false;
             let mut menu_skip_intro = false;
             let mut menu_toggle_playlist = false;
             let mut menu_close_file = false;
+            let mut menu_toggle_pip = false;
 
             if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
                 close_menu = true;
@@ -4967,7 +5134,7 @@ impl eframe::App for PotApp {
                         .max_height(max_menu_h)
                         .auto_shrink([true, true])
                         .show(ui, |ui| {
-                            PotMenu::render(
+                            VortexMenu::render(
                                 ui,
                                 player_opt,
                                 &stats,
@@ -4982,7 +5149,7 @@ impl eframe::App for PotApp {
                         self.show_main_menu = false;
                     }
 
-                    // All fullscreen entry/exit requests go through PotApp so
+                    // All fullscreen entry/exit requests go through VortexApp so
                     // the native video child and egui use the same bounds.
                     if menu_actions.toggle_fullscreen {
                         menu_toggle_fullscreen = true;
@@ -4992,6 +5159,9 @@ impl eframe::App for PotApp {
                     }
                     if let Some(factor) = menu_actions.resize_window_factor {
                         menu_resize_window_factor = Some(factor);
+                    }
+                    if menu_actions.center_window {
+                        menu_center_window = true;
                     }
 
                     if menu_actions.open_file {
@@ -5016,7 +5186,7 @@ impl eframe::App for PotApp {
                             if let Some(p) = player_opt {
                                 if sub.to_string_lossy().ends_with(".smi") {
                                     if let Ok(srt) = SamiParser::load_sami_file_as_srt(&sub) {
-                                        let temp_srt = std::env::temp_dir().join("pot_loaded_smi.srt");
+                                        let temp_srt = std::env::temp_dir().join("vortex_loaded_smi.srt");
                                         let _ = std::fs::write(&temp_srt, srt);
                                         p.load_external_subtitle(&temp_srt.to_string_lossy());
                                     }
@@ -5268,12 +5438,53 @@ impl eframe::App for PotApp {
                             self.pitch_formant.is_open = true;
                         }
                         if menu_actions.show_about {
-
-
-
-
                             self.show_main_menu = false;
                             self.show_about_dialog = true;
+                        }
+                        if menu_actions.toggle_record_dialog {
+                            self.show_main_menu = false;
+                            self.record_dialog.is_open = true;
+                        }
+                        if menu_actions.toggle_gif_maker {
+                            self.show_main_menu = false;
+                            self.gif_maker.is_open = true;
+                        }
+                        if menu_actions.toggle_device_capture {
+                            self.show_main_menu = false;
+                            self.device_capture.is_open = true;
+                        }
+                        if menu_actions.toggle_subtitle_lookup {
+                            self.show_main_menu = false;
+                            self.subtitle_lookup.is_open = true;
+                        }
+                        if menu_actions.toggle_shader_studio {
+                            self.show_main_menu = false;
+                            self.shader_studio.is_open = true;
+                        }
+                        if menu_actions.toggle_broadcast {
+                            self.show_main_menu = false;
+                            self.broadcast_dialog.is_open = true;
+                        }
+                        if menu_actions.toggle_contact_sheet {
+                            self.show_main_menu = false;
+                            self.contact_sheet_dialog.is_open = true;
+                        }
+                        if menu_actions.toggle_jump_time {
+                            self.show_main_menu = false;
+                            self.show_jump_time_dialog = true;
+                        }
+                        if menu_actions.toggle_pip {
+                            self.show_main_menu = false;
+                            menu_toggle_pip = true;
+                        }
+                        if menu_actions.minimize_window {
+                            self.show_main_menu = false;
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
+                        if menu_actions.maximize_window {
+                            self.show_main_menu = false;
+                            let is_max = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
                         }
 
                         if menu_actions.take_screenshot {
@@ -5317,6 +5528,10 @@ impl eframe::App for PotApp {
                 self.show_main_menu = false;
                 self.resize_window_to_preset(&ctx, factor, &stats);
             }
+            if menu_center_window {
+                self.show_main_menu = false;
+                self.center_window_with_monitor_aspect_ratio(&ctx);
+            }
             if menu_toggle_playlist {
                 self.toggle_playlist_unified(&ctx);
             }
@@ -5327,6 +5542,10 @@ impl eframe::App for PotApp {
             if menu_close_file {
                 self.show_main_menu = false;
                 self.close_current_media(&mut stats, &ctx);
+            }
+            if menu_toggle_pip {
+                self.show_main_menu = false;
+                self.toggle_pip(&ctx);
             }
 
             let latest_sub_rect: Option<Rect> = ctx.data(|d| d.get_temp(egui::Id::new("latest_active_submenu_rect"))).flatten();
@@ -5400,7 +5619,7 @@ impl eframe::App for PotApp {
                             // Header
                             ui.horizontal(|ui| {
                                 let (icon_r, _) = ui.allocate_exact_size(Vec2::new(14.0, 14.0), Sense::hover());
-                                Icons::draw_volume(ui.painter(), icon_r, VortexTheme::POT_YELLOW, false, 100.0);
+                                Icons::draw_volume(ui.painter(), icon_r, VortexTheme::VORTEX_YELLOW, false, 100.0);
                                 ui.add_space(2.0);
                                 ui.label(egui::RichText::new("Audio Channel Configuration").size(12.0).color(Color32::WHITE).strong());
                             });
@@ -5425,7 +5644,7 @@ impl eframe::App for PotApp {
 
                                 // Vector Radio Indicator
                                 let radio_c = Pos2::new(rect.left() + 11.0, rect.center().y);
-                                Icons::draw_radio(ui.painter(), radio_c, 4.8, is_sel, is_hovered, VortexTheme::POT_YELLOW);
+                                Icons::draw_radio(ui.painter(), radio_c, 4.8, is_sel, is_hovered, VortexTheme::VORTEX_YELLOW);
 
                                 // Icon
                                 let mut text_x = rect.left() + 23.0;
@@ -5435,7 +5654,7 @@ impl eframe::App for PotApp {
                                         Align2::LEFT_CENTER,
                                         icon,
                                         FontId::proportional(11.0),
-                                        if is_sel { VortexTheme::POT_YELLOW } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
+                                        if is_sel { VortexTheme::VORTEX_YELLOW } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
                                     );
                                     text_x += 16.0;
                                 }
@@ -5606,12 +5825,12 @@ impl eframe::App for PotApp {
 
                             // Header
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("⚡").color(VortexTheme::POT_YELLOW).size(13.0));
+                                ui.label(egui::RichText::new("⚡").color(VortexTheme::VORTEX_YELLOW).size(13.0));
                                 ui.add_space(2.0);
                                 ui.label(egui::RichText::new("Playback Speed").size(12.0).color(Color32::WHITE).strong());
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     let is_custom = (stats.speed - 1.0).abs() > 0.03;
-                                    let badge_col = if is_custom { VortexTheme::POT_YELLOW } else { Color32::from_rgb(160, 165, 180) };
+                                    let badge_col = if is_custom { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 180) };
                                     ui.label(egui::RichText::new(format!("{:.2}x", stats.speed)).monospace().size(11.0).color(badge_col).strong());
                                 });
                             });
@@ -5649,7 +5868,7 @@ impl eframe::App for PotApp {
 
                                 // Vector Radio Indicator
                                 let radio_c = Pos2::new(rect.left() + 10.0, rect.center().y);
-                                Icons::draw_radio(ui.painter(), radio_c, 4.5, is_sel, is_hovered, VortexTheme::POT_YELLOW);
+                                Icons::draw_radio(ui.painter(), radio_c, 4.5, is_sel, is_hovered, VortexTheme::VORTEX_YELLOW);
 
                                 let mut text_x = rect.left() + 22.0;
                                 if !icon.is_empty() {
@@ -5658,7 +5877,7 @@ impl eframe::App for PotApp {
                                         Align2::LEFT_CENTER,
                                         icon,
                                         FontId::proportional(11.0),
-                                        if is_sel { VortexTheme::POT_YELLOW } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
+                                        if is_sel { VortexTheme::VORTEX_YELLOW } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
                                     );
                                     text_x += 16.0;
                                 }
@@ -5716,7 +5935,7 @@ impl eframe::App for PotApp {
                                         player.set_speed(new_spd);
                                     }
                                 }
-                                let reset_text = egui::RichText::new("↺ 1.0x").color(if (stats.speed - 1.0).abs() > 0.03 { VortexTheme::POT_YELLOW } else { Color32::WHITE });
+                                let reset_text = egui::RichText::new("↺ 1.0x").color(if (stats.speed - 1.0).abs() > 0.03 { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE });
                                 if ui.add_sized([btn_w, 22.0], egui::Button::new(reset_text)).on_hover_text("Reset to normal 1.0x speed").clicked() {
                                     if let Ok(ref player) = self.player {
                                         player.reset_speed();
@@ -6210,7 +6429,7 @@ impl eframe::App for PotApp {
             || self.chain_editor.is_open
             || self.auto_skip_dialog.is_open;
 
-        // ── Ultra Low-Power PotPlayer-Grade Frame Pacing & Wattage Management ──
+        // ── Ultra Low-Power Vortex-Grade Frame Pacing & Wattage Management ──
         let has_osd_animating = (self.osd.message.is_some() && std::time::Instant::now() < self.osd.expires_at)
             || self.osd.center_indicator.is_some()
             || !self.toast.toasts.is_empty();
@@ -6253,12 +6472,11 @@ impl eframe::App for PotApp {
             // Full interaction budget for silky-smooth responsive controls
             ctx.request_repaint_after(repaint_for_fps(self.config.fps_interaction));
         } else if !stats.is_paused && !stats.is_idle {
-            if self.is_fullscreen && (!show_top_menu && !show_bottom_menu) {
-                ctx.request_repaint_after(repaint_for_fps(self.config.fps_background));
-            } else if self.is_fullscreen {
-                ctx.request_repaint_after(repaint_for_fps(self.config.fps_playback));
-            } else if is_foreground {
-                ctx.request_repaint_after(repaint_for_fps(self.config.fps_playback));
+            if is_foreground {
+                // Display-synced playback rate matching monitor refresh rate (60Hz / 120Hz / 144Hz)
+                let display_hz = if stats.display_fps >= 50.0 { stats.display_fps.round() as u32 } else { 60 };
+                let target_fps = self.config.fps_playback.max(display_hz);
+                ctx.request_repaint_after(repaint_for_fps(target_fps));
             } else {
                 ctx.request_repaint_after(repaint_for_fps(self.config.fps_background));
             }
@@ -6287,12 +6505,12 @@ impl eframe::App for PotApp {
         }
         static LAST_FRAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
         if LAST_FRAME.swap(false, std::sync::atomic::Ordering::Relaxed) {
-            crate::log_step("34. PotApp::ui frame 1 finished successfully!");
+            crate::log_step("34. VortexApp::ui frame 1 finished successfully!");
         }
     }
 
     fn on_exit(&mut self, _gl: std::option::Option<&eframe::glow::Context>) {
-        crate::log_step("35. PotApp on_exit called!");
+        crate::log_step("35. VortexApp on_exit called!");
         self.save_current_playback_state();
         let _ = self.config.save();
     }
@@ -6852,13 +7070,20 @@ pub fn set_native_fullscreen(
             let mon_w = rc.right - rc.left;
             let mon_h = rc.bottom - rc.top;
 
+            let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+            let fs_style = (style & !WS_THICKFRAME) | WS_POPUP;
+            if fs_style != style {
+                SetWindowLongW(hwnd, GWL_STYLE, fs_style as i32);
+            }
+
             let hwnd_isize = hwnd as isize;
             std::thread::spawn(move || {
                 crate::platform::mark_fullscreen_window(hwnd_isize, true);
             });
 
+            crate::platform::apply_fullscreen_border_suppression(hwnd as _);
             let z_order = if always_on_top { -1 as isize as HWND } else { 0 as isize as HWND };
-            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | (if always_on_top { 0 } else { SWP_NOZORDER });
+            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | SWP_FRAMECHANGED | (if always_on_top { 0 } else { SWP_NOZORDER });
             SetWindowPos(
                 hwnd,
                 z_order,
@@ -6868,14 +7093,22 @@ pub fn set_native_fullscreen(
                 mon_h,
                 flags,
             );
+            crate::platform::apply_fullscreen_border_suppression(hwnd as _);
         } else {
+            let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+            let win_style = style | WS_THICKFRAME;
+            if win_style != style {
+                SetWindowLongW(hwnd, GWL_STYLE, win_style as i32);
+            }
+
             let hwnd_isize = hwnd as isize;
             std::thread::spawn(move || {
                 crate::platform::mark_fullscreen_window(hwnd_isize, false);
             });
 
+            crate::platform::apply_border_suppression(hwnd as _);
             let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
-            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | (if always_on_top { 0 } else { SWP_NOZORDER });
+            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | SWP_FRAMECHANGED | (if always_on_top { 0 } else { SWP_NOZORDER });
             if is_maximized {
                 let h_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
                 let mut monitor_info = MONITORINFO {
@@ -6912,6 +7145,7 @@ pub fn set_native_fullscreen(
                     flags,
                 );
             }
+            crate::platform::apply_border_suppression(hwnd as _);
         }
     }
 }

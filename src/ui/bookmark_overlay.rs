@@ -27,7 +27,7 @@ impl BookmarkOverlay {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 6.0);
 
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Saved Bookmarks").strong().color(VortexTheme::POT_YELLOW));
+                    ui.label(RichText::new("Saved Bookmarks").strong().color(VortexTheme::VORTEX_YELLOW));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.button("+ Add at Current Pos").clicked() {
                             bookmark_mgr.add_bookmark(stats.time_pos, None);
@@ -59,7 +59,7 @@ impl BookmarkOverlay {
                                     let time_label = ui.button(
                                         RichText::new(format_time(bm.time_pos))
                                             .monospace()
-                                            .color(VortexTheme::POT_YELLOW)
+                                            .color(VortexTheme::VORTEX_YELLOW)
                                             .size(11.5),
                                     );
                                     if time_label.clicked() {

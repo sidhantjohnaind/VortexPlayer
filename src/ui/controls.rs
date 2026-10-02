@@ -1,4 +1,4 @@
-//! controls.rs — Pixel-Perfect Authentic PotPlayer Classic Dark Bottom Control Bar with Media Dashboard
+//! controls.rs — Pixel-Perfect Authentic Vortex Classic Dark Bottom Control Bar with Media Dashboard
 
 use super::icons::Icons;
 use super::theme::VortexTheme;
@@ -76,6 +76,7 @@ impl ControlBar {
         config: &crate::config::AppConfig,
         seek_preview: &mut crate::ui::SeekPreviewEngine,
         is_fullscreen: bool,
+        is_playlist_open: bool,
     ) -> ControlBarActions {
         let is_song = crate::ui::music_view::MusicBackgroundView::is_song(stats);
         let total_h = if is_song {
@@ -150,7 +151,7 @@ impl ControlBar {
                 Vec2::new(total_rect.width(), dash_h),
             );
 
-            // Dashboard PotPlayer matte charcoal fill & bottom hairline
+            // Dashboard Vortex matte charcoal fill & bottom hairline
             painter.rect_filled(dash_rect, CornerRadius::ZERO, Color32::from_rgb(33, 34, 39));
             painter.line_segment(
                 [dash_rect.left_bottom(), dash_rect.right_bottom()],
@@ -160,7 +161,7 @@ impl ControlBar {
             let is_wide_dash = dash_rect.width() >= 480.0;
             let mut cur_x = dash_rect.left() + 8.0;
 
-            // 1. Mini Cover Thumbnail (PotPlayer 44x44 container with preserved aspect ratio)
+            // 1. Mini Cover Thumbnail (Vortex 44x44 container with preserved aspect ratio)
             if is_wide_dash {
                 let thumb_size = 44.0;
                 let thumb_box = Rect::from_min_size(
@@ -193,7 +194,7 @@ impl ControlBar {
                 cur_x += 4.0;
             }
 
-            // 2. Digital Time Counter (PotPlayer exact proportional tight kerning)
+            // 2. Digital Time Counter (Vortex exact proportional tight kerning)
             let cur_time_str = format_time(stats.time_pos);
             let tot_time_str = format_time(stats.duration);
 
@@ -218,7 +219,7 @@ impl ControlBar {
                 let time_w = (cur_time_str.len().max(tot_time_str.len()) as f32 * 13.0).max(70.0);
                 cur_x += time_w + 14.0;
 
-                // 3. Track Title & Specs Row (PotPlayer tabbed specs without bullets)
+                // 3. Track Title & Specs Row (Vortex tabbed specs without bullets)
                 let raw_title = {
                     let name = Path::new(&stats.file_path)
                         .file_name()
@@ -255,7 +256,7 @@ impl ControlBar {
                     Color32::from_rgb(245, 248, 255),
                 );
 
-                // Render specs line (PotPlayer 11.0px clean tabbed layout)
+                // Render specs line (Vortex 11.0px clean tabbed layout)
                 painter.text(
                     Pos2::new(cur_x, dash_rect.top() + 34.0),
                     Align2::LEFT_TOP,
@@ -310,7 +311,7 @@ impl ControlBar {
             if a_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let a_col = if a_active { VortexTheme::POT_YELLOW } else if a_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
+            let a_col = if a_active { VortexTheme::VORTEX_YELLOW } else if a_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
             painter.text(a_rect.center(), Align2::CENTER_CENTER, "A", FontId::monospace(11.5), a_col);
 
             // [⇄]
@@ -332,7 +333,7 @@ impl ControlBar {
             if loop_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let loop_col = if loop_active { VortexTheme::POT_YELLOW } else if loop_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(130, 135, 150) };
+            let loop_col = if loop_active { VortexTheme::VORTEX_YELLOW } else if loop_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(130, 135, 150) };
             let rc = loop_toggle_rect.center();
             let y1 = rc.y - 2.5;
             painter.line_segment([Pos2::new(rc.x - 4.0, y1), Pos2::new(rc.x + 2.5, y1)], Stroke::new(1.1, loop_col));
@@ -357,19 +358,19 @@ impl ControlBar {
             if b_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let b_col = if b_active { VortexTheme::POT_YELLOW } else if b_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
+            let b_col = if b_active { VortexTheme::VORTEX_YELLOW } else if b_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
             painter.text(b_rect.center(), Align2::CENTER_CENTER, "B", FontId::monospace(11.5), b_col);
 
-            // 3. Compact dark Repeat button, matching the classic PotPlayer skin.
+            // 3. Compact dark Repeat button, matching the classic Vortex skin.
             let rep_pill_rect = Rect::from_min_size(Pos2::new(right_block_x + 80.0, ctrl_row_y), Vec2::new(26.0, 24.0));
             let rep_active = playlist.repeat_mode != crate::playlist::RepeatMode::Off;
             let rep_resp = ui.interact(rep_pill_rect, ui.id().with("dash_repeat_btn"), Sense::click());
             
             let rep_bg = if rep_resp.hovered() { Color32::from_rgb(44, 48, 60) } else { Color32::from_rgb(26, 28, 34) };
             painter.rect_filled(rep_pill_rect, CornerRadius::same(3), rep_bg);
-            painter.rect_stroke(rep_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if rep_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(44, 48, 58) }), StrokeKind::Inside);
+            painter.rect_stroke(rep_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if rep_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(44, 48, 58) }), StrokeKind::Inside);
 
-            let rep_icon_col = if rep_active { VortexTheme::POT_YELLOW } else if rep_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
+            let rep_icon_col = if rep_active { VortexTheme::VORTEX_YELLOW } else if rep_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
             let is_one = playlist.repeat_mode == crate::playlist::RepeatMode::RepeatTrack;
             Icons::draw_repeat(painter, rep_pill_rect, rep_icon_col, is_one);
 
@@ -385,16 +386,16 @@ impl ControlBar {
                 playlist.cycle_repeat_mode();
             }
 
-            // 4. Compact dark Shuffle button, matching the classic PotPlayer skin.
+            // 4. Compact dark Shuffle button, matching the classic Vortex skin.
             let shuf_pill_rect = Rect::from_min_size(Pos2::new(right_block_x + 110.0, ctrl_row_y), Vec2::new(26.0, 24.0));
             let shuf_active = playlist.is_shuffle();
             let shuf_resp = ui.interact(shuf_pill_rect, ui.id().with("dash_shuffle_btn"), Sense::click());
 
             let shuf_bg = if shuf_resp.hovered() { Color32::from_rgb(44, 48, 60) } else { Color32::from_rgb(26, 28, 34) };
             painter.rect_filled(shuf_pill_rect, CornerRadius::same(3), shuf_bg);
-            painter.rect_stroke(shuf_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if shuf_active { VortexTheme::POT_YELLOW } else { Color32::from_rgb(44, 48, 58) }), StrokeKind::Inside);
+            painter.rect_stroke(shuf_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if shuf_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(44, 48, 58) }), StrokeKind::Inside);
 
-            let shuf_icon_col = if shuf_active { VortexTheme::POT_YELLOW } else if shuf_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
+            let shuf_icon_col = if shuf_active { VortexTheme::VORTEX_YELLOW } else if shuf_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
             Icons::draw_shuffle(painter, shuf_pill_rect, shuf_icon_col);
 
             if shuf_resp.hovered() {
@@ -428,7 +429,7 @@ impl ControlBar {
             Vec2::new(seekbar_rect.width(), track_h),
         );
 
-        // Visible slate track groove matching PotPlayer
+        // Visible slate track groove matching Vortex
         painter.rect_filled(track_rect, CornerRadius::same(1), Color32::from_rgb(52, 56, 68));
         painter.rect_stroke(track_rect, CornerRadius::same(1), Stroke::new(0.5, Color32::from_rgb(32, 34, 42)), StrokeKind::Inside);
 
@@ -449,7 +450,7 @@ impl ControlBar {
         let played_w = track_rect.width() * progress;
         if played_w > 0.0 {
             let played_rect = Rect::from_min_size(track_rect.min, Vec2::new(played_w, track_h));
-            painter.rect_filled(played_rect, CornerRadius::same(2), VortexTheme::POT_YELLOW);
+            painter.rect_filled(played_rect, CornerRadius::same(2), VortexTheme::VORTEX_YELLOW);
             if seek_hovered {
                 painter.rect_filled(
                     played_rect.expand(1.0),
@@ -503,7 +504,7 @@ impl ControlBar {
                     let diamond_color = if is_skip {
                         Color32::from_rgb(255, 75, 75)
                     } else {
-                        VortexTheme::POT_YELLOW
+                        VortexTheme::VORTEX_YELLOW
                     };
 
                     let points = vec![
@@ -521,7 +522,7 @@ impl ControlBar {
             }
         }
 
-        // Seek Knob: PotPlayer circular white scrubber knob with halo
+        // Seek Knob: Vortex circular white scrubber knob with halo
         let knob_r = if seek_hovered { 5.5 } else { 4.0 };
         let knob_x = (track_rect.left() + played_w).clamp(track_rect.left() + knob_r, track_rect.right() - knob_r);
         let knob_y = track_rect.center().y;
@@ -737,7 +738,7 @@ impl ControlBar {
 
         // 3b. Prev Chapter (26px)
         if !is_song && !stats.chapters.is_empty() {
-            if make_tile("tile_prev_chap", 26.0, "Previous Chapter (H / [)", &|p, r, c| Icons::draw_chapter_prev(p, r, c)) {
+            if make_tile("tile_prev_chap", 26.0, "Previous Chapter (Shift+H / [)", &|p, r, c| Icons::draw_chapter_prev(p, r, c)) {
                 actions.prev_chapter = true;
             }
         }
@@ -769,7 +770,7 @@ impl ControlBar {
         if !is_song && total_rect.width() >= 520.0 {
             let skip_tip = if is_in_intro { "Skip Opening / Intro (S)" } else { "Skip Forward 85s (S)" };
             if make_tile("tile_skip_intro", 28.0, skip_tip, &|p, r, c| {
-                let col = if is_in_intro { VortexTheme::POT_YELLOW } else { c };
+                let col = if is_in_intro { VortexTheme::VORTEX_YELLOW } else { c };
                 p.text(r.center(), Align2::CENTER_CENTER, "⏭OP", FontId::proportional(9.5), col);
             }) {
                 actions.skip_intro = true;
@@ -787,7 +788,7 @@ impl ControlBar {
                 _ => "Repeat: Off (Ctrl+R)",
             };
             if make_tile("tile_repeat", 26.0, rep_tip, &|p, r, c| {
-                let col = if is_rep_active { VortexTheme::POT_YELLOW } else { c };
+                let col = if is_rep_active { VortexTheme::VORTEX_YELLOW } else { c };
                 Icons::draw_repeat(p, r, col, is_rep_one);
             }) {
                 actions.cycle_repeat = true;
@@ -796,7 +797,7 @@ impl ControlBar {
             let is_shuf_active = playlist.is_shuffle();
             let shuf_tip = if is_shuf_active { "Shuffle: ON (Ctrl+S / S)" } else { "Shuffle: OFF (Ctrl+S / S)" };
             if make_tile("tile_shuffle", 26.0, shuf_tip, &|p, r, c| {
-                let col = if is_shuf_active { VortexTheme::POT_YELLOW } else { c };
+                let col = if is_shuf_active { VortexTheme::VORTEX_YELLOW } else { c };
                 Icons::draw_shuffle(p, r, col);
             }) {
                 actions.toggle_shuffle = true;
@@ -817,14 +818,14 @@ impl ControlBar {
         if !is_song && !stats.subtitle_tracks.is_empty() {
             let sub_tip = if stats.subtitles_visible { "Cycle Subtitle Track / Language (Alt+H)" } else { "Subtitles: Off (Click to enable)" };
             if make_tile("tile_sub_quick", 28.0, sub_tip, &|p, r, c| {
-                let col = if stats.subtitles_visible { VortexTheme::POT_YELLOW } else { c };
+                let col = if stats.subtitles_visible { VortexTheme::VORTEX_YELLOW } else { c };
                 Icons::draw_subtitles(p, r, col);
             }) {
                 actions.cycle_subtitle = true;
             }
         }
 
-        // 6. Inset LCD Time & Format Stats Display Box (Pixel-Perfect PotPlayer Layout)
+        // 6. Inset LCD Time & Format Stats Display Box (Pixel-Perfect Vortex Layout)
         {
             let current_str = crate::bookmark::format_time_hms(stats.time_pos);
             let total_str = crate::bookmark::format_time_hms(stats.duration);
@@ -863,7 +864,7 @@ impl ControlBar {
                     });
                 }
 
-                // 2. Video Codec Badge (Compact PotPlayer format: AVC1, HEVC, AV1, VP9, etc.)
+                // 2. Video Codec Badge (Compact Vortex format: AVC1, HEVC, AV1, VP9, etc.)
                 if !is_song && !stats.video_codec.is_empty() {
                     let raw_v = stats.video_codec.to_lowercase();
                     let v_formatted = if raw_v.contains("h264") || raw_v.contains("avc") {
@@ -885,7 +886,7 @@ impl ControlBar {
                     lcd_badges.push(LcdBadge { text: v_formatted, kind: BadgeKind::VideoCodec });
                 }
 
-                // 3. Audio Codec Badge (Compact PotPlayer format: TrueHD, DTS-HD, FLAC, AAC, Opus, etc.)
+                // 3. Audio Codec Badge (Compact Vortex format: TrueHD, DTS-HD, FLAC, AAC, Opus, etc.)
                 if !stats.audio_codec.is_empty() {
                     let raw_a = stats.audio_codec.to_lowercase();
                     let a_formatted = if raw_a.contains("truehd") {
@@ -1017,7 +1018,7 @@ impl ControlBar {
                 *show_remaining_time = !*show_remaining_time;
             }
 
-            // Draw PotPlayer Pixel-Perfect Cyan / Dimmed Time
+            // Draw Vortex Pixel-Perfect Cyan / Dimmed Time
             let time_y = lcd_r.center().y;
             
             // Current Time (Light Cyan #64B4FF)
@@ -1091,7 +1092,7 @@ impl ControlBar {
                         };
                         let bg = if r.hovered() { Color32::from_rgb(42, 45, 58) } else { Color32::from_rgb(26, 28, 36) };
                         let stroke = Color32::from_rgb(45, 48, 58);
-                        let text = if r.hovered() { VortexTheme::POT_YELLOW } else { Color32::from_rgb(145, 150, 165) };
+                        let text = if r.hovered() { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(145, 150, 165) };
                         (r, bg, stroke, text, tip)
                     }
                     BadgeKind::Hdr => {
@@ -1119,7 +1120,7 @@ impl ControlBar {
                             format!("Audio: {} [Shared Mode]\nClick for Bit-Perfect WASAPI Exclusive\nRight-click for Media Info", stats.audio_codec)
                         };
                         let (bg, stroke, text) = if is_exclusive {
-                            (Color32::from_rgb(52, 38, 12), Color32::from_rgb(180, 130, 24), VortexTheme::POT_YELLOW)
+                            (Color32::from_rgb(52, 38, 12), Color32::from_rgb(180, 130, 24), VortexTheme::VORTEX_YELLOW)
                         } else if r.hovered() {
                             (Color32::from_rgb(36, 40, 52), Color32::from_rgb(60, 90, 140), Color32::WHITE)
                         } else {
@@ -1179,7 +1180,11 @@ impl ControlBar {
         };
 
         // 1. Playlist Drawer ☰ (28px) — Rightmost button with vertical divider on left
-        if make_right_tile("tile_playlist", 28.0, "Toggle Playlist (F6 / F8)", &|p, r, c| Icons::draw_hamburger(p, r, c)) {
+        let is_pl_open = is_playlist_open;
+        if make_right_tile("tile_playlist", 28.0, "Toggle Playlist (F6 / F8)", &|p, r, c| {
+            let col = if is_pl_open { VortexTheme::VORTEX_YELLOW } else { c };
+            Icons::draw_hamburger(p, r, col);
+        }) {
             actions.toggle_playlist = true;
         }
 
@@ -1222,11 +1227,11 @@ impl ControlBar {
             painter.rect_stroke(
                 pill_r,
                 CornerRadius::same(3),
-                Stroke::new(1.0, if is_non_standard { VortexTheme::POT_YELLOW } else { Color32::from_rgb(44, 48, 62) }),
+                Stroke::new(1.0, if is_non_standard { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(44, 48, 62) }),
                 StrokeKind::Inside,
             );
 
-            let text_col = if is_non_standard { VortexTheme::POT_YELLOW } else if spd_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(175, 180, 195) };
+            let text_col = if is_non_standard { VortexTheme::VORTEX_YELLOW } else if spd_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(175, 180, 195) };
             let speed_str = format!("{:.1}x", stats.speed);
             painter.text(pill_r.center(), Align2::CENTER_CENTER, speed_str, FontId::monospace(10.0), text_col);
 
@@ -1321,7 +1326,7 @@ impl ControlBar {
             let fill_w = vbar_w * display_vol_pct;
             if fill_w > 0.0 {
                 let fill_r = Rect::from_min_size(vbar_r.min, Vec2::new(fill_w, 2.5));
-                painter.rect_filled(fill_r, CornerRadius::ZERO, VortexTheme::POT_YELLOW);
+                painter.rect_filled(fill_r, CornerRadius::ZERO, VortexTheme::VORTEX_YELLOW);
             }
 
             // Volume Knob

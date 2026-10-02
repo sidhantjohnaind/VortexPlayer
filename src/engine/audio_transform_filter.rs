@@ -10,7 +10,7 @@ pub const MIN_DBFS: f32 = -60.0;
 
 /// Channel speaker assignment in standard 7.1 surround order (ITU-R BS.775 / SMPTE)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PotSpeakerChannel {
+pub enum VortexSpeakerChannel {
     Left = 0,
     Right = 1,
     Center = 2,
@@ -21,49 +21,49 @@ pub enum PotSpeakerChannel {
     BackRight = 7,
 }
 
-impl PotSpeakerChannel {
+impl VortexSpeakerChannel {
     pub fn name(&self) -> &'static str {
         match self {
-            PotSpeakerChannel::Left => "L",
-            PotSpeakerChannel::Right => "R",
-            PotSpeakerChannel::Center => "C",
-            PotSpeakerChannel::Lfe => "LFE",
-            PotSpeakerChannel::SurroundLeft => "SL",
-            PotSpeakerChannel::SurroundRight => "SR",
-            PotSpeakerChannel::BackLeft => "BL",
-            PotSpeakerChannel::BackRight => "BR",
+            VortexSpeakerChannel::Left => "L",
+            VortexSpeakerChannel::Right => "R",
+            VortexSpeakerChannel::Center => "C",
+            VortexSpeakerChannel::Lfe => "LFE",
+            VortexSpeakerChannel::SurroundLeft => "SL",
+            VortexSpeakerChannel::SurroundRight => "SR",
+            VortexSpeakerChannel::BackLeft => "BL",
+            VortexSpeakerChannel::BackRight => "BR",
         }
     }
 
     pub fn ffmpeg_tag(&self) -> &'static str {
         match self {
-            PotSpeakerChannel::Left => "FL",
-            PotSpeakerChannel::Right => "FR",
-            PotSpeakerChannel::Center => "FC",
-            PotSpeakerChannel::Lfe => "LFE",
-            PotSpeakerChannel::SurroundLeft => "SL",
-            PotSpeakerChannel::SurroundRight => "SR",
-            PotSpeakerChannel::BackLeft => "BL",
-            PotSpeakerChannel::BackRight => "BR",
+            VortexSpeakerChannel::Left => "FL",
+            VortexSpeakerChannel::Right => "FR",
+            VortexSpeakerChannel::Center => "FC",
+            VortexSpeakerChannel::Lfe => "LFE",
+            VortexSpeakerChannel::SurroundLeft => "SL",
+            VortexSpeakerChannel::SurroundRight => "SR",
+            VortexSpeakerChannel::BackLeft => "BL",
+            VortexSpeakerChannel::BackRight => "BR",
         }
     }
 
     pub fn full_name(&self) -> &'static str {
         match self {
-            PotSpeakerChannel::Left => "Front Left",
-            PotSpeakerChannel::Right => "Front Right",
-            PotSpeakerChannel::Center => "Center (Dialogue)",
-            PotSpeakerChannel::Lfe => "Low-Frequency Effects (Subwoofer)",
-            PotSpeakerChannel::SurroundLeft => "Surround Left",
-            PotSpeakerChannel::SurroundRight => "Surround Right",
-            PotSpeakerChannel::BackLeft => "Back Left",
-            PotSpeakerChannel::BackRight => "Back Right",
+            VortexSpeakerChannel::Left => "Front Left",
+            VortexSpeakerChannel::Right => "Front Right",
+            VortexSpeakerChannel::Center => "Center (Dialogue)",
+            VortexSpeakerChannel::Lfe => "Low-Frequency Effects (Subwoofer)",
+            VortexSpeakerChannel::SurroundLeft => "Surround Left",
+            VortexSpeakerChannel::SurroundRight => "Surround Right",
+            VortexSpeakerChannel::BackLeft => "Back Left",
+            VortexSpeakerChannel::BackRight => "Back Right",
         }
     }
 }
 
 /// Atomic real-time channel meter metrics for lock-free UI rendering
-pub struct PotChannelMetrics {
+pub struct VortexChannelMetrics {
     // Input Stage (Pre-DSP)
     pub input_peak_linear: AtomicU32,
     pub input_rms_linear: AtomicU32,
@@ -80,7 +80,7 @@ pub struct PotChannelMetrics {
     pub is_solo: AtomicBool,
 }
 
-impl Default for PotChannelMetrics {
+impl Default for VortexChannelMetrics {
     fn default() -> Self {
         Self {
             input_peak_linear: AtomicU32::new(0),
@@ -96,9 +96,9 @@ impl Default for PotChannelMetrics {
     }
 }
 
-/// PotPlayer-Grade In-Process Audio Transform Filter & PCM Analyzer (DSP)
+/// Vortex-Grade In-Process Audio Transform Filter & PCM Analyzer (DSP)
 pub struct AudioTransformFilter {
-    pub channels: [PotChannelMetrics; MAX_AUDIO_CHANNELS],
+    pub channels: [VortexChannelMetrics; MAX_AUDIO_CHANNELS],
     peak_hold_times_input: [Instant; MAX_AUDIO_CHANNELS],
     peak_hold_times_output: [Instant; MAX_AUDIO_CHANNELS],
     last_update: Instant,
@@ -113,14 +113,14 @@ impl AudioTransformFilter {
         let now = Instant::now();
         Self {
             channels: [
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
-                PotChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
+                VortexChannelMetrics::default(),
             ],
             peak_hold_times_input: [now; MAX_AUDIO_CHANNELS],
             peak_hold_times_output: [now; MAX_AUDIO_CHANNELS],

@@ -140,7 +140,7 @@ impl ToastManager {
             let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(toast_w, toast_h));
 
             let (accent_color, icon) = match toast.kind {
-                ToastKind::Info => (VortexTheme::POT_CYAN, "ℹ"),
+                ToastKind::Info => (VortexTheme::VORTEX_CYAN, "ℹ"),
                 ToastKind::Success => (Color32::from_rgb(0, 220, 100), "✓"),
                 ToastKind::Warning => (Color32::from_rgb(255, 185, 35), "⚠"),
                 ToastKind::Error => (Color32::from_rgb(245, 50, 60), "✕"),

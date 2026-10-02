@@ -1,4 +1,4 @@
-//! color_blindness_dialog.rs — Color Blindness & Vision Accessibility Daltonization Matrix (PotPlayer/MPC-BE)
+//! color_blindness_dialog.rs — Color Blindness & Vision Accessibility Daltonization Matrix (Vortex/MPC-BE)
 
 #![allow(dead_code)]
 

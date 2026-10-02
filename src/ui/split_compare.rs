@@ -33,7 +33,7 @@ impl SplitCompareView {
         // Draw vertical divider line
         painter.line_segment(
             [Pos2::new(split_x, video_rect.top()), Pos2::new(split_x, video_rect.bottom())],
-            Stroke::new(2.5, VortexTheme::POT_YELLOW),
+            Stroke::new(2.5, VortexTheme::VORTEX_YELLOW),
         );
 
         // Divider handle
@@ -42,13 +42,13 @@ impl SplitCompareView {
             Vec2::new(24.0, 48.0),
         );
         painter.rect_filled(handle_rect, CornerRadius::same(6), Color32::from_rgb(30, 30, 40));
-        painter.rect_stroke(handle_rect, CornerRadius::same(6), Stroke::new(1.5, VortexTheme::POT_YELLOW), StrokeKind::Inside);
+        painter.rect_stroke(handle_rect, CornerRadius::same(6), Stroke::new(1.5, VortexTheme::VORTEX_YELLOW), StrokeKind::Inside);
         painter.text(
             handle_rect.center(),
             Align2::CENTER_CENTER,
             "◀▶",
             FontId::proportional(11.0),
-            VortexTheme::POT_YELLOW,
+            VortexTheme::VORTEX_YELLOW,
         );
 
         // Labels: Left = Original, Right = Processed (Shaders / HDR)
@@ -75,7 +75,7 @@ impl SplitCompareView {
             Align2::CENTER_CENTER,
             "PROCESSED (SHADERS)",
             FontId::proportional(11.0),
-            VortexTheme::POT_YELLOW,
+            VortexTheme::VORTEX_YELLOW,
         );
 
         // Interaction for dragging divider

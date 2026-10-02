@@ -1,6 +1,6 @@
-# VertexPlayer: PotPlayer-Grade Power Features Walkthrough
+# VertexPlayer: Vortex-Grade Power Features Walkthrough
 
-VertexPlayer has been expanded with the **Top 10 High-Impact Features** to match and exceed PotPlayer's processing, automation, and media management ecosystem.
+VertexPlayer has been expanded with the **Top 10 High-Impact Features** to match and exceed Vortex's processing, automation, and media management ecosystem.
 
 ---
 

@@ -1,4 +1,4 @@
-//! playback_history_dialog.rs — Playback History & Watch Statistics Log (PotPlayer style)
+//! playback_history_dialog.rs — Playback History & Watch Statistics Log (Vortex style)
 
 #![allow(dead_code)]
 

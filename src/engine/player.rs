@@ -1302,9 +1302,9 @@ impl Player {
         let gpu_clock = if is_hw { (300 + (gpu_usage * 12.0) as u32).min(2200) } else { 210 };
         let preset_str = if stats.hdr_format.is_empty() { "*Default preset" } else { &stats.hdr_format };
 
-        // Construct exact PotPlayer color-coded ASS OSD HUD matching user screenshot on fixed 1920x1080 canvas
+        // Construct exact Vortex color-coded ASS OSD HUD matching user screenshot on fixed 1920x1080 canvas
         let mut ass = String::with_capacity(2048);
-        ass.push_str("{\\an7\\fs31\\fnSegoe UI\\b1\\bord1.8\\shad1.2}");
+        ass.push_str("{\\an7\\pos(14,80)\\fs30\\fnSegoe UI\\b1\\bord1.8\\shad1.2}");
         
         // Line 1: Filename
         ass.push_str(&format!("{{\\c&HFFFFFF&}}Filename: {{\\c&H00FFFF&}}{}\\N", filename));

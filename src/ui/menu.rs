@@ -1,7 +1,7 @@
 use super::theme::{SkinColors, VortexTheme};
 use crate::bookmark::{format_time, BookmarkManager};
 use crate::config::{AppConfig, ThemeMode};
-use crate::engine::audio_dsp::POT_EQ_PRESETS;
+use crate::engine::audio_dsp::VORTEX_EQ_PRESETS;
 use crate::engine::{MediaStats, Player, VideoEffectsConfig};
 use crate::playlist::Playlist;
 use eframe::egui::{
@@ -10,7 +10,7 @@ use eframe::egui::{
 };
 use std::path::PathBuf;
 
-pub struct PotMenu;
+pub struct VortexMenu;
 
 pub struct MenuActions {
     pub close_menu: bool,
@@ -78,14 +78,23 @@ pub struct MenuActions {
     pub toggle_auto_skip_dialog: bool,
     pub skip_intro: bool,
     pub show_about: bool,
-
-
-
+    pub toggle_record_dialog: bool,
+    pub toggle_gif_maker: bool,
+    pub toggle_device_capture: bool,
+    pub toggle_subtitle_lookup: bool,
+    pub toggle_shader_studio: bool,
+    pub toggle_broadcast: bool,
+    pub toggle_contact_sheet: bool,
+    pub toggle_jump_time: bool,
+    pub toggle_pip: bool,
+    pub minimize_window: bool,
+    pub maximize_window: bool,
 
     pub take_screenshot: bool,
     pub play_path: Option<PathBuf>,
     pub sub_sync_changed: bool,
     pub resize_window_factor: Option<f32>,
+    pub center_window: bool,
     pub open_subtitle_preferences: bool,
 }
 
@@ -94,6 +103,16 @@ pub struct MenuActions {
 
 
 
+
+#[inline]
+fn safe_icon(icon: &str) -> &str {
+    // Only permit crisp, universally supported glyphs; strip all emojis, squares, and symbols
+    // that render as missing glyph tofu (□ / ▭ / ■ / ⬛) in standard UI fonts.
+    match icon {
+        "✓" | "▶" | "⏸" | "•" | "★" | "☆" | " " => icon,
+        _ => "",
+    }
+}
 
 /// Reusable Standard Context Menu Item
 fn menu_item(
@@ -105,6 +124,7 @@ fn menu_item(
     is_checked: bool,
     is_disabled: bool,
 ) -> Response {
+    let icon = safe_icon(icon);
     let w = ui.available_width();
     let row_h = 22.0;
 
@@ -182,7 +202,22 @@ fn menu_item(
         skin.text_primary
     };
 
-    painter.text(
+    // 3. Label & Shortcut collision-proof layout
+    let shortcut_reserved_w = if !shortcut.is_empty() {
+        let sc_galley = painter.layout_no_wrap(shortcut.to_string(), FontId::proportional(10.5), Color32::WHITE);
+        sc_galley.size().x + 14.0
+    } else {
+        8.0
+    };
+
+    let label_avail_w = (rect.width() - 26.0 - shortcut_reserved_w).max(20.0);
+    let label_rect = Rect::from_min_max(
+        Pos2::new(rect.left() + 22.0, rect.top()),
+        Pos2::new(rect.left() + 22.0 + label_avail_w, rect.bottom()),
+    );
+
+    let label_painter = painter.with_clip_rect(label_rect);
+    label_painter.text(
         Pos2::new(rect.left() + 22.0, cy),
         Align2::LEFT_CENTER,
         label,
@@ -220,6 +255,7 @@ fn submenu_item<R>(
     label: &str,
     content: impl FnOnce(&mut egui::Ui) -> R,
 ) -> (Response, Option<InnerResponse<R>>) {
+    let icon = safe_icon(icon);
     let w = ui.available_width();
     let row_h = 22.0;
     let menu_state_id = ui.id().with("active_submenu_id");
@@ -328,7 +364,8 @@ fn submenu_item<R>(
         let sub_h = last_rect.map(|r| r.height()).unwrap_or(360.0).max(160.0);
 
         // Submenu cascading direction: if right edge overflows screen, flip to the left side
-        let open_right = rect.right() + 185.0 <= win_size.x - 8.0;
+        let sub_w = last_rect.map(|r| r.width()).unwrap_or(280.0).max(220.0);
+        let open_right = rect.right() + sub_w <= win_size.x - 8.0;
         let (popup_x, pivot) = if open_right {
             (rect.right() - 2.0, egui::Align2::LEFT_TOP)
         } else {
@@ -362,8 +399,8 @@ fn submenu_item<R>(
                     })
                     .inner_margin(Margin::symmetric(4, 5))
                     .show(ui, |ui| {
-                        ui.set_min_width(175.0);
-                        ui.set_max_width(280.0);
+                        ui.set_min_width(220.0);
+                        ui.set_max_width(450.0);
                         egui::ScrollArea::vertical()
                             .max_height(max_menu_h)
                             .auto_shrink([true, true])
@@ -509,7 +546,7 @@ fn menu_separator(ui: &mut egui::Ui) {
     );
 }
 
-impl PotMenu {
+impl VortexMenu {
     pub fn render(
         ui: &mut egui::Ui,
         player: Option<&Player>,
@@ -584,14 +621,23 @@ impl PotMenu {
             toggle_auto_skip_dialog: false,
             skip_intro: false,
             show_about: false,
-
-
-
+            toggle_record_dialog: false,
+            toggle_gif_maker: false,
+            toggle_device_capture: false,
+            toggle_subtitle_lookup: false,
+            toggle_shader_studio: false,
+            toggle_broadcast: false,
+            toggle_contact_sheet: false,
+            toggle_jump_time: false,
+            toggle_pip: false,
+            minimize_window: false,
+            maximize_window: false,
 
             take_screenshot: false,
             play_path: None,
             sub_sync_changed: false,
             resize_window_factor: None,
+            center_window: false,
             open_subtitle_preferences: false,
         };
 
@@ -602,8 +648,9 @@ impl PotMenu {
 
         let skin = VortexTheme::get_skin(config.theme_mode);
 
-        // Apply Unified Global Menu Aesthetics across all popup and submenus (172px first menu width)
-        ui.set_width(172.0);
+        // Apply Unified Global Menu Aesthetics across all popup and submenus (260px first menu width)
+        ui.set_width(260.0);
+        ui.set_min_width(260.0);
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.5);
         ui.spacing_mut().button_padding = Vec2::new(4.0, 2.5);
         ui.spacing_mut().menu_margin = Margin::symmetric(3, 4);
@@ -636,7 +683,7 @@ impl PotMenu {
         }
 
         submenu_item(ui, &skin, "📂", "Open", |ui| {
-            ui.set_min_width(150.0);
+            ui.set_min_width(330.0);
             if menu_item(ui, &skin, "📁", "Open File(s)...", "Ctrl+O", false, false).clicked() {
                 actions.open_file = true;
                 ui.close();
@@ -697,6 +744,18 @@ impl PotMenu {
                 actions.toggle_media_tag_editor = true;
                 ui.close();
             }
+            if menu_item(ui, &skin, "📹", "Webcam / Device Capture...", "Ctrl+Shift+W", false, false).clicked() {
+                actions.toggle_device_capture = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "⏺", "Stream & Audio Recorder...", "Ctrl+Shift+R", false, false).clicked() {
+                actions.toggle_record_dialog = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "📡", "Live RTMP / Broadcast Stream...", "Ctrl+Alt+L", false, false).clicked() {
+                actions.toggle_broadcast = true;
+                ui.close();
+            }
             menu_separator(ui);
             if menu_item(ui, &skin, "✕", "Close File & Return to Home", "Ctrl+W / F4", false, false).clicked() {
                 actions.close_file = true;
@@ -705,7 +764,7 @@ impl PotMenu {
             menu_separator(ui);
 
             submenu_item(ui, &skin, "🕒", "Recent Files", |ui| {
-                ui.set_min_width(140.0);
+                ui.set_min_width(260.0);
                 if config.recent_files.is_empty() {
                     ui.label(RichText::new("  (No recent files)").size(11.0).color(skin.text_muted));
                 } else {
@@ -726,7 +785,7 @@ impl PotMenu {
         });
 
         submenu_item(ui, &skin, "★", "Favorites", |ui| {
-            ui.set_min_width(150.0);
+            ui.set_min_width(260.0);
             if menu_item(ui, &skin, "★", "Add Current Item to Favorites", "Alt+Ins", false, stats.file_path.is_empty()).clicked() {
                 if !stats.file_path.is_empty() {
                     playlist.toggle_favorite(&PathBuf::from(&stats.file_path));
@@ -734,10 +793,16 @@ impl PotMenu {
                 ui.close();
             }
             if menu_item(ui, &skin, "📁", "Add Current Folder to Favorites", "Ctrl+Ins", false, stats.file_path.is_empty()).clicked() {
+                if !stats.file_path.is_empty() {
+                    if let Some(parent) = std::path::Path::new(&stats.file_path).parent() {
+                        playlist.toggle_favorite(&parent.to_path_buf());
+                    }
+                }
                 ui.close();
             }
             menu_separator(ui);
             if menu_item(ui, &skin, "✕", "Clear Favorites", "", false, false).clicked() {
+                playlist.favorites.clear();
                 ui.close();
             }
         });
@@ -755,7 +820,7 @@ impl PotMenu {
         // 2. PLAYBACK & NAVIGATION
         // =====================================================================
         submenu_item(ui, &skin, "▷", "Playback", |ui| {
-            ui.set_min_width(145.0);
+            ui.set_min_width(280.0);
             if menu_item(ui, &skin, if stats.is_paused { "▶" } else { "⏸" }, if stats.is_paused { "Play" } else { "Pause" }, "Space", false, false).clicked() {
                 if let Some(p) = player {
                     p.toggle_pause();
@@ -803,7 +868,7 @@ impl PotMenu {
             }
 
             submenu_item(ui, &skin, "📑", "Chapters", |ui| {
-                ui.set_min_width(170.0);
+                ui.set_min_width(260.0);
                 if menu_item(ui, &skin, "⏮", "Previous Chapter", "Shift+H", false, !has_chapters).clicked() {
                     if let Some(p) = player {
                         p.prev_chapter();
@@ -969,6 +1034,10 @@ impl PotMenu {
                 actions.toggle_goto_frame = true;
                 ui.close();
             }
+            if menu_item(ui, &skin, "⏱", "Jump to Specific Time...", "G", false, false).clicked() {
+                actions.toggle_jump_time = true;
+                ui.close();
+            }
             if menu_item(ui, &skin, "🔁", "A-B Repeat Studio Looper...", "Ctrl+Shift+L", false, false).clicked() {
                 actions.toggle_ab_repeat = true;
                 ui.close();
@@ -1020,6 +1089,10 @@ impl PotMenu {
             }
             if menu_item(ui, &skin, "📂", "Add / Load Subtitles...", "Alt+O", false, false).clicked() {
                 actions.load_subtitle = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🔍", "Online Subtitle Search & Download...", "Ctrl+Shift+O", false, false).clicked() {
+                actions.toggle_subtitle_lookup = true;
                 ui.close();
             }
             menu_separator(ui);
@@ -1134,7 +1207,7 @@ impl PotMenu {
                     ui.set_min_width(160.0);
                     let colors = [
                         ("#FFFFFF", "White"),
-                        ("#FFE600", "PotPlayer Yellow"),
+                        ("#FFE600", "Vortex Gold"),
                         ("#FFFF00", "Bright Yellow"),
                         ("#FFCC00", "Soft Amber"),
                         ("#00FFFF", "Cyan"),
@@ -1393,9 +1466,9 @@ impl PotMenu {
         // 4. VIDEO & DISPLAY
         // =====================================================================
         submenu_item(ui, &skin, "📺", "Video", |ui| {
-            ui.set_min_width(150.0);
+            ui.set_min_width(280.0);
             submenu_item(ui, &skin, "🗖", "Aspect Ratio", |ui| {
-                ui.set_min_width(140.0);
+                ui.set_min_width(280.0);
                 for &ratio in &["auto", "16:9", "16:10", "4:3", "1.85:1", "2.35:1", "crop_fill", "fill"] {
                     let is_sel = config.aspect_ratio == ratio;
                     let label = match ratio {
@@ -1420,7 +1493,7 @@ impl PotMenu {
                 }
                 ui.separator();
                 submenu_item(ui, &skin, "↕", "Black Bar Placement", |ui| {
-                    ui.set_min_width(175.0);
+                    ui.set_min_width(260.0);
                     let aligns = [
                         ("center", "Both (Half & Half - Default)"),
                         ("top", "Bottom (All bar at Bottom)"),
@@ -1441,7 +1514,7 @@ impl PotMenu {
             });
 
             submenu_item(ui, &skin, "⚡", "Hardware Acceleration", |ui| {
-                ui.set_min_width(145.0);
+                ui.set_min_width(240.0);
                 for &hw in &["auto-safe", "d3d11va", "dxva2", "nvdec", "no"] {
                     let is_sel = config.hardware_decoding == hw;
                     let label = match hw {
@@ -1464,7 +1537,7 @@ impl PotMenu {
             });
 
             submenu_item(ui, &skin, "🔄", "Rotation", |ui| {
-                ui.set_min_width(135.0);
+                ui.set_min_width(220.0);
                 for &deg in &[0, 90, 180, 270] {
                     let is_sel = config.video_rotation == deg;
                     let label = match deg {
@@ -1486,22 +1559,37 @@ impl PotMenu {
             });
 
             submenu_item(ui, &skin, "🧊", "3D Output Modes", |ui| {
-                ui.set_min_width(155.0);
+                ui.set_min_width(240.0);
                 if menu_item(ui, &skin, "✓", "2D (Off / Normal)", "", true, false).clicked() {
+                    if let Some(p) = player {
+                        p.set_property_string("vf", "");
+                    }
                     ui.close();
                 }
                 menu_separator(ui);
                 if menu_item(ui, &skin, "👓", "3D SBS -> 2D Monoscopic", "", false, false).clicked() {
+                    if let Some(p) = player {
+                        p.set_property_string("vf", "crop=iw/2:ih:0:0");
+                    }
                     ui.close();
                 }
                 if menu_item(ui, &skin, "👓", "3D TAB -> 2D Monoscopic", "", false, false).clicked() {
+                    if let Some(p) = player {
+                        p.set_property_string("vf", "crop=iw:ih/2:0:0");
+                    }
                     ui.close();
                 }
                 menu_separator(ui);
                 if menu_item(ui, &skin, "🔴", "3D SBS -> Red/Cyan", "", false, false).clicked() {
+                    if let Some(p) = player {
+                        p.set_property_string("vf", "stereo3d=sbs2l:arrc");
+                    }
                     ui.close();
                 }
                 if menu_item(ui, &skin, "🔵", "3D SBS -> ColorCode", "", false, false).clicked() {
+                    if let Some(p) = player {
+                        p.set_property_string("vf", "stereo3d=sbs2l:aybc");
+                    }
                     ui.close();
                 }
             });
@@ -1515,9 +1603,23 @@ impl PotMenu {
                 ui.close();
             }
             if menu_item(ui, &skin, "🌐", "360° VR Mode", "", false, false).clicked() {
+                actions.toggle_vr_360 = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "🎞", "Seamless Stitching", "", false, false).clicked() {
+            if menu_item(ui, &skin, "🎞", "Seamless Stitching Matrix...", "", false, false).clicked() {
+                actions.toggle_video_wall = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🎞️", "Animated GIF / WebP Maker...", "Ctrl+G", false, false).clicked() {
+                actions.toggle_gif_maker = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🖼️", "Thumbnail Contact Sheet Generator...", "Alt+N", false, false).clicked() {
+                actions.toggle_contact_sheet = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🎨", "GLSL Shader Studio...", "Ctrl+Alt+S", false, false).clicked() {
+                actions.toggle_shader_studio = true;
                 ui.close();
             }
             menu_separator(ui);
@@ -1583,7 +1685,7 @@ impl PotMenu {
         // 5. AUDIO
         // =====================================================================
         submenu_item(ui, &skin, "🔊", "Audio", |ui| {
-            ui.set_min_width(155.0);
+            ui.set_min_width(350.0);
             if menu_item(ui, &skin, "🎤", "Karaoke Studio...", "Ctrl+K", false, false).clicked() {
                 actions.toggle_karaoke = true;
                 ui.close();
@@ -1596,9 +1698,9 @@ impl PotMenu {
             }
 
 
-            // EXACT POTPLAYER AUDIO STREAM SELECTION SUBMENU
+            // EXACT VORTEX AUDIO STREAM SELECTION SUBMENU
             submenu_item(ui, &skin, "🎧", "Select Audio Stream", |ui| {
-                ui.set_min_width(165.0);
+                ui.set_min_width(260.0);
                 if menu_item(ui, &skin, "🔄", "Cycle Audio Stream", "Alt+A", false, false).clicked() {
                     if let Some(p) = player {
                         p.cycle_audio_track();
@@ -1658,7 +1760,7 @@ impl PotMenu {
             });
 
             submenu_item(ui, &skin, "🎧", "Output Device", |ui| {
-                ui.set_min_width(170.0);
+                ui.set_min_width(300.0);
                 let curr_dev = config.audio_device.clone();
                 let is_auto = curr_dev == "auto" || curr_dev.is_empty();
                 if menu_item(ui, &skin, if is_auto { "✓" } else { " " }, "Auto (System Device)", "", is_auto, false).clicked() {
@@ -1833,7 +1935,7 @@ impl PotMenu {
 
             submenu_item(ui, &skin, "📊", "18-Band Equalizer Presets", |ui| {
                 ui.set_min_width(150.0);
-                for preset in POT_EQ_PRESETS {
+                for preset in VORTEX_EQ_PRESETS {
                     let is_sel = config.eq_preset == preset.name;
                     if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, preset.name, "", is_sel, false).clicked() {
                         config.eq_preset = preset.name.to_string();
@@ -1974,6 +2076,9 @@ impl PotMenu {
             ui.set_min_width(145.0);
             if menu_item(ui, &skin, "⚡", "Deinterlace (Yadif 2x)", "", config.video_deinterlace, false).clicked() {
                 config.video_deinterlace = !config.video_deinterlace;
+                if let Some(p) = player {
+                    p.set_property_string("deinterlace", if config.video_deinterlace { "yes" } else { "no" });
+                }
                 let _ = config.save();
                 ui.close();
             }
@@ -1982,12 +2087,23 @@ impl PotMenu {
                 ui.close();
             }
             if menu_item(ui, &skin, "🧹", "Denoise (NL-Means)", "", false, false).clicked() {
+                if let Some(p) = player {
+                    p.set_property_string("vf", "hqdn3d");
+                }
                 ui.close();
             }
             if menu_item(ui, &skin, "🔍", "Sharpen (Unsharp)", "", config.video_sharpen > 0.01, false).clicked() {
+                config.video_sharpen = if config.video_sharpen > 0.01 { 0.0 } else { 1.5 };
+                if let Some(p) = player {
+                    p.set_property_double("sharpen", config.video_sharpen as f64);
+                }
+                let _ = config.save();
                 ui.close();
             }
             if menu_item(ui, &skin, "🌑", "Vignette Filter", "", false, false).clicked() {
+                if let Some(p) = player {
+                    p.set_property_string("vf", "vignette=PI/4");
+                }
                 ui.close();
             }
         });
@@ -2065,39 +2181,20 @@ impl PotMenu {
         // =====================================================================
         submenu_item(ui, &skin, "⛶", "Frame Size", |ui| {
             ui.set_min_width(145.0);
-            let base_w = if stats.video_width > 0 { stats.video_width as f32 } else { 1280.0 };
-            let base_h = if stats.video_height > 0 { stats.video_height as f32 } else { 720.0 };
-
             if menu_item(ui, &skin, " ", "0.5× Half Size", "0.5×", false, false).clicked() {
-                let target_w = (base_w * 0.5).max(380.0);
-                let target_h = (base_h * 0.5 + 74.0).max(180.0);
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-                actions.exit_fullscreen = true;
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
+                actions.resize_window_factor = Some(0.5);
                 ui.close();
             }
             if menu_item(ui, &skin, " ", "1.0× Original Size", "1.0×", false, false).clicked() {
-                let target_w = base_w.max(380.0);
-                let target_h = (base_h + 74.0).max(180.0);
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-                actions.exit_fullscreen = true;
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
+                actions.resize_window_factor = Some(1.0);
                 ui.close();
             }
             if menu_item(ui, &skin, " ", "1.5× 150% Size", "1.5×", false, false).clicked() {
-                let target_w = (base_w * 1.5).max(380.0);
-                let target_h = (base_h * 1.5 + 74.0).max(180.0);
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-                actions.exit_fullscreen = true;
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
+                actions.resize_window_factor = Some(1.5);
                 ui.close();
             }
             if menu_item(ui, &skin, " ", "2.0× Double Size", "2.0×", false, false).clicked() {
-                let target_w = (base_w * 2.0).max(380.0);
-                let target_h = (base_h * 2.0 + 74.0).max(180.0);
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-                actions.exit_fullscreen = true;
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
+                actions.resize_window_factor = Some(2.0);
                 ui.close();
             }
             if menu_item(ui, &skin, " ", "Fit to Screen", "", false, false).clicked() {
@@ -2171,6 +2268,11 @@ impl PotMenu {
                 ui.close();
             }
             menu_separator(ui);
+            if menu_item(ui, &skin, "🎯", "Center Window (Fit Monitor AR)", "Ctrl+Alt+C", false, false).clicked() {
+                actions.center_window = true;
+                ui.close();
+            }
+            menu_separator(ui);
             if menu_item(ui, &skin, " ", "1280 × 720 (HD)", "", false, false).clicked() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(1280.0, 720.0)));
                 ui.close();
@@ -2181,6 +2283,19 @@ impl PotMenu {
             }
             if menu_item(ui, &skin, " ", "2560 × 1440 (2K)", "", false, false).clicked() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(2560.0, 1440.0)));
+                ui.close();
+            }
+            menu_separator(ui);
+            if menu_item(ui, &skin, "📌", "Picture-in-Picture (PiP)...", "Ctrl+P", false, false).clicked() {
+                actions.toggle_pip = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🗕", "Minimize Window", "Alt+Space+N", false, false).clicked() {
+                actions.minimize_window = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🗖", "Maximize / Restore Window", "Alt+Space+X", false, false).clicked() {
+                actions.maximize_window = true;
                 ui.close();
             }
         });

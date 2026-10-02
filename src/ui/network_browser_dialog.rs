@@ -69,7 +69,7 @@ impl NetworkBrowserDialog {
             .default_height(460.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("NETWORK STREAMING & STORAGE SERVERS").strong().color(VortexTheme::POT_YELLOW));
+                    ui.label(RichText::new("NETWORK STREAMING & STORAGE SERVERS").strong().color(VortexTheme::VORTEX_YELLOW));
                 });
                 ui.separator();
 
@@ -77,7 +77,7 @@ impl NetworkBrowserDialog {
                 ui.label(RichText::new("Direct Stream URL (HTTP, HLS, DASH, RTSP):").strong());
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.direct_url).desired_width(400.0));
-                    if ui.button(RichText::new("▶ Stream").strong().color(VortexTheme::POT_YELLOW)).clicked() {
+                    if ui.button(RichText::new("▶ Stream").strong().color(VortexTheme::VORTEX_YELLOW)).clicked() {
                         *file_to_open = Some(PathBuf::from(&self.direct_url));
                         self.is_open = false;
                     }
@@ -120,7 +120,7 @@ impl NetworkBrowserDialog {
                     ui.separator();
                 }
 
-                ui.label(RichText::new("Server Connection Details:").strong().color(VortexTheme::POT_YELLOW));
+                ui.label(RichText::new("Server Connection Details:").strong().color(VortexTheme::VORTEX_YELLOW));
 
                 egui::Grid::new("net_grid").spacing(Vec2::new(12.0, 8.0)).show(ui, |ui| {
                     ui.label("Profile Name:");

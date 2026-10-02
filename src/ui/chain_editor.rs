@@ -74,7 +74,7 @@ impl ChainEditorDialog {
 
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("{}.", idx + 1)).strong().color(VortexTheme::POT_YELLOW));
+                                ui.label(RichText::new(format!("{}.", idx + 1)).strong().color(VortexTheme::VORTEX_YELLOW));
                                 ui.checkbox(&mut stage.enabled, RichText::new(&stage.name).strong());
 
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -108,7 +108,7 @@ impl ChainEditorDialog {
 
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(format!("{}.", idx + 1)).strong().color(VortexTheme::POT_YELLOW));
+                                ui.label(RichText::new(format!("{}.", idx + 1)).strong().color(VortexTheme::VORTEX_YELLOW));
                                 ui.checkbox(&mut stage.enabled, RichText::new(&stage.name).strong());
 
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

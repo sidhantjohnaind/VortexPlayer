@@ -15,7 +15,7 @@ impl TelemetryHudView {
 
         // Background
         painter.rect_filled(hud_rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(10, 10, 16, 230));
-        painter.rect_stroke(hud_rect, CornerRadius::same(6), Stroke::new(1.0, VortexTheme::POT_YELLOW), egui::StrokeKind::Outside);
+        painter.rect_stroke(hud_rect, CornerRadius::same(6), Stroke::new(1.0, VortexTheme::VORTEX_YELLOW), egui::StrokeKind::Outside);
 
         let font_title = FontId::proportional(12.5);
         let font_mono = FontId::monospace(11.0);
@@ -25,7 +25,7 @@ impl TelemetryHudView {
             Align2::LEFT_TOP,
             "[ ADVANCED PLAYBACK TELEMETRY ]",
             font_title,
-            VortexTheme::POT_YELLOW,
+            VortexTheme::VORTEX_YELLOW,
         );
 
         let lines = [

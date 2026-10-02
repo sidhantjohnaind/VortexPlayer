@@ -47,7 +47,7 @@ impl ParametricEqDialog {
                         player.set_audio_filter(&af_str);
                     }
 
-                    ui.label(RichText::new(&config.profile_name).color(VortexTheme::POT_YELLOW).strong());
+                    ui.label(RichText::new(&config.profile_name).color(VortexTheme::VORTEX_YELLOW).strong());
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("📥 Import AutoEQ / APO").clicked() {
@@ -96,7 +96,7 @@ impl ParametricEqDialog {
                     let node_y = zero_y - (frac_y * (canvas_rect.height() / 2.0 - 12.0));
 
                     let pt = Pos2::new(node_x, node_y);
-                    painter.circle_filled(pt, 5.0, VortexTheme::POT_YELLOW);
+                    painter.circle_filled(pt, 5.0, VortexTheme::VORTEX_YELLOW);
                     painter.circle_stroke(pt, 5.0, Stroke::new(1.5, Color32::WHITE));
                     painter.text(pt - Vec2::new(0.0, 9.0), Align2::CENTER_CENTER, format!("#{}", idx + 1), FontId::monospace(9.0), Color32::WHITE);
                 }
@@ -110,7 +110,7 @@ impl ParametricEqDialog {
                 egui::ScrollArea::vertical().id_salt("peq_nodes_scroll").max_height(200.0).show(ui, |ui| {
                     for (i, node) in config.nodes.iter_mut().enumerate() {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(format!("#{}", i + 1)).strong().color(VortexTheme::POT_YELLOW));
+                            ui.label(RichText::new(format!("#{}", i + 1)).strong().color(VortexTheme::VORTEX_YELLOW));
                             if ui.checkbox(&mut node.enabled, "").changed() { changed = true; }
 
                             egui::ComboBox::from_id_salt(format!("peq_type_{}", i))

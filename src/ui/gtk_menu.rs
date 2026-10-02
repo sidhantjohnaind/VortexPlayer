@@ -3,7 +3,7 @@
 #[cfg(target_os = "linux")]
 use crate::config::{AppConfig, ThemeMode};
 #[cfg(target_os = "linux")]
-use crate::engine::audio_dsp::POT_EQ_PRESETS;
+use crate::engine::audio_dsp::VORTEX_EQ_PRESETS;
 #[cfg(target_os = "linux")]
 use crate::engine::MediaStats;
 use crate::ui::win32_menu::*;
@@ -422,7 +422,7 @@ pub fn show_native_popup_menu(
         b.add_submenu(aud_menu, "Audio Output Device", dev_menu);
 
         let eq_menu = b.create_menu();
-        for (i, preset) in POT_EQ_PRESETS.iter().enumerate() {
+        for (i, preset) in VORTEX_EQ_PRESETS.iter().enumerate() {
             b.add_check_item(eq_menu, preset.name, config.eq_preset == preset.name, CMD_AUDIO_EQ_BASE + i as u32);
         }
         b.add_submenu(aud_menu, "18-Band Equalizer Presets", eq_menu);

@@ -1,4 +1,4 @@
-//! boss_key_dialog.rs — Boss Key & Instant Privacy Mute/Hide Studio (PotPlayer/KMPlayer style)
+//! boss_key_dialog.rs — Boss Key & Instant Privacy Mute/Hide Studio (Vortex/KMPlayer style)
 
 #![allow(dead_code)]
 

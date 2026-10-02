@@ -66,7 +66,7 @@ impl Default for SubtitleStudioDialog {
                 id: 3,
                 start_time: 8.8,
                 end_time: 14.0,
-                text: "Full PotPlayer feature parity with memory-safe Rust foundation.".to_string(),
+                text: "Full Vortex feature parity with memory-safe Rust foundation.".to_string(),
             },
         ];
 

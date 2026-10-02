@@ -1,4 +1,4 @@
-//! motion_interpolation_dialog.rs — Motion Interpolation, Frame Blending & SmoothMotion Studio (SVP/MPV/PotPlayer)
+//! motion_interpolation_dialog.rs — Motion Interpolation, Frame Blending & SmoothMotion Studio (SVP/MPV/Vortex)
 
 #![allow(dead_code)]
 

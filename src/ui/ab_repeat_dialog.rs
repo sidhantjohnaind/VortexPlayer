@@ -1,4 +1,4 @@
-//! ab_repeat_dialog.rs — A-B Repeat Interval & Seamless Looper Studio (PotPlayer/KMPlayer/MPC-BE)
+//! ab_repeat_dialog.rs — A-B Repeat Interval & Seamless Looper Studio (Vortex/KMPlayer/MPC-BE)
 
 #![allow(dead_code)]
 

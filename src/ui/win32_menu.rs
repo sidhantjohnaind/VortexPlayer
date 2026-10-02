@@ -108,7 +108,7 @@ pub const CMD_SUB_SEEK_NEXT: u32 = 2224;
 #[cfg(windows)]
 use crate::config::{AppConfig, ThemeMode};
 #[cfg(windows)]
-use crate::engine::audio_dsp::POT_EQ_PRESETS;
+use crate::engine::audio_dsp::VORTEX_EQ_PRESETS;
 #[cfg(windows)]
 use crate::engine::{MediaStats, Player};
 #[cfg(windows)]
@@ -631,7 +631,7 @@ pub fn show_native_popup_menu(
         AppendMenuW(aud_menu, MF_POPUP, dev_menu as usize, to_wide("Audio Output Device").as_ptr());
 
         let eq_menu = CreatePopupMenu();
-        for (i, preset) in POT_EQ_PRESETS.iter().enumerate() {
+        for (i, preset) in VORTEX_EQ_PRESETS.iter().enumerate() {
             let flags = if config.eq_preset == preset.name { MF_STRING | MF_CHECKED } else { MF_STRING };
             AppendMenuW(eq_menu, flags, (CMD_AUDIO_EQ_BASE + i as u32) as usize, to_wide(preset.name).as_ptr());
         }
@@ -698,7 +698,7 @@ pub fn show_native_popup_menu(
 
 
 
-        // Root Section 2 (Matching PotPlayer screenshot order exactly)
+        // Root Section 2 (Matching Vortex screenshot order exactly)
         AppendMenuW(root_menu, MF_POPUP, play_menu as usize, to_wide("Playback").as_ptr());
         AppendMenuW(root_menu, MF_POPUP, sub_menu as usize, to_wide("Subtitles").as_ptr());
         AppendMenuW(root_menu, MF_POPUP, vid_menu as usize, to_wide("Video").as_ptr());

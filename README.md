@@ -52,12 +52,12 @@
 
 ---
 
-## 📊 PotPlayer vs. VortexPlayer Feature Comparison
+## 📊 Classic Players vs. VortexPlayer Feature Comparison
 
-VortexPlayer matches and elevates the deep power-user feature set of Daum PotPlayer within a modern, memory-safe Rust architecture.
+VortexPlayer elevates the deep power-user feature set of traditional desktop media players within a modern, memory-safe Rust architecture.
 
 ### 1. 🎬 Video Rendering & Processing
-| Feature | PotPlayer | VortexPlayer (Rust) |
+| Feature | Classic Players | VortexPlayer (Rust) |
 | :--- | :---: | :---: |
 | **Hardware Acceleration** | DXVA2, D3D11, CUDA, QuickSync | **D3D11VA, DXVA2, NVDEC, VAAPI** |
 | **HDR10 & HLG Passthrough** | Direct3D 9/11 HDR | **Direct3D 11 10/12-bit BT.2020 Passthrough** |
@@ -71,7 +71,7 @@ VortexPlayer matches and elevates the deep power-user feature set of Daum PotPla
 | **Anime4K & Super-Resolution** | External HLSL filters | **Anime4K Upscaling & Super-Resolution** |
 
 ### 2. 🔊 Audio & DSP Engine
-| Feature | PotPlayer | VortexPlayer (Rust) |
+| Feature | Classic Players | VortexPlayer (Rust) |
 | :--- | :---: | :---: |
 | **Equalizer** | 10-band graphic EQ | **18-band High-Precision Parametric EQ** |
 | **Channel Configurations** | 1.0 to 7.1 + Auto Passthrough | **1.0, 2.0, 2.1, 3.0, 4.0, 5.0, 5.1, 6.1, 7.1, Same as input** |
@@ -82,7 +82,7 @@ VortexPlayer matches and elevates the deep power-user feature set of Daum PotPla
 | **Real-time Audio Visualizer** | Waveform, FFT Bars, VU meters | **LED Matrix, FFT Spectrum, Oscilloscope** |
 
 ### 3. 💬 Subtitles & Language Tools
-| Feature | PotPlayer | VortexPlayer (Rust) |
+| Feature | Classic Players | VortexPlayer (Rust) |
 | :--- | :---: | :---: |
 | **Dual Simultaneous Subtitles** | Primary + Secondary subtitle tracks | **Dual Track Subtitle Overlay** |
 | **3D Subtitle Z-Depth Parallax** | Z-axis depth displacement | **Flat, Close (+1), Medium (+2), Far (+3)** |
@@ -92,7 +92,7 @@ VortexPlayer matches and elevates the deep power-user feature set of Daum PotPla
 | **Styling & Typography** | Font, size, outline, vertical position | **Custom typography, outline, color, position** |
 
 ### 4. 📹 Capture, Recording & Broadcast
-| Feature | PotPlayer | VortexPlayer (Rust) |
+| Feature | Classic Players | VortexPlayer (Rust) |
 | :--- | :---: | :---: |
 | **GIF & WebP Animated Maker** | Create GIF from video selection | **A-B Region GIF, WebP & Lossless MP4 Cut (`Ctrl+G`)** |
 | **DirectShow Device Input** | Webcam, HDMI capture cards | **Webcam & HDMI Capture Card Passthrough (`Ctrl+W`)** |
@@ -101,7 +101,7 @@ VortexPlayer matches and elevates the deep power-user feature set of Daum PotPla
 | **Continuous Burst Snapshot** | Capture frames at intervals | **High-speed Burst Capture Engine** |
 
 ### 5. 🪟 Windows OS Integration & Control
-| Feature | PotPlayer | VortexPlayer (Rust) |
+| Feature | Classic Players | VortexPlayer (Rust) |
 | :--- | :---: | :---: |
 | **System Media Transport Controls (SMTC)** | Windows 10/11 Lock screen & Flyout | **Native Windows SMTC & Media Keys** |
 | **Taskbar Progress Indicator** | Green / Yellow taskbar fill | **Windows `ITaskbarList3` Real-time Progress Bar** |

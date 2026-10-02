@@ -15,7 +15,7 @@ pub struct DplItem {
 pub struct DplFile;
 
 impl DplFile {
-    /// Parse a Daum PotPlayer Playlist (.dpl) content
+    /// Parse a Daum Vortex Playlist (.dpl) content
     pub fn parse(content: &str) -> Vec<DplItem> {
         let mut items = Vec::new();
         let lines: Vec<&str> = content.lines().collect();
@@ -69,7 +69,7 @@ impl DplFile {
         items
     }
 
-    /// Serialize items into Daum PotPlayer Playlist (.dpl) format
+    /// Serialize items into Daum Vortex Playlist (.dpl) format
     pub fn serialize(items: &[DplItem]) -> String {
         let mut out = String::from("DAUMPLAYLIST\r\n");
         if let Some(first) = items.first() {

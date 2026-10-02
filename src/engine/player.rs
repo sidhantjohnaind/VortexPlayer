@@ -361,18 +361,24 @@ impl Player {
         Self::set_opt_str(&ffi, ctx, "idle", "yes");
         Self::set_opt_str(&ffi, ctx, "ytdl", "no"); // Faster startup for local files
         Self::set_opt_str(&ffi, ctx, "hwdec", "auto-safe"); // Full D3D11VA / VA-API / NVDEC HW decoding
-        Self::set_opt_str(&ffi, ctx, "vo", "libmpv");
+        Self::set_opt_str(&ffi, ctx, "vo", "gpu");
 
         #[cfg(windows)]
         {
+            Self::set_opt_str(&ffi, ctx, "gpu-context", "d3d11");
+            Self::set_opt_str(&ffi, ctx, "gpu-api", "d3d11");
+            Self::set_opt_str(&ffi, ctx, "d3d11-flip", "no");
             Self::set_opt_str(&ffi, ctx, "dscale", "bilinear");
             Self::set_opt_str(&ffi, ctx, "sws-scaler", "fast-bilinear");
-            Self::set_opt_str(&ffi, ctx, "vd-lavc-fast", "yes");
+            Self::set_opt_str(&ffi, ctx, "vd-lavc-fast", "no");
             Self::set_opt_str(&ffi, ctx, "ao", "wasapi");
         }
 
         #[cfg(not(windows))]
         {
+            Self::set_opt_str(&ffi, ctx, "gpu-context", "auto");
+            Self::set_opt_str(&ffi, ctx, "gpu-api", "auto");
+            Self::set_opt_str(&ffi, ctx, "vd-lavc-fast", "no");
             Self::set_opt_str(&ffi, ctx, "ao", "pipewire,alsa,pulse"); // Native Linux PipeWire & ALSA 5.1/7.1 direct audio
         }
         Self::set_opt_str(&ffi, ctx, "audio-channels", "auto"); // Native multichannel audio passthrough (5.1/7.1)
@@ -623,8 +629,11 @@ impl Player {
         self.command(&["loadfile", path_or_url, "replace"]);
     }
 
-    /// Attach playback surface (kept for API compatibility, no-op in libmpv render context mode)
-    pub fn set_wid(&self, _hwnd: isize) {}
+    /// Attach playback surface to a Win32 HWND or native window surface
+    pub fn set_wid(&self, hwnd: isize) {
+        let hwnd_str = format!("{}", hwnd);
+        self.set_property_string("wid", &hwnd_str);
+    }
 
     /// Initialize the mpv_render_context with the current OpenGL context
     pub fn init_render_context(&self, egui_ctx: eframe::egui::Context) -> Result<(), String> {
@@ -1772,10 +1781,10 @@ impl Player {
     }
 
     pub fn set_subtitle_background_box(&self, enabled: bool, color: &str) {
-        if enabled {
+        if enabled && !color.is_empty() {
             self.set_property_string("sub-back-color", color);
         } else {
-            self.set_property_string("sub-back-color", "#00000000");
+            self.set_property_string("sub-back-color", "no");
         }
     }
 

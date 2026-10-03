@@ -833,7 +833,7 @@ impl ControlPanel {
                                 ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Vertical Pos:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
                                 ui.spacing_mut().slider_width = 230.0;
                                 let mut pos = config.subtitle_vertical_pos;
-                                let slider = ui.add(egui::Slider::new(&mut pos, 0.0..=100.0).show_value(false));
+                                let slider = ui.add(egui::Slider::new(&mut pos, 0.0..=115.0).show_value(false));
                                 ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.subtitle_vertical_pos)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
 
                                 if slider.changed() {
@@ -848,13 +848,13 @@ impl ControlPanel {
                                     let _ = config.save();
                                 }
                                 if ui.small_button("▼ Down").clicked() {
-                                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos + 5.0).min(100.0);
+                                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos + 5.0).min(115.0);
                                     player.set_subtitle_pos(config.subtitle_vertical_pos);
                                     let _ = config.save();
                                 }
-                                if ui.small_button("↺ 95%").clicked() {
-                                    config.subtitle_vertical_pos = 95.0;
-                                    player.set_subtitle_pos(95.0);
+                                if ui.small_button("↺ 102%").clicked() {
+                                    config.subtitle_vertical_pos = 102.0;
+                                    player.set_subtitle_pos(102.0);
                                     let _ = config.save();
                                 }
                             });

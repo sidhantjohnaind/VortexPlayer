@@ -1185,22 +1185,22 @@ impl VortexApp {
                     let _ = self.config.save();
                 }
                 if input.key_pressed(egui::Key::ArrowUp) {
-                    self.config.subtitle_vertical_pos = (self.config.subtitle_vertical_pos - 2.0).clamp(0.0, 100.0);
+                    self.config.subtitle_vertical_pos = (self.config.subtitle_vertical_pos - 2.0).clamp(0.0, 115.0);
                     player.set_subtitle_pos(self.config.subtitle_vertical_pos);
                     self.osd.show(format!("Subtitle Position: {:.0}%", self.config.subtitle_vertical_pos), 1200);
                     let _ = self.config.save();
                 }
                 if input.key_pressed(egui::Key::ArrowDown) {
-                    self.config.subtitle_vertical_pos = (self.config.subtitle_vertical_pos + 2.0).clamp(0.0, 100.0);
+                    self.config.subtitle_vertical_pos = (self.config.subtitle_vertical_pos + 2.0).clamp(0.0, 115.0);
                     player.set_subtitle_pos(self.config.subtitle_vertical_pos);
                     self.osd.show(format!("Subtitle Position: {:.0}%", self.config.subtitle_vertical_pos), 1200);
                     let _ = self.config.save();
                 }
                 if input.key_pressed(egui::Key::Home) {
                     self.config.subtitle_font_size = 28.0;
-                    self.config.subtitle_vertical_pos = 100.0;
+                    self.config.subtitle_vertical_pos = 102.0;
                     player.set_subtitle_font_size(28.0);
-                    player.set_subtitle_pos(100.0);
+                    player.set_subtitle_pos(102.0);
                     self.osd.show("Subtitle Size & Position: Reset".to_string(), 1200);
                     let _ = self.config.save();
                 }
@@ -2050,7 +2050,6 @@ impl VortexApp {
         self.show_library_view
             || self.show_preferences
             || self.show_control_panel
-            || self.show_playlist
             || self.show_mediainfo_dialog
             || self.show_about_dialog
             || self.show_stream_url_dialog
@@ -2312,48 +2311,7 @@ impl VortexApp {
         self.show_playlist = opening;
 
         // Only resize when docked and windowed (not fullscreen, not maximized)
-        if !self.config.playlist_detached && !self.is_fullscreen {
-            let is_max = is_window_maximized_or_workarea(self.parent_hwnd, ctx);
-            if !is_max {
-                const SIDEBAR_W: f32 = 330.0;
-                let client_r = get_window_client_rect(ctx);
-                let cur_w = client_r.width().max(480.0);
-                let cur_h = client_r.height().max(320.0);
-                let new_w = if opening {
-                    cur_w + SIDEBAR_W
-                } else {
-                    (cur_w - SIDEBAR_W).max(480.0)
-                };
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
-                #[cfg(windows)]
-                if self.parent_hwnd != 0 {
-                    use windows_sys::Win32::Foundation::RECT;
-                    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-                    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
-                    let mut win_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                    if unsafe { GetWindowRect(self.parent_hwnd as _, &mut win_rc) } != 0 {
-                        let ppp = ctx.pixels_per_point().max(0.1);
-                        let pw = (new_w * ppp).round() as i32;
-                        let ph = (cur_h * ppp).round() as i32;
-                        let mut new_left = win_rc.left;
-                        let h_mon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
-                        let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
-                        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-                        if unsafe { GetMonitorInfoW(h_mon, &mut mi) } != 0 {
-                            if opening && (new_left + pw) > mi.rcWork.right {
-                                new_left = (mi.rcWork.right - pw).max(mi.rcWork.left);
-                            }
-                        }
-                        unsafe {
-                            SetWindowPos(self.parent_hwnd as _, 0 as _, new_left, win_rc.top, pw, ph, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-                        }
-                    }
-                }
-                self.config.window_width = new_w;
-                self.config.window_height = cur_h;
-                let _ = self.config.save();
-            }
-        }
+        ctx.request_repaint();
     }
 
 
@@ -3579,7 +3537,8 @@ impl eframe::App for VortexApp {
             };
 
             let is_docked_pl = self.show_playlist && !self.config.playlist_detached && !is_fullscreen_active;
-            let ctrl_w = if is_docked_pl { (screen_w - 330.0).max(320.0) } else { screen_w };
+            let sidebar_w = 330.0;
+            let ctrl_w = if is_docked_pl { (screen_w - sidebar_w).max(0.0) } else { screen_w };
 
             show_bottom_control_surface(ui, &ctx, is_fullscreen_active, ctrl_w, screen_h, bar_height, |ui| {
                     let player_opt = self.player.as_ref().ok().map(|p| p.as_ref());
@@ -3869,7 +3828,21 @@ impl eframe::App for VortexApp {
         // =========================================================================
         let is_docked_pl = self.show_playlist && !self.config.playlist_detached && !self.is_fullscreen;
         let sidebar_w = 330.0;
-        let video_w = if is_docked_pl { (screen_w - sidebar_w).max(320.0) } else { screen_w };
+        let pl_x = (screen_w - sidebar_w).max(0.0);
+        let video_w = if is_docked_pl { pl_x } else { screen_w };
+
+        if let Ok(ref player) = self.player {
+            let target_margin = if is_docked_pl && screen_w > 0.0 {
+                (sidebar_w / screen_w).clamp(0.0, 0.85)
+            } else {
+                0.0
+            };
+            static LAST_MARGIN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(99999);
+            let margin_bits = (target_margin * 10000.0) as u32;
+            if LAST_MARGIN.swap(margin_bits, std::sync::atomic::Ordering::Relaxed) != margin_bits {
+                player.set_property_string("video-margin-ratio-right", &format!("{:.4}", target_margin));
+            }
+        }
 
         let is_song_playback = MusicBackgroundView::is_song(&stats);
         let is_active_video = !stats.is_idle && !stats.file_path.is_empty() && !is_song_playback;
@@ -3926,13 +3899,7 @@ impl eframe::App for VortexApp {
                             }
                             let _ = player_clone.ensure_render_context(&egui_ctx);
                             let [w, h] = info.screen_size_px;
-                            let ppp = egui_ctx.pixels_per_point().max(0.1);
-                            let render_w = if is_docked_pl {
-                                (effective_rect.width() * ppp).round() as i32
-                            } else {
-                                w as i32
-                            };
-                            player_clone.render_frame(0, render_w, h as i32);
+                            player_clone.render_frame(0, w as i32, h as i32);
                             player_clone.report_swap();
                         });
                         ui.painter().add(egui::PaintCallback {
@@ -4518,11 +4485,18 @@ impl eframe::App for VortexApp {
                                 .or_else(|| i.pointer.interact_pos())
                         });
                         if let Some(pos) = click_pos {
-                            let is_over_bottom_bar = show_bottom_menu && pos.y >= screen_h - (bar_h + 8.0);
-                            let is_over_top_bar = show_top_menu && pos.y <= 36.0;
-                            let is_over_docked_pl = is_docked_pl && pos.x >= screen_w - 330.0;
+                            let bottom_bar_zone = if is_fullscreen_active {
+                                bar_h + 36.0
+                            } else if is_song_playback {
+                                bar_h + 20.0
+                            } else {
+                                bar_h + 26.0
+                            };
+                            let is_over_bottom_bar = show_bottom_menu && pos.y >= screen_h - bottom_bar_zone;
+                            let is_over_top_bar = show_top_menu && pos.y <= 38.0;
+                            let is_over_docked_pl = is_docked_pl && pos.x >= pl_x;
                             let is_over_popups = self.active_popup_rects.iter().any(|r| r.contains(pos));
-                            let is_over_dialog = self.has_open_dialog() || self.show_main_menu || self.show_speed_popup || self.show_audio_channels_popup;
+                            let is_over_dialog = self.has_open_dialog() || self.show_speed_popup || self.show_audio_channels_popup;
                             let is_in_video_rect = effective_rect.contains(pos);
 
                             if is_in_video_rect && !is_over_bottom_bar && !is_over_top_bar && !is_over_docked_pl && !is_over_popups && !is_over_dialog {
@@ -4541,11 +4515,11 @@ impl eframe::App for VortexApp {
         if is_docked_pl {
             let pl_top = 32.0;
             let pl_h = (screen_h - pl_top).max(100.0);
-            let pl_rect = Rect::from_min_size(Pos2::new(video_w, pl_top), Vec2::new(sidebar_w, pl_h));
+            let pl_rect = Rect::from_min_size(Pos2::new(pl_x, pl_top), Vec2::new(sidebar_w, pl_h));
             self.active_popup_rects.push(pl_rect);
 
             egui::Area::new(egui::Id::new("vortex_docked_playlist"))
-                .fixed_pos(Pos2::new(video_w, pl_top))
+                .fixed_pos(Pos2::new(pl_x, pl_top))
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
                     ui.allocate_ui(Vec2::new(sidebar_w, pl_h), |ui| {
@@ -4554,7 +4528,7 @@ impl eframe::App for VortexApp {
                         egui::Frame::new()
                             .fill(Color32::from_rgb(14, 15, 18))
                             .stroke(Stroke::new(1.0, Color32::from_rgb(32, 34, 42)))
-                            .inner_margin(Margin::same(6))
+                            .inner_margin(Margin { left: 6, right: 6, top: 4, bottom: 6 })
                             .show(ui, |ui| {
                                 let pl_actions = PlaylistPanel::render(
                                     ui,
@@ -4651,28 +4625,6 @@ impl eframe::App for VortexApp {
                                     self.config.playlist_detached = true;
                                     let _ = self.config.save();
                                     self.toast.info("Playlist: Detached (Floating Window)");
-                                    if !self.is_fullscreen {
-                                        let is_max = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
-                                        if !is_max {
-                                            let client_r = get_window_client_rect(&ctx);
-                                            let new_w = (client_r.width() - sidebar_w).max(480.0);
-                                            let cur_h = client_r.height().max(320.0);
-                                            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(new_w, cur_h)));
-                                            #[cfg(windows)]
-                                            if self.parent_hwnd != 0 {
-                                                use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER, SWP_FRAMECHANGED, SWP_SHOWWINDOW};
-                                                let ppp = ctx.pixels_per_point().max(0.1);
-                                                let pw = (new_w * ppp).round() as i32;
-                                                let ph = (cur_h * ppp).round() as i32;
-                                                unsafe {
-                                                    SetWindowPos(self.parent_hwnd as _, 0 as _, 0, 0, pw, ph, SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-                                                }
-                                            }
-                                            self.config.window_width = new_w;
-                                            self.config.window_height = cur_h;
-                                            let _ = self.config.save();
-                                        }
-                                    }
                                 }
                                 if pl_actions.close_playlist {
                                     self.toggle_playlist_unified(&ctx);
@@ -5073,7 +5025,7 @@ impl eframe::App for VortexApp {
             let win_size = get_window_client_rect(&ctx).size();
             let raw_pos = self.menu_position.unwrap_or(Pos2::new(6.0, 32.0));
             let menu_w = 260.0;
-            let menu_h = 360.0;
+            let full_menu_h: f32 = 560.0;
 
             // X: open directly at cursor / button, flip left if overflowing right edge
             let clamped_x = if raw_pos.x + menu_w > win_size.x - 8.0 {
@@ -5082,20 +5034,17 @@ impl eframe::App for VortexApp {
                 raw_pos.x.max(4.0)
             };
 
-            // Y: open directly at cursor / button, flip up or shift up only if overflowing bottom edge
-            let clamped_y = if raw_pos.y + menu_h > win_size.y - 8.0 {
-                if raw_pos.y - menu_h >= 32.0 {
-                    raw_pos.y - menu_h
-                } else {
-                    (win_size.y - menu_h - 8.0).max(32.0)
-                }
+            // Y: If full menu fits in window height, shift up just enough so it never overflows bottom edge.
+            // If window is smaller than full menu, start near top (32.0) and allow scrolling.
+            let clamped_y = if win_size.y >= full_menu_h + 16.0 {
+                raw_pos.y.clamp(32.0, (win_size.y - full_menu_h - 8.0).max(32.0))
             } else {
-                raw_pos.y.max(30.0)
+                32.0
             };
 
             let menu_pos = Pos2::new(clamped_x, clamped_y);
-            let max_menu_h = (win_size.y - 8.0 - clamped_y).max(180.0);
-            self.active_popup_rects.push(Rect::from_min_size(menu_pos, Vec2::new(menu_w, max_menu_h.min(380.0))));
+            let available_menu_h = (win_size.y - clamped_y - 8.0).max(180.0);
+            self.active_popup_rects.push(Rect::from_min_size(menu_pos, Vec2::new(menu_w, available_menu_h)));
             let player_opt = self.player.as_ref().ok().map(|p| p.as_ref());
             let mut close_menu = false;
             let mut menu_toggle_fullscreen = false;
@@ -5131,7 +5080,7 @@ impl eframe::App for VortexApp {
                         .inner_margin(Margin::symmetric(4, 6))
                         .show(ui, |ui| {
                     let menu_actions = egui::ScrollArea::vertical()
-                        .max_height(max_menu_h)
+                        .max_height(available_menu_h)
                         .auto_shrink([true, true])
                         .show(ui, |ui| {
                             VortexMenu::render(

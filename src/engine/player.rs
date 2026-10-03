@@ -414,6 +414,12 @@ impl Player {
         Self::set_opt_str(&ffi, ctx, "audio-file-auto", "fuzzy");
         Self::set_opt_str(&ffi, ctx, "audio-display", "no"); // Disable GPU video rendering for audio/album art (saves ~30W GPU power)
         Self::set_opt_str(&ffi, ctx, "sub-font-size", "28");
+        Self::set_opt_str(&ffi, ctx, "sub-ass-override", "yes");
+        Self::set_opt_str(&ffi, ctx, "sub-ass-force-margins", "yes");
+        Self::set_opt_str(&ffi, ctx, "sub-use-margins", "yes");
+        Self::set_opt_str(&ffi, ctx, "sub-pos", "90");
+        Self::set_opt_str(&ffi, ctx, "sub-margin-y", "85");
+        Self::set_opt_str(&ffi, ctx, "sub-ass-style-overrides", "MarginV=85");
         Self::set_opt_str(&ffi, ctx, "volume-max", "200");
 
         // Disable internal mpv OSD & OSC so our custom modern egui OSD engine has exclusive rendering control
@@ -1304,7 +1310,7 @@ impl Player {
 
         // Construct exact Vortex color-coded ASS OSD HUD matching user screenshot on fixed 1920x1080 canvas
         let mut ass = String::with_capacity(2048);
-        ass.push_str("{\\an7\\pos(14,80)\\fs30\\fnSegoe UI\\b1\\bord1.8\\shad1.2}");
+        ass.push_str("{\\an7\\pos(16,92)\\fs30\\fnSegoe UI\\b1\\bord1.8\\shad1.2}");
         
         // Line 1: Filename
         ass.push_str(&format!("{{\\c&HFFFFFF&}}Filename: {{\\c&H00FFFF&}}{}\\N", filename));
@@ -1794,6 +1800,7 @@ impl Player {
     pub fn set_subtitle_margins(&self, margin_x: i32, margin_y: i32) {
         self.set_property_string("sub-margin-x", &format!("{}", margin_x));
         self.set_property_string("sub-margin-y", &format!("{}", margin_y));
+        self.set_property_string("sub-ass-style-overrides", &format!("MarginV={}", margin_y));
     }
 
     pub fn set_subtitle_ass_override(&self, mode: &str) {
@@ -1814,13 +1821,26 @@ impl Player {
         self.set_subtitle_shadow_offset(config.subtitle_shadow_offset);
         self.set_subtitle_shadow_color(&config.subtitle_shadow_color);
         self.set_subtitle_background_box(config.subtitle_background_box, &config.subtitle_background_color);
-        self.set_subtitle_pos(config.subtitle_vertical_pos);
+        let effective_pos = if config.subtitle_vertical_pos > 92.0 {
+            90.0
+        } else {
+            config.subtitle_vertical_pos
+        };
+        self.set_subtitle_pos(effective_pos);
         self.set_subtitle_align_x(&config.subtitle_align_x);
         self.set_subtitle_align_y(&config.subtitle_align_y);
         self.set_subtitle_letter_spacing(config.subtitle_letter_spacing);
-        self.set_subtitle_margins(config.subtitle_margin_x, config.subtitle_margin_y);
-        self.set_subtitle_ass_override(&config.subtitle_ass_override);
+        let effective_margin_y = config.subtitle_margin_y.max(85);
+        self.set_subtitle_margins(config.subtitle_margin_x, effective_margin_y);
+        let ass_override = if config.subtitle_ass_override.is_empty() || config.subtitle_ass_override == "scale" {
+            "yes"
+        } else {
+            &config.subtitle_ass_override
+        };
+        self.set_subtitle_ass_override(ass_override);
         self.set_property_string("sub-use-margins", if config.subtitle_render_to_video { "no" } else { "yes" });
+        self.set_property_string("sub-ass-force-margins", "yes");
+        self.set_property_string("sub-ass-style-overrides", &format!("MarginV={}", effective_margin_y));
         self.set_secondary_subtitle_pos(config.subtitle_secondary_pos);
     }
 

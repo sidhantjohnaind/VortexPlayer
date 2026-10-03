@@ -1316,26 +1316,27 @@ impl VortexMenu {
             submenu_item(ui, &skin, "↕", "Position & Canvas", |ui| {
                 ui.set_min_width(170.0);
                 if menu_item(ui, &skin, "⬆", "Move Up (-5%)", "↑", false, false).clicked() {
-                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos - 5.0).clamp(0.0, 100.0);
+                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos - 5.0).clamp(0.0, 115.0);
                     if let Some(p) = player { p.set_subtitle_pos(config.subtitle_vertical_pos); }
                     let _ = config.save();
                     ui.close();
                 }
                 if menu_item(ui, &skin, "⬇", "Move Down (+5%)", "↓", false, false).clicked() {
-                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos + 5.0).clamp(0.0, 100.0);
+                    config.subtitle_vertical_pos = (config.subtitle_vertical_pos + 5.0).clamp(0.0, 115.0);
                     if let Some(p) = player { p.set_subtitle_pos(config.subtitle_vertical_pos); }
                     let _ = config.save();
                     ui.close();
                 }
                 menu_separator(ui);
                 let pos_presets = [
-                    (92.0, "Bottom (92% - Default)"),
-                    (80.0, "Lower-Middle (80%)"),
+                    (102.0, "Bottom Edge (102% - Recommended)"),
+                    (100.0, "Standard Bottom (100%)"),
+                    (92.0, "Floating (92%)"),
                     (50.0, "Center (50%)"),
                     (10.0, "Top (10%)"),
                 ];
                 for (pos, label) in pos_presets {
-                    let is_sel = (config.subtitle_vertical_pos - pos).abs() < 3.0;
+                    let is_sel = (config.subtitle_vertical_pos - pos).abs() < 2.0;
                     if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
                         config.subtitle_vertical_pos = pos;
                         if let Some(p) = player { p.set_subtitle_pos(pos); }

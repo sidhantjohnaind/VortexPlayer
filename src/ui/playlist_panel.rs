@@ -11,7 +11,7 @@ use crate::bookmark::{format_time, BookmarkManager};
 use crate::engine::MediaStats;
 use crate::playlist::scanner::is_media_file;
 use crate::playlist::{Playlist, PlaylistTab};
-use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
+use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -77,6 +77,41 @@ fn get_format_badge_style(ext: &str) -> (Color32, Color32, Color32, &'static str
         "mp4" | "mkv" | "avi" | "mov" | "webm" => (Color32::from_rgb(20, 28, 48), Color32::from_rgb(45, 65, 110), Color32::from_rgb(130, 170, 255), "VID"),
         _ => (Color32::from_rgb(26, 28, 36), Color32::from_rgb(48, 52, 64), Color32::from_rgb(160, 165, 180), "AUD"),
     }
+}
+
+fn render_search_input(ui: &mut egui::Ui, query: &mut String, hint: &str) {
+    let search_avail_w = ui.available_width();
+    let has_query = !query.is_empty();
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+        let box_w = if has_query { (search_avail_w - 24.0).max(60.0) } else { search_avail_w };
+        egui::Frame::new()
+            .fill(Color32::from_rgb(12, 13, 17))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(28, 32, 42)))
+            .corner_radius(CornerRadius::same(4))
+            .inner_margin(Margin::symmetric(6, 3))
+            .show(ui, |ui| {
+                ui.set_width(box_w - 12.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                    ui.label(egui::RichText::new("🔍").size(9.5).color(Color32::from_rgb(110, 115, 130)));
+                    ui.add_sized(
+                        Vec2::new(ui.available_width(), 18.0),
+                        egui::TextEdit::singleline(query)
+                            .hint_text(hint)
+                            .font(FontId::proportional(11.0))
+                            .frame(egui::Frame::NONE),
+                    );
+                });
+            });
+        if has_query {
+            let clr_btn = egui::Button::new(egui::RichText::new("✕").size(10.0).color(Color32::from_rgb(160, 165, 180)))
+                .min_size(Vec2::new(20.0, 24.0));
+            if ui.add(clr_btn).on_hover_text("Clear filter").clicked() {
+                query.clear();
+            }
+        }
+    });
 }
 
 impl PlaylistPanel {
@@ -161,16 +196,16 @@ impl PlaylistPanel {
                             actions.close_playlist = true;
                         }
 
-                        // Dock button (📎)
-                        let detach_btn = egui::Button::new(egui::RichText::new("📎 Dock").size(10.0));
+                        // Dock button
+                        let detach_btn = egui::Button::new(egui::RichText::new("Dock").size(10.0));
                         if ui.add(detach_btn).on_hover_text("Dock back into player sidebar").clicked() {
                             actions.toggle_detach = true;
                         }
 
-                        // Pin on Top Button (📌)
+                        // Pin on Top Button
                         let pin_btn = egui::Button::new(
-                            egui::RichText::new(if is_pinned { "📌" } else { "📍" })
-                                .size(11.0)
+                            egui::RichText::new(if is_pinned { "★ PIN" } else { "☆ PIN" })
+                                .size(10.5)
                                 .color(if is_pinned { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 160) })
                         );
                         if ui.add(pin_btn).on_hover_text(if is_pinned { "Pinned Always on Top" } else { "Pin window always on top" }).clicked() {
@@ -179,45 +214,69 @@ impl PlaylistPanel {
                     });
                 });
             } else {
-                // ── Docked Sidebar Top Header Bar: 4-Tab Switcher + Compact Actions ──────────────
+                // ── Docked Sidebar Top Header Bar: 4-Tab Switcher + Refined Window Actions ──────────────
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                    let total_w = ui.available_width();
+                    let btn_w = 22.0;
+                    let btn_h = 24.0;
+                    let action_space = (btn_w * 2.0) + 6.0; // 50px
+                    let tab_w = ((total_w - action_space - 6.0) / 4.0).max(42.0);
+
                     let main_tabs = [
-                        (DrawerTab::Playlist, "📋 List"),
-                        (DrawerTab::FileBrowser, "📁 Files"),
-                        (DrawerTab::ChaptersBookmarks, "📑 Mark"),
-                        (DrawerTab::Subtitles, "💬 Subs"),
+                        (DrawerTab::Playlist, "List"),
+                        (DrawerTab::FileBrowser, "Files"),
+                        (DrawerTab::ChaptersBookmarks, "Mark"),
+                        (DrawerTab::Subtitles, "Subs"),
                     ];
 
-                    let action_w = 46.0;
-                    let tab_w = ((ui.available_width() - action_w - 6.0) / 4.0).max(42.0);
                     for (tab, label) in main_tabs {
                         let is_active = *active_drawer_tab == tab;
-                        let (r, resp) = ui.allocate_exact_size(Vec2::new(tab_w, 24.0), Sense::click());
+                        let (r, resp) = ui.allocate_exact_size(Vec2::new(tab_w, btn_h), Sense::click());
                         let painter = ui.painter();
 
                         let bg = if is_active {
-                            Color32::from_rgb(26, 28, 36)
+                            Color32::from_rgb(30, 34, 46)
                         } else if resp.hovered() {
-                            Color32::from_rgb(18, 20, 26)
+                            Color32::from_rgb(22, 24, 32)
                         } else {
-                            Color32::from_rgb(0, 0, 0)
+                            Color32::from_rgb(13, 14, 18)
                         };
 
-                        painter.rect_filled(r, CornerRadius::same(3), bg);
-                        painter.rect_stroke(
-                            r,
-                            CornerRadius::same(3),
-                            Stroke::new(1.0, if is_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(30, 32, 40) }),
-                            StrokeKind::Inside,
-                        );
+                        let border_color = if is_active {
+                            Color32::from_rgb(56, 64, 86)
+                        } else if resp.hovered() {
+                            Color32::from_rgb(36, 40, 52)
+                        } else {
+                            Color32::from_rgb(24, 26, 34)
+                        };
+
+                        painter.rect_filled(r, CornerRadius::same(4), bg);
+                        painter.rect_stroke(r, CornerRadius::same(4), Stroke::new(1.0, border_color), StrokeKind::Inside);
+
+                        // Elegant active tab indicator: clean gold accent bar at the bottom
+                        if is_active {
+                            let indicator_r = Rect::from_min_size(
+                                Pos2::new(r.min.x + 6.0, r.max.y - 2.0),
+                                Vec2::new(r.width() - 12.0, 2.0),
+                            );
+                            painter.rect_filled(indicator_r, CornerRadius::same(1), VortexTheme::VORTEX_YELLOW);
+                        }
+
+                        let text_color = if is_active {
+                            Color32::WHITE
+                        } else if resp.hovered() {
+                            Color32::from_rgb(220, 225, 240)
+                        } else {
+                            Color32::from_rgb(135, 140, 155)
+                        };
 
                         painter.text(
-                            r.center(),
+                            Pos2::new(r.center().x, r.center().y - if is_active { 1.0 } else { 0.0 }),
                             Align2::CENTER_CENTER,
                             label,
-                            FontId::proportional(10.5),
-                            if is_active { Color32::WHITE } else { Color32::from_rgb(155, 160, 175) },
+                            FontId::proportional(11.0),
+                            text_color,
                         );
 
                         if resp.clicked() {
@@ -225,22 +284,39 @@ impl PlaylistPanel {
                         }
                     }
 
-                    let detach_btn = egui::Button::new(
-                        egui::RichText::new("⤢").size(11.0).color(Color32::from_rgb(180, 185, 200))
-                    )
-                    .frame(false);
-                    if ui.add(detach_btn)
-                        .on_hover_text("Pop out into floating window")
-                        .clicked()
-                    {
+                    ui.add_space(2.0);
+
+                    // Refined Pop Out / Detach (⤢) Button
+                    let (det_r, det_resp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
+                    let det_bg = if det_resp.hovered() { Color32::from_rgb(34, 38, 50) } else { Color32::from_rgb(16, 18, 24) };
+                    let det_stroke = if det_resp.hovered() { Color32::from_rgb(60, 68, 88) } else { Color32::from_rgb(28, 31, 40) };
+                    ui.painter().rect_filled(det_r, CornerRadius::same(4), det_bg);
+                    ui.painter().rect_stroke(det_r, CornerRadius::same(4), Stroke::new(1.0, det_stroke), StrokeKind::Inside);
+                    ui.painter().text(
+                        det_r.center(),
+                        Align2::CENTER_CENTER,
+                        "⤢",
+                        FontId::proportional(12.0),
+                        if det_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(165, 172, 190) },
+                    );
+                    if det_resp.on_hover_text("Pop out into floating window").clicked() {
                         actions.toggle_detach = true;
                     }
 
-                    let close_btn = egui::Button::new(
-                        egui::RichText::new("✕").size(11.0).color(Color32::from_rgb(170, 175, 190))
-                    )
-                    .frame(false);
-                    if ui.add(close_btn).on_hover_text("Close Drawer (F8)").clicked() {
+                    // Refined Close (✕) Button
+                    let (cls_r, cls_resp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
+                    let cls_bg = if cls_resp.hovered() { Color32::from_rgb(130, 32, 32) } else { Color32::from_rgb(16, 18, 24) };
+                    let cls_stroke = if cls_resp.hovered() { Color32::from_rgb(190, 48, 48) } else { Color32::from_rgb(28, 31, 40) };
+                    ui.painter().rect_filled(cls_r, CornerRadius::same(4), cls_bg);
+                    ui.painter().rect_stroke(cls_r, CornerRadius::same(4), Stroke::new(1.0, cls_stroke), StrokeKind::Inside);
+                    ui.painter().text(
+                        cls_r.center(),
+                        Align2::CENTER_CENTER,
+                        "✕",
+                        FontId::proportional(11.0),
+                        if cls_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(165, 172, 190) },
+                    );
+                    if cls_resp.on_hover_text("Close Drawer (F8)").clicked() {
                         actions.close_playlist = true;
                     }
                 });
@@ -259,30 +335,50 @@ impl PlaylistPanel {
                         let sub_tabs = [
                             (PlaylistTab::DefaultPlaylist, format!("Default ({})", playlist.items.len())),
                             (PlaylistTab::Favorites, format!("★ Fav ({})", playlist.favorites.len())),
-                            (PlaylistTab::History, format!("🕒 Hist ({})", playlist.history.len())),
+                            (PlaylistTab::History, format!("Hist ({})", playlist.history.len())),
                         ];
 
                         let tab_w = ((ui.available_width() - 6.0) / 3.0).max(50.0);
+                        let tab_h = 22.0;
+
                         for (tab, label) in sub_tabs {
                             let is_active = playlist.active_tab == tab;
-                            let (r, resp) = ui.allocate_exact_size(Vec2::new(tab_w, 20.0), Sense::click());
+                            let (r, resp) = ui.allocate_exact_size(Vec2::new(tab_w, tab_h), Sense::click());
                             let painter = ui.painter();
 
                             let bg = if is_active {
-                                Color32::from_rgb(22, 24, 30)
+                                Color32::from_rgb(28, 32, 44)
                             } else if resp.hovered() {
-                                Color32::from_rgb(16, 17, 22)
+                                Color32::from_rgb(20, 22, 28)
                             } else {
-                                Color32::from_rgb(0, 0, 0)
+                                Color32::from_rgb(12, 13, 17)
                             };
 
-                            painter.rect_filled(r, CornerRadius::same(2), bg);
+                            let border = if is_active {
+                                Color32::from_rgb(52, 60, 80)
+                            } else if resp.hovered() {
+                                Color32::from_rgb(34, 38, 48)
+                            } else {
+                                Color32::from_rgb(22, 24, 30)
+                            };
+
+                            painter.rect_filled(r, CornerRadius::same(3), bg);
+                            painter.rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, border), StrokeKind::Inside);
+
+                            let text_color = if is_active {
+                                VortexTheme::VORTEX_YELLOW
+                            } else if resp.hovered() {
+                                Color32::from_rgb(200, 205, 220)
+                            } else {
+                                Color32::from_rgb(130, 135, 150)
+                            };
+
                             painter.text(
                                 r.center(),
                                 Align2::CENTER_CENTER,
                                 label,
-                                FontId::proportional(10.0),
-                                if is_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 160) },
+                                FontId::proportional(10.5),
+                                text_color,
                             );
 
                             if resp.clicked() {
@@ -292,26 +388,12 @@ impl PlaylistPanel {
                     });
 
                     // Search & Filter Bar
-                    ui.horizontal(|ui| {
-                        ui.add_space(2.0);
-                        ui.add_sized(
-                            Vec2::new(ui.available_width() - 28.0, 22.0),
-                            egui::TextEdit::singleline(&mut playlist.search_query)
-                                .hint_text("🔍 Filter playlist...")
-                                .font(FontId::proportional(11.0)),
-                        );
-                        if !playlist.search_query.is_empty() {
-                            let clear_btn = egui::Button::new(egui::RichText::new("✕").size(10.0).color(Color32::from_rgb(170, 175, 190)));
-                            if ui.add(clear_btn).on_hover_text("Clear filter").clicked() {
-                                playlist.search_query.clear();
-                            }
-                        }
-                    });
+                    render_search_input(ui, &mut playlist.search_query, "Filter playlist...");
 
                     ui.separator();
 
                     // Virtualized Track List
-                    let available_h = (ui.available_height() - 42.0).max(100.0);
+                    let available_h = (ui.available_height() - 62.0).max(80.0);
                     let mut to_remove_idx: Option<usize> = None;
                     let mut to_move_up: Option<usize> = None;
                     let mut to_move_down: Option<usize> = None;
@@ -344,7 +426,6 @@ impl PlaylistPanel {
 
                     egui::ScrollArea::vertical()
                         .max_height(available_h)
-                        .min_scrolled_height(available_h)
                         .auto_shrink([false, false])
                         .show_rows(ui, item_h, total_rows, |ui, row_range| {
                             if total_rows == 0 {
@@ -431,8 +512,8 @@ impl PlaylistPanel {
                                     Color32::from_rgb(175, 180, 192)
                                 };
 
-                                let title_w = rect.width() - 95.0;
-                                let truncated = safe_truncate(&display_title, (title_w / 6.5).max(12.0) as usize);
+                                let title_w = rect.width() - 80.0;
+                                let truncated = safe_truncate(&display_title, (title_w / 5.2).max(18.0) as usize);
                                 painter.text(
                                     Pos2::new(rect.left() + 30.0, rect.center().y),
                                     Align2::LEFT_CENTER,
@@ -527,69 +608,82 @@ impl PlaylistPanel {
                         }
                     }
 
-                    // Bottom Toolbar Group
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(3.0, 0.0);
+                    // Bottom Toolbar Group aligned with bottom control bar (height ~48px)
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(20, 21, 26))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(34, 38, 48)))
+                        .corner_radius(CornerRadius::same(4))
+                        .inner_margin(egui::Margin::symmetric(6, 6))
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.vertical(|ui| {
+                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 4.0);
+                                // Row 1: Add & Edit operations
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                                    if ui.button(egui::RichText::new("+ ADD").size(10.5)).on_hover_text("Add files to playlist").clicked() {
+                                        actions.add_files = true;
+                                    }
+                                    if ui.button(egui::RichText::new("DIR").size(10.5)).on_hover_text("Add whole folder").clicked() {
+                                        actions.add_folder = true;
+                                    }
+                                    if ui.button(egui::RichText::new("URL").size(10.5)).on_hover_text("Open network stream URL").clicked() {
+                                        actions.add_url = true;
+                                    }
+                                    if ui.button(egui::RichText::new("- DEL").size(10.5)).on_hover_text("Clear all tracks").clicked() {
+                                        actions.clear_playlist = true;
+                                    }
+                                    if ui.button(egui::RichText::new("⇅ SORT").size(10.5)).on_hover_text("Sort tracks naturally").clicked() {
+                                        playlist.sort_natural();
+                                    }
+                                });
+                                // Row 2: Playback mode pills & management
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                                    let rep_label = match playlist.repeat_mode {
+                                        crate::playlist::RepeatMode::RepeatAll => "All",
+                                        crate::playlist::RepeatMode::RepeatTrack => "One",
+                                        crate::playlist::RepeatMode::Off => "Off",
+                                    };
+                                    let is_rep_active = playlist.repeat_mode != crate::playlist::RepeatMode::Off;
+                                    let rep_btn = egui::Button::new(
+                                        egui::RichText::new(rep_label)
+                                            .size(10.0)
+                                            .color(if is_rep_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
+                                    );
+                                    if ui.add(rep_btn).on_hover_text("Cycle Repeat Mode").clicked() {
+                                        playlist.cycle_repeat_mode();
+                                        actions.cycle_repeat = true;
+                                    }
 
-                        if ui.button(egui::RichText::new("+ ADD").size(10.0)).on_hover_text("Add files to playlist").clicked() {
-                            actions.add_files = true;
-                        }
-                        if ui.button(egui::RichText::new("📁 DIR").size(10.0)).on_hover_text("Add whole folder").clicked() {
-                            actions.add_folder = true;
-                        }
-                        if ui.button(egui::RichText::new("🌐 URL").size(10.0)).on_hover_text("Open network stream URL").clicked() {
-                            actions.add_url = true;
-                        }
-                        if ui.button(egui::RichText::new("- DEL").size(10.0)).on_hover_text("Clear all tracks").clicked() {
-                            actions.clear_playlist = true;
-                        }
-                        if ui.button(egui::RichText::new("⇅ SORT").size(10.0)).on_hover_text("Sort tracks naturally").clicked() {
-                            playlist.sort_natural();
-                        }
+                                    let is_shuf_active = playlist.is_shuffle();
+                                    let shuf_btn = egui::Button::new(
+                                        egui::RichText::new("Shuf")
+                                            .size(10.0)
+                                            .color(if is_shuf_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
+                                    );
+                                    if ui.add(shuf_btn).on_hover_text("Toggle Shuffle Playback").clicked() {
+                                        playlist.toggle_shuffle();
+                                        actions.toggle_shuffle = true;
+                                    }
 
-                        let rep_label = match playlist.repeat_mode {
-                            crate::playlist::RepeatMode::RepeatAll => "🔁 All",
-                            crate::playlist::RepeatMode::RepeatTrack => "🔂 One",
-                            crate::playlist::RepeatMode::Off => "🔁 Off",
-                        };
-                        let is_rep_active = playlist.repeat_mode != crate::playlist::RepeatMode::Off;
-                        let rep_btn = egui::Button::new(
-                            egui::RichText::new(rep_label)
-                                .size(10.0)
-                                .color(if is_rep_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
-                        );
-                        if ui.add(rep_btn).on_hover_text("Cycle Repeat Mode").clicked() {
-                            playlist.cycle_repeat_mode();
-                            actions.cycle_repeat = true;
-                        }
+                                    let restore_btn = egui::Button::new(
+                                        egui::RichText::new(if restore_prev { "Prev: ON" } else { "Prev: OFF" })
+                                            .size(10.0)
+                                            .color(if restore_prev { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 155) })
+                                    );
+                                    if ui.add(restore_btn).on_hover_text("Toggle restoring previous playlist on direct launch (switched OFF by default)").clicked() {
+                                        actions.toggle_restore_prev = true;
+                                    }
 
-                        let is_shuf_active = playlist.is_shuffle();
-                        let shuf_btn = egui::Button::new(
-                            egui::RichText::new("🔀")
-                                .size(10.0)
-                                .color(if is_shuf_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
-                        );
-                        if ui.add(shuf_btn).on_hover_text("Toggle Shuffle Playback").clicked() {
-                            playlist.toggle_shuffle();
-                            actions.toggle_shuffle = true;
-                        }
-
-                        let restore_btn = egui::Button::new(
-                            egui::RichText::new(if restore_prev { "💾 Prev: ON" } else { "💾 Prev: OFF" })
-                                .size(10.0)
-                                .color(if restore_prev { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 155) })
-                        );
-                        if ui.add(restore_btn).on_hover_text("Toggle restoring previous playlist on direct launch (switched OFF by default)").clicked() {
-                            actions.toggle_restore_prev = true;
-                        }
-
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(egui::RichText::new("🧹").size(10.0)).on_hover_text("Remove missing files").clicked() {
-                                playlist.remove_missing_files();
-                            }
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if ui.button(egui::RichText::new("Clear").size(10.0)).on_hover_text("Remove missing files").clicked() {
+                                            playlist.remove_missing_files();
+                                        }
+                                    });
+                                });
+                            });
                         });
-                    });
                 }
 
                 // =========================================================================
@@ -630,20 +724,7 @@ impl PlaylistPanel {
                     });
 
                     // Search box in current folder
-                    ui.horizontal(|ui| {
-                        ui.add_space(2.0);
-                        ui.add_sized(
-                            Vec2::new(ui.available_width() - 28.0, 22.0),
-                            egui::TextEdit::singleline(browser_search)
-                                .hint_text("🔍 Filter files in folder...")
-                                .font(FontId::proportional(11.0)),
-                        );
-                        if !browser_search.is_empty() {
-                            if ui.button("✕").clicked() {
-                                browser_search.clear();
-                            }
-                        }
-                    });
+                    render_search_input(ui, browser_search, "Filter files in folder...");
 
                     ui.separator();
 
@@ -702,7 +783,7 @@ impl PlaylistPanel {
 
                             for (item_path, is_dir, name) in filtered_items {
                                 ui.horizontal(|ui| {
-                                    let icon = if *is_dir { "📁" } else { "🎬" };
+                                    let icon = if *is_dir { "[DIR]" } else { "▶" };
                                     let text = format!("{} {}", icon, name);
                                     let resp = ui.selectable_label(false, text);
 
@@ -809,20 +890,7 @@ impl PlaylistPanel {
                 // =========================================================================
                 DrawerTab::Subtitles => {
                     // Search bar across subtitle dialogue
-                    ui.horizontal(|ui| {
-                        ui.add_space(2.0);
-                        ui.add_sized(
-                            Vec2::new(ui.available_width() - 28.0, 22.0),
-                            egui::TextEdit::singleline(sub_search)
-                                .hint_text("🔍 Search dialogue text...")
-                                .font(FontId::proportional(11.0)),
-                        );
-                        if !sub_search.is_empty() {
-                            if ui.button("✕").clicked() {
-                                sub_search.clear();
-                            }
-                        }
-                    });
+                    render_search_input(ui, sub_search, "Search dialogue text...");
 
                     ui.separator();
 

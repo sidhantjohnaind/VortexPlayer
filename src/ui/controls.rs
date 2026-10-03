@@ -61,7 +61,7 @@ pub struct ControlBarActions {
 }
 
 impl ControlBar {
-    pub const HEIGHT_COMPACT: f32 = 52.0;
+    pub const HEIGHT_COMPACT: f32 = 58.0;
     pub const HEIGHT_FULLSCREEN: f32 = 64.0;
     pub const HEIGHT_MUSIC: f32 = 104.0;
 
@@ -410,9 +410,10 @@ impl ControlBar {
 
         // ── 3. Ultra-Polished Modern Dynamic Seekbar with Live Frame Hover Preview ───
         let seekbar_pad = if is_fullscreen { 16.0 } else { 12.0 };
-        let seekbar_h = if is_song { 10.0 } else if is_fullscreen { 14.0 } else { 12.0 };
+        let seekbar_h = if is_song { 10.0 } else if is_fullscreen { 14.0 } else { 11.0 };
+        let seekbar_y = current_y + 2.0;
         let seekbar_rect = Rect::from_min_size(
-            Pos2::new(total_rect.left() + seekbar_pad, current_y),
+            Pos2::new(total_rect.left() + seekbar_pad, seekbar_y),
             Vec2::new(total_rect.width() - seekbar_pad * 2.0, seekbar_h),
         );
 
@@ -657,7 +658,7 @@ impl ControlBar {
             }
         }
 
-        current_y += seekbar_h;
+        current_y = seekbar_y + seekbar_h + 2.0;
 
         // Horizontal separator line under seekbar
         painter.line_segment(
@@ -666,16 +667,29 @@ impl ControlBar {
         );
 
         // ── 4. Lower Transport Bar: Tiled Segments with Dividers ─────────────
-        let row_top = current_y;
-        let row_h = total_rect.bottom() - row_top;
+        let row_top = current_y + 2.0;
+        let row_h = (total_rect.bottom() - row_top - 5.0).max(28.0);
         let mut left_x = total_rect.left();
 
         let draw_v_divider = |p: &Painter, x: f32| {
             p.line_segment(
-                [Pos2::new(x, row_top + 4.0), Pos2::new(x, total_rect.bottom() - 4.0)],
+                [Pos2::new(x, row_top + 3.0), Pos2::new(x, row_top + row_h - 3.0)],
                 Stroke::new(1.0, Color32::from_rgb(32, 34, 42)),
             );
         };
+
+        let avail_w = total_rect.width();
+        let is_ultra_wide = avail_w >= 1020.0;
+        let is_wide = avail_w >= 800.0;
+        let is_medium = avail_w >= 620.0;
+
+        // Calculate right-side reserved width to prevent left and right controls from colliding
+        let right_reserved_w = 28.0 
+            + (if is_wide { 78.0 } else { 0.0 }) 
+            + (if !is_song && is_medium { 42.0 } else { 0.0 }) 
+            + (if is_wide { 92.0 } else if is_medium { 68.0 } else { 28.0 }) 
+            + 12.0;
+        let right_boundary_x = (total_rect.right() - right_reserved_w).max(left_x + 120.0);
 
         // 1. Play / Pause Button Tile (36px wide)
         {
@@ -703,8 +717,11 @@ impl ControlBar {
             draw_v_divider(painter, left_x);
         }
 
-        // Helper for standard 28px button tiles
+        // Helper for standard 28px button tiles (only creates tile if space permits)
         let mut make_tile = |id_str: &str, w: f32, tip_text: &str, draw_fn: &dyn Fn(&Painter, Rect, Color32)| -> bool {
+            if left_x + w > right_boundary_x - 110.0 {
+                return false;
+            }
             let tile_r = Rect::from_min_size(Pos2::new(left_x, row_top), Vec2::new(w, row_h));
             let resp = ui.interact(tile_r, ui.id().with(id_str), Sense::click());
             
@@ -726,8 +743,8 @@ impl ControlBar {
             actions.stop = true;
         }
 
-        // 2b. Close File & Return to Home (26px) (Video mode only)
-        if !is_song && make_tile("tile_close_file", 26.0, "Close File & Return to Home (Ctrl+W / F4)", &|p, r, c| Icons::draw_close(p, r, c)) {
+        // 2b. Close File & Return to Home (26px) (Wide Video mode only)
+        if !is_song && is_wide && make_tile("tile_close_file", 26.0, "Close File & Return to Home (Ctrl+W / F4)", &|p, r, c| Icons::draw_close(p, r, c)) {
             actions.close_file = true;
         }
 
@@ -736,15 +753,15 @@ impl ControlBar {
             actions.prev_track = true;
         }
 
-        // 3b. Prev Chapter (26px)
-        if !is_song && !stats.chapters.is_empty() {
+        // 3b. Prev Chapter (26px) (Ultra-wide only)
+        if !is_song && is_ultra_wide && !stats.chapters.is_empty() {
             if make_tile("tile_prev_chap", 26.0, "Previous Chapter (Shift+H / [)", &|p, r, c| Icons::draw_chapter_prev(p, r, c)) {
                 actions.prev_chapter = true;
             }
         }
 
-        // 4a. Next Chapter (26px)
-        if !is_song && !stats.chapters.is_empty() {
+        // 4a. Next Chapter (26px) (Ultra-wide only)
+        if !is_song && is_ultra_wide && !stats.chapters.is_empty() {
             if make_tile("tile_next_chap", 26.0, "Next Chapter (H / ])", &|p, r, c| Icons::draw_chapter_next(p, r, c)) {
                 actions.next_chapter = true;
             }
@@ -755,7 +772,7 @@ impl ControlBar {
             actions.next_track = true;
         }
 
-        // 4b. Skip OP / Intro (28px - dedicated skip button!)
+        // 4b. Skip OP / Intro (28px)
         let is_in_intro = stats.chapters.iter().any(|c| {
             let is_match = crate::config::matches_skip_keyword(&c.title, "op")
                 || crate::config::matches_skip_keyword(&c.title, "opening")
@@ -767,7 +784,7 @@ impl ControlBar {
                 && stats.chapters.iter().find(|n| n.index == c.index + 1).map_or(true, |n| stats.time_pos < n.time_pos)
         }) || (stats.time_pos < 90.0 && stats.duration > 180.0);
 
-        if !is_song && total_rect.width() >= 520.0 {
+        if !is_song && is_wide && is_in_intro {
             let skip_tip = if is_in_intro { "Skip Opening / Intro (S)" } else { "Skip Forward 85s (S)" };
             if make_tile("tile_skip_intro", 28.0, skip_tip, &|p, r, c| {
                 let col = if is_in_intro { VortexTheme::VORTEX_YELLOW } else { c };
@@ -777,9 +794,8 @@ impl ControlBar {
             }
         }
 
-        // 4b. Repeat & Shuffle Mode (Only on bottom bar in wide video mode)
-        let is_wide = total_rect.width() >= 550.0;
-        if !is_song && is_wide {
+        // 4c. Repeat & Shuffle Mode (Ultra-wide only)
+        if !is_song && is_ultra_wide {
             let is_rep_one = playlist.repeat_mode == crate::playlist::RepeatMode::RepeatTrack;
             let is_rep_active = playlist.repeat_mode == crate::playlist::RepeatMode::RepeatAll || is_rep_one;
             let rep_tip = match playlist.repeat_mode {
@@ -804,18 +820,18 @@ impl ControlBar {
             }
         }
 
-        // 5. Open / Eject (28px) (Video mode only)
-        if !is_song && make_tile("tile_open", 28.0, "Open File / Disc / URL (Ctrl+O)", &|p, r, c| Icons::draw_eject(p, r, c)) {
+        // 5. Open / Eject (28px) (Ultra-wide only)
+        if !is_song && is_ultra_wide && make_tile("tile_open", 28.0, "Open File / Disc / URL (Ctrl+O)", &|p, r, c| Icons::draw_eject(p, r, c)) {
             actions.open_file = true;
         }
 
-        // 5b. Frame Capture / Snapshot (26px)
-        if !is_song && make_tile("tile_snapshot", 26.0, "Take Snapshot / Frame Capture (Ctrl+C / Ctrl+E)", &|p, r, c| Icons::draw_camera(p, r, c)) {
+        // 5b. Frame Capture / Snapshot (26px) (Ultra-wide only)
+        if !is_song && is_ultra_wide && make_tile("tile_snapshot", 26.0, "Take Snapshot / Frame Capture (Ctrl+C / Ctrl+E)", &|p, r, c| Icons::draw_camera(p, r, c)) {
             actions.take_screenshot = true;
         }
 
-        // 5c. Subtitle Quick Selector (28px)
-        if !is_song && !stats.subtitle_tracks.is_empty() {
+        // 5c. Subtitle Quick Selector (28px) (Ultra-wide only)
+        if !is_song && is_ultra_wide && !stats.subtitle_tracks.is_empty() {
             let sub_tip = if stats.subtitles_visible { "Cycle Subtitle Track / Language (Alt+H)" } else { "Subtitles: Off (Click to enable)" };
             if make_tile("tile_sub_quick", 28.0, sub_tip, &|p, r, c| {
                 let col = if stats.subtitles_visible { VortexTheme::VORTEX_YELLOW } else { c };
@@ -990,8 +1006,18 @@ impl ControlBar {
             let time_content_w = cur_time_w + total_time_w + 16.0;
             let time_prefix_w = (time_content_w + 12.0).max(138.0);
 
-            let badge_total_w: f32 = lcd_badges.iter().map(|b| b.text.len() as f32 * 6.8 + 10.0 + 3.0).sum();
-            let lcd_w = time_prefix_w + badge_total_w + 10.0;
+            // Dynamically fit badges into the available space before right_boundary_x
+            let max_badge_space = (right_boundary_x - (left_x + time_prefix_w) - 16.0).max(0.0);
+            let mut fitted_badges = Vec::new();
+            let mut fitted_badges_w: f32 = 0.0;
+            for b in lcd_badges {
+                let bw = b.text.len() as f32 * 6.8 + 8.0 + 3.0;
+                if fitted_badges_w + bw <= max_badge_space {
+                    fitted_badges_w += bw;
+                    fitted_badges.push(b);
+                }
+            }
+            let lcd_w = time_prefix_w + fitted_badges_w + (if fitted_badges.is_empty() { 6.0 } else { 10.0 });
 
             let lcd_r = Rect::from_min_size(Pos2::new(left_x, row_top), Vec2::new(lcd_w, row_h));
             
@@ -1052,7 +1078,7 @@ impl ControlBar {
             // Draw Badges (S/W, AVC1, TrueHD, 5.1, HDR)
             let mut badge_x = lcd_r.left() + time_prefix_w;
 
-            for (idx, b) in lcd_badges.iter().enumerate() {
+            for (idx, b) in fitted_badges.iter().enumerate() {
                 let bw = b.text.len() as f32 * 6.8 + 8.0;
                 let b_rect = Rect::from_center_size(
                     Pos2::new(badge_x + bw / 2.0, time_y),
@@ -1161,8 +1187,11 @@ impl ControlBar {
         // 7. Right Side Control Group (Volume, Speed, Settings, Playlist)
         let mut right_x = total_rect.right();
 
-        // Helper for right-aligned 28px buttons
+        // Helper for right-aligned 28px buttons (strictly prevents colliding with left_x)
         let mut make_right_tile = |id_str: &str, w: f32, tip_text: &str, draw_fn: &dyn Fn(&Painter, Rect, Color32)| -> bool {
+            if right_x - w < left_x + 8.0 {
+                return false;
+            }
             right_x -= w;
             draw_v_divider(painter, right_x);
             let tile_r = Rect::from_min_size(Pos2::new(right_x, row_top), Vec2::new(w, row_h));
@@ -1188,7 +1217,7 @@ impl ControlBar {
             actions.toggle_playlist = true;
         }
 
-        // 2, 3, 4: Secondary Tools (Always show on wide playback, including songs)
+        // 2, 3, 4: Secondary Tools (Always show on wide playback when space permits)
         if is_wide {
             if make_right_tile("tile_settings", 26.0, "Preferences & Configuration (F5)", &|p, r, c| Icons::draw_settings(p, r, c)) {
                 actions.toggle_preferences = true;
@@ -1204,7 +1233,7 @@ impl ControlBar {
         }
 
         // Speed Multiplier Pill (Video mode)
-        if !is_song && is_wide {
+        if !is_song && is_wide && right_x - 42.0 >= left_x + 8.0 {
             let spd_w = 42.0;
             right_x -= spd_w;
             draw_v_divider(painter, right_x);
@@ -1248,22 +1277,36 @@ impl ControlBar {
             }
         }
 
-        // Volume Slider & Mute Icon Box (Adaptive 76px to 96px)
-        {
-            let vol_w = if is_wide { 96.0 } else { 76.0 };
+        // Volume Slider & Mute Icon Box (Adaptive 28px to 96px, collision-proof)
+        let can_fit_large_vol = right_x - 96.0 >= left_x + 8.0;
+        let can_fit_med_vol = right_x - 68.0 >= left_x + 8.0;
+        let can_fit_mini_vol = right_x - 28.0 >= left_x + 8.0;
+
+        if can_fit_mini_vol {
+            let vol_w = if is_wide && can_fit_large_vol {
+                96.0
+            } else if can_fit_med_vol {
+                68.0
+            } else {
+                28.0
+            };
             right_x -= vol_w;
             draw_v_divider(painter, right_x);
 
             let vol_r = Rect::from_min_size(Pos2::new(right_x, row_top), Vec2::new(vol_w, row_h));
             
-            // Speaker Icon (18px)
-            let spk_r = Rect::from_min_size(Pos2::new(vol_r.left() + 4.0, vol_r.center().y - 8.0), Vec2::splat(16.0));
+            // Speaker Icon
+            let spk_r = if vol_w > 32.0 {
+                Rect::from_min_size(Pos2::new(vol_r.left() + 4.0, vol_r.center().y - 8.0), Vec2::splat(16.0))
+            } else {
+                Rect::from_center_size(vol_r.center(), Vec2::splat(16.0))
+            };
             let spk_resp = ui.interact(spk_r, ui.id().with("vol_mute_btn"), Sense::click());
             let spk_col = if spk_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(170, 175, 188) };
             Icons::draw_volume(painter, spk_r, spk_col, stats.is_muted, stats.volume);
 
             if spk_resp.hovered() {
-                let tip = if stats.is_muted { "Unmute Audio (M)" } else { "Mute Audio (M)" };
+                let tip = if stats.is_muted { "Unmute Audio (M)" } else { "Mute Audio (M) / Scroll to change volume" };
                 hovered_tooltip = Some((spk_r, tip.to_string()));
             }
 
@@ -1273,37 +1316,57 @@ impl ControlBar {
                 }
             }
 
-            // Volume Mini Slider (60px)
-            let vbar_x = vol_r.left() + 26.0;
-            let vbar_w = 60.0;
-            let vbar_r = Rect::from_min_size(
-                Pos2::new(vbar_x, vol_r.center().y - 1.25),
-                Vec2::new(vbar_w, 2.5),
-            );
-
-            let v_resp = ui.interact(
-                Rect::from_center_size(vbar_r.center(), Vec2::new(vbar_w + 6.0, 22.0)),
-                ui.id().with("vol_slider_interactive"),
-                Sense::click_and_drag(),
-            );
-
-            let is_vol_scrubbing = v_resp.clicked() || v_resp.dragged();
             let mut display_vol_pct = if stats.is_muted { 0.0 } else { (stats.volume / 100.0).clamp(0.0, 1.0) as f32 };
 
-            if is_vol_scrubbing {
-                ui.ctx().request_repaint();
-                if let Some(pos) = ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.latest_pos())) {
-                    let frac = ((pos.x - vbar_r.left()) / vbar_w).clamp(0.0, 1.0);
-                    display_vol_pct = frac;
-                    let target_vol = frac as f64 * 100.0;
-                    if let Some(p) = player {
-                        p.set_volume(target_vol);
+            // Only draw slider track if volume width > 32.0
+            if vol_w > 32.0 {
+                let vbar_x = vol_r.left() + 26.0;
+                let vbar_w = vol_w - 36.0;
+                let vbar_r = Rect::from_min_size(
+                    Pos2::new(vbar_x, vol_r.center().y - 1.25),
+                    Vec2::new(vbar_w, 2.5),
+                );
+
+                let v_resp = ui.interact(
+                    Rect::from_center_size(vbar_r.center(), Vec2::new(vbar_w + 6.0, 22.0)),
+                    ui.id().with("vol_slider_interactive"),
+                    Sense::click_and_drag(),
+                );
+
+                let is_vol_scrubbing = v_resp.clicked() || v_resp.dragged();
+
+                if is_vol_scrubbing {
+                    ui.ctx().request_repaint();
+                    if let Some(pos) = ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.latest_pos())) {
+                        let frac = ((pos.x - vbar_r.left()) / vbar_w).clamp(0.0, 1.0);
+                        display_vol_pct = frac;
+                        let target_vol = frac as f64 * 100.0;
+                        if let Some(p) = player {
+                            p.set_volume(target_vol);
+                        }
                     }
                 }
+
+                if v_resp.hovered() || is_vol_scrubbing {
+                    hovered_tooltip = Some((vbar_r, format!("Volume: {:.0}%", display_vol_pct * 100.0)));
+                }
+
+                // Dark groove
+                painter.rect_filled(vbar_r, CornerRadius::ZERO, Color32::from_rgb(32, 34, 42));
+
+                let fill_w = vbar_w * display_vol_pct;
+                if fill_w > 0.0 {
+                    let fill_r = Rect::from_min_size(vbar_r.min, Vec2::new(fill_w, 2.5));
+                    painter.rect_filled(fill_r, CornerRadius::ZERO, VortexTheme::VORTEX_YELLOW);
+                }
+
+                // Volume Knob
+                let vknob_x = vbar_r.left() + fill_w;
+                painter.circle_filled(Pos2::new(vknob_x, vbar_r.center().y), 2.2, Color32::WHITE);
             }
 
-            // Mouse wheel volume adjust when hovering the volume slider or icon
-            if v_resp.hovered() || spk_resp.hovered() {
+            // Mouse wheel volume adjust when hovering anywhere on the volume tile
+            if ui.rect_contains_pointer(vol_r) {
                 let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
                 if scroll_y.abs() > 0.1 {
                     ui.ctx().request_repaint();
@@ -1315,23 +1378,6 @@ impl ControlBar {
                     }
                 }
             }
-
-            if v_resp.hovered() || is_vol_scrubbing {
-                hovered_tooltip = Some((vbar_r, format!("Volume: {:.0}%", display_vol_pct * 100.0)));
-            }
-
-            // Dark groove
-            painter.rect_filled(vbar_r, CornerRadius::ZERO, Color32::from_rgb(32, 34, 42));
-
-            let fill_w = vbar_w * display_vol_pct;
-            if fill_w > 0.0 {
-                let fill_r = Rect::from_min_size(vbar_r.min, Vec2::new(fill_w, 2.5));
-                painter.rect_filled(fill_r, CornerRadius::ZERO, VortexTheme::VORTEX_YELLOW);
-            }
-
-            // Volume Knob
-            let vknob_x = vbar_r.left() + fill_w;
-            painter.circle_filled(Pos2::new(vknob_x, vbar_r.center().y), 2.2, Color32::WHITE);
         }
 
         if let Some((target_r, ref tip)) = hovered_tooltip {

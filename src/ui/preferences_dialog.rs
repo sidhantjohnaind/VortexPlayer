@@ -2060,10 +2060,11 @@ impl PreferencesDialog {
                                         render_subtitle_preview(ui, config);
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            settings_row(ui, "Vertical Position", "Vertical distance from top of screen (% from 0 to 100)", |ui| {
+                                            settings_row(ui, "Vertical Position", "Vertical distance from top of screen (% from 0 to 115)", |ui| {
                                                 ui.horizontal(|ui| {
-                                                    ui.add(egui::Slider::new(&mut config.subtitle_vertical_pos, 0.0..=100.0).suffix(" %"));
-                                                    if ui.small_button("Bottom (92%)").clicked() { config.subtitle_vertical_pos = 92.0; }
+                                                    ui.add(egui::Slider::new(&mut config.subtitle_vertical_pos, 0.0..=115.0).suffix(" %"));
+                                                    if ui.small_button("Bottom Edge (102%)").clicked() { config.subtitle_vertical_pos = 102.0; }
+                                                    if ui.small_button("Standard (92%)").clicked() { config.subtitle_vertical_pos = 92.0; }
                                                     if ui.small_button("Center (50%)").clicked() { config.subtitle_vertical_pos = 50.0; }
                                                     if ui.small_button("Top (10%)").clicked() { config.subtitle_vertical_pos = 10.0; }
                                                 });

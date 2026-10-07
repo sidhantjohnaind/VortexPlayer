@@ -372,8 +372,8 @@ pub unsafe extern "C" fn get_proc_address_mpv(_ctx: *mut c_void, name: *const c_
 
 #[cfg(not(windows))]
 pub unsafe extern "C" fn get_proc_address_mpv(_ctx: *mut c_void, name: *const c_char) -> *mut c_void {
-    extern "C" {
+    unsafe extern "C" {
         fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
     }
-    dlsym(std::ptr::null_mut(), name)
+    unsafe { dlsym(std::ptr::null_mut(), name) }
 }

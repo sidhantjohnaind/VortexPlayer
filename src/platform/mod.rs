@@ -17,6 +17,7 @@ pub use linux::*;
 
 /// Creates a `std::process::Command` that runs completely silently without popping up a console/cmd window on Windows.
 pub fn silent_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Command {
+    #[allow(unused_mut)]
     let mut cmd = std::process::Command::new(program);
     #[cfg(windows)]
     {

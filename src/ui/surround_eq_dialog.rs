@@ -59,23 +59,30 @@ impl SurroundEqDialog {
         let skin = VortexTheme::current_skin();
         let accent = skin.accent_primary;
 
+        let win_size = ctx.input(|i| i.viewport().inner_rect.or(i.raw.screen_rect)).map(|r| r.size()).unwrap_or(Vec2::new(1280.0, 720.0));
+        let def_w = 780.0f32.min(win_size.x - 32.0);
+        let def_h = 560.0f32.min(win_size.y - 32.0);
+
         let window_resp = Window::new("🎛 7.1 Surround Per-Channel Equalizer")
             .open(is_open)
             .resizable(true)
-            .default_width(780.0)
-            .default_height(580.0)
-            .min_width(680.0)
-            .min_height(500.0)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+            .default_width(def_w)
+            .default_height(def_h)
+            .max_width(win_size.x - 20.0)
+            .max_height(win_size.y - 20.0)
+            .constrain(true)
             .frame(
                 egui::Frame::new()
                     .fill(Color32::from_rgb(14, 16, 22))
                     .stroke(Stroke::new(1.0, Color32::from_rgb(40, 48, 65)))
                     .corner_radius(CornerRadius::same(10))
-                    .inner_margin(Margin::same(16)),
+                    .inner_margin(Margin::same(14)),
             )
             .show(ctx, |ui| {
-                // ── Top Control Bar ──────────────────────────────────────────
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // ── Top Control Bar ──────────────────────────────────────────
                 ui.horizontal(|ui| {
                     let is_en = config.enabled;
                     let mut en = is_en;
@@ -193,14 +200,16 @@ impl SurroundEqDialog {
                     Stroke::new(0.5, Color32::from_rgb(30, 36, 48)),
                 );
 
-                // Frequency grid columns (10 bands)
+                // Frequency grid columns (10 bands) aligned with slider columns below
                 let num_bands = SURROUND_EQ_FREQS.len();
-                let pad_x = 36.0;
-                let eff_w = canvas_rect.width() - pad_x * 2.0;
+                let item_spacing = ui.spacing().item_spacing.x;
+                let col_w = ((canvas_rect.width() - (num_bands as f32 - 1.0) * item_spacing) / num_bands as f32).max(10.0);
+                let get_band_x = |idx: usize| -> f32 {
+                    canvas_rect.left() + idx as f32 * (col_w + item_spacing) + col_w * 0.5
+                };
 
                 for (idx, &label) in SURROUND_EQ_LABELS.iter().enumerate() {
-                    let frac = idx as f32 / (num_bands - 1) as f32;
-                    let x = canvas_rect.left() + pad_x + frac * eff_w;
+                    let x = get_band_x(idx);
                     painter.line_segment(
                         [Pos2::new(x, canvas_rect.top() + 6.0), Pos2::new(x, canvas_rect.bottom() - 18.0)],
                         Stroke::new(0.5, Color32::from_rgb(26, 32, 44)),
@@ -260,8 +269,7 @@ impl SurroundEqDialog {
                     let mut pts = Vec::with_capacity(num_bands);
                     for (b_idx, &gain) in ch_data.bands.iter().enumerate() {
                         let total_gain = (gain + ch_data.gain_offset_db).clamp(-12.0, 12.0);
-                        let frac_x = b_idx as f32 / (num_bands - 1) as f32;
-                        let x = canvas_rect.left() + pad_x + frac_x * eff_w;
+                        let x = get_band_x(b_idx);
                         let frac_y = (total_gain / 12.0) as f32;
                         let y = zero_y - frac_y * (step_y * 2.0 - 8.0);
                         pts.push(Pos2::new(x, y));
@@ -361,22 +369,44 @@ impl SurroundEqDialog {
                             }
                         });
 
-                        ui.add_space(10.0);
+                        ui.add_space(8.0);
 
-                        // 10 Vertical Sliders
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().slider_width = 140.0;
-                            let slider_h = 160.0;
-
+                        // 10 Vertical Sliders distributed evenly using ui.columns
+                        let slider_h = 150.0;
+                        ui.columns(10, |cols| {
                             for b_idx in 0..10 {
-                                ui.vertical_centered(|ui| {
-                                    let mut val = config.channels[ch_idx].bands[b_idx];
+                                let col_ui = &mut cols[b_idx];
+                                col_ui.vertical_centered(|ui| {
+                                    let gain_val = config.channels[ch_idx].bands[b_idx];
+                                    let gain_col = if gain_val.abs() < 0.05 {
+                                        Color32::from_rgb(130, 135, 150)
+                                    } else if gain_val > 0.0 {
+                                        Color32::from_rgb(60, 215, 255)
+                                    } else {
+                                        Color32::from_rgb(255, 115, 115)
+                                    };
+
+                                    ui.label(
+                                        RichText::new(format!("{:+.1}", gain_val))
+                                            .font(FontId::monospace(10.0))
+                                            .strong()
+                                            .color(gain_col),
+                                    );
+
+                                    let mut val = gain_val;
                                     let slider = egui::Slider::new(&mut val, -12.0..=12.0)
                                         .vertical()
                                         .step_by(0.1)
                                         .show_value(false);
 
-                                    let resp = ui.add_sized([28.0, slider_h], slider);
+                                    let resp = ui.add_sized([24.0, slider_h], slider)
+                                        .on_hover_text(format!(
+                                            "{} Band: {}\nGain: {:+.1} dB\nDouble-click to reset to 0.0 dB",
+                                            ch.short_name(),
+                                            SURROUND_EQ_LABELS[b_idx],
+                                            gain_val
+                                        ));
+
                                     if resp.changed() {
                                         config.channels[ch_idx].bands[b_idx] = val;
                                         if let Some(p_idx) = pair_idx {
@@ -394,28 +424,14 @@ impl SurroundEqDialog {
                                         changed = true;
                                     }
 
-                                    let gain_val = config.channels[ch_idx].bands[b_idx];
-                                    let gain_col = if gain_val.abs() < 0.05 {
-                                        Color32::from_rgb(130, 135, 150)
-                                    } else if gain_val > 0.0 {
-                                        Color32::from_rgb(60, 210, 255)
-                                    } else {
-                                        Color32::from_rgb(255, 120, 120)
-                                    };
-
-                                    ui.label(
-                                        RichText::new(format!("{:+.1}", gain_val))
-                                            .font(FontId::monospace(9.5))
-                                            .color(gain_col),
-                                    );
+                                    ui.add_space(2.0);
                                     ui.label(
                                         RichText::new(SURROUND_EQ_LABELS[b_idx])
-                                            .font(FontId::proportional(10.0))
+                                            .font(FontId::proportional(10.5))
                                             .strong()
                                             .color(Color32::WHITE),
                                     );
                                 });
-                                ui.add_space(6.0);
                             }
                         });
                     }
@@ -479,6 +495,7 @@ impl SurroundEqDialog {
                             });
                     }
                 }
+                    });
             });
 
         if changed {

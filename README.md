@@ -17,6 +17,25 @@
 
 ---
 
+## ⚡ One-Click Installation
+
+Install VortexPlayer instantly without manual extraction or setup:
+
+### 🪟 Windows (PowerShell)
+Run in PowerShell:
+```powershell
+irm https://raw.githubusercontent.com/sidhantjohnaind/VortexPlayer/main/install.ps1 | iex
+```
+*Or double-click [`install.bat`](install.bat) directly in Windows Explorer.*
+
+### 🐧 Linux & 🍎 macOS
+Run in your terminal:
+```bash
+curl -fsSL https://raw.githubusercontent.com/sidhantjohnaind/VortexPlayer/main/install.sh | bash
+```
+
+---
+
 ## 📸 Screenshots & Showcase
 
 ### 🎬 Cinema Video Playback & Real-Time HDR

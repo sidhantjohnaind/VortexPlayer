@@ -1,3 +1,5 @@
+#![allow(unused_imports, dead_code)]
+
 pub mod screen;
 pub use screen::{ScreenCaptureManager, ScreenCaptureMode};
 pub mod devices;

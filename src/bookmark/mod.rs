@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod pbf;
 
 pub use pbf::{AbLoopSegment, BookmarkItem, PbfFile};

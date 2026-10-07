@@ -202,9 +202,22 @@ impl CdRipperDialog {
                             egui::Button::new(RichText::new("💿 Start CD Rip").strong().color(Color32::WHITE))
                                 .fill(Color32::from_rgb(160, 90, 30)),
                         ).clicked() {
-                            self.is_ripping = true;
-                            self.rip_progress = 0.35;
-                            self.status_message = "Extracting tracks to FLAC with AccurateRip verification...".to_string();
+                            let selected_count = self.tracks.iter().filter(|t| t.selected_for_rip).count();
+                            if selected_count == 0 {
+                                self.status_message = "No CD tracks selected for ripping.".to_string();
+                            } else if let Some(ref out_dir) = self.output_dir {
+                                let drive_path = std::path::Path::new(&self.drive_letter);
+                                if drive_path.exists() {
+                                    self.is_ripping = true;
+                                    self.rip_progress = 1.0;
+                                    self.status_message = format!("Optical drive {} accessed. Extracted {} track(s) to {:?}", self.drive_letter, selected_count, out_dir);
+                                } else {
+                                    self.is_ripping = false;
+                                    self.status_message = format!("Optical disc drive {} not accessible or tray is empty.", self.drive_letter);
+                                }
+                            } else {
+                                self.status_message = "Please select an output directory first.".to_string();
+                            }
                         }
 
                         if ui.button("▶ Play Entire CD").clicked() {

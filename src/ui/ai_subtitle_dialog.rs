@@ -90,6 +90,33 @@ impl Default for AiSubtitleDialog {
 impl AiSubtitleDialog {
     pub fn new() -> Self { Self::default() }
 
+    pub fn generate_srt_content(&self) -> String {
+        let mut srt = String::new();
+        for (i, sub) in self.live_subtitles.iter().enumerate() {
+            let start_h = (sub.start_time / 3600.0) as u32;
+            let start_m = ((sub.start_time % 3600.0) / 60.0) as u32;
+            let start_s = (sub.start_time % 60.0) as u32;
+            let start_ms = ((sub.start_time.fract()) * 1000.0) as u32;
+
+            let end_h = (sub.end_time / 3600.0) as u32;
+            let end_m = ((sub.end_time % 3600.0) / 60.0) as u32;
+            let end_s = (sub.end_time % 60.0) as u32;
+            let end_ms = ((sub.end_time.fract()) * 1000.0) as u32;
+
+            srt.push_str(&format!("{}\n", i + 1));
+            srt.push_str(&format!(
+                "{:02}:{:02}:{:02},{:03} --> {:02}:{:02}:{:02},{:03}\n",
+                start_h, start_m, start_s, start_ms, end_h, end_m, end_s, end_ms
+            ));
+            if self.show_dual_subtitles && !sub.translated_text.is_empty() {
+                srt.push_str(&format!("{}\n{}\n\n", sub.original_text, sub.translated_text));
+            } else {
+                srt.push_str(&format!("{}\n\n", sub.original_text));
+            }
+        }
+        srt
+    }
+
     pub fn render(&mut self, ctx: &egui::Context, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
@@ -181,12 +208,28 @@ impl AiSubtitleDialog {
                                 .fill(Color32::from_rgb(40, 120, 70)),
                         ).clicked() {
                             self.is_transcribing = true;
-                            self.status_message = "Whisper neural speech-to-text running in background.".to_string();
+                            self.status_message = format!("Whisper {} model active. Capturing speech streams...", self.whisper_model.display_name());
                         }
                     }
 
                     if ui.button("💾 Export SRT File").clicked() {
-                        self.status_message = "Exported real-time AI subtitles to .srt format!".to_string();
+                        if let Some(path) = rfd::FileDialog::new()
+                            .set_file_name("ai_subtitles.srt")
+                            .add_filter("Subtitles (*.srt)", &["srt"])
+                            .save_file()
+                        {
+                            let content = self.generate_srt_content();
+                            if std::fs::write(&path, content).is_ok() {
+                                self.status_message = format!("Exported AI subtitles to {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("file"));
+                            } else {
+                                self.status_message = "Failed to write SRT file to disk.".to_string();
+                            }
+                        }
+                    }
+
+                    if ui.button("🗑 Clear").clicked() {
+                        self.live_subtitles.clear();
+                        self.status_message = "Transcribed subtitles cleared.".to_string();
                     }
                 });
 

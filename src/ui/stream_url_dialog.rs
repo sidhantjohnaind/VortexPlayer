@@ -44,7 +44,7 @@ impl StreamUrlDialog {
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 8.0);
 
-                ui.label(RichText::new("Enter direct URL, HLS, DASH, RTSP, or Online Stream:").color(VortexTheme::TEXT_SECONDARY));
+                ui.label(RichText::new("Enter direct URL, HLS, DASH, RTSP, or Online Stream:").color(VortexTheme::current_skin().text_secondary));
 
                 ui.add(
                     egui::TextEdit::singleline(&mut self.url)
@@ -76,7 +76,7 @@ impl StreamUrlDialog {
                         should_close = true;
                     }
 
-                    if ui.button(RichText::new("▶ Play Stream").strong().color(VortexTheme::VORTEX_YELLOW)).clicked() {
+                    if ui.button(RichText::new("▶ Play Stream").strong().color(VortexTheme::current_skin().accent_primary)).clicked() {
                         let trimmed = self.url.trim();
                         if !trimmed.is_empty() {
                             player.load_file(trimmed);

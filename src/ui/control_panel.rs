@@ -52,7 +52,7 @@ fn card_frame() -> egui::Frame {
 /// Helper to render a selectable pill button
 fn pill_button(ui: &mut egui::Ui, label: &str, is_selected: bool) -> egui::Response {
     let text_col = if is_selected {
-        VortexTheme::VORTEX_YELLOW
+        VortexTheme::current_skin().accent_primary
     } else {
         Color32::from_rgb(165, 170, 185)
     };
@@ -62,7 +62,7 @@ fn pill_button(ui: &mut egui::Ui, label: &str, is_selected: bool) -> egui::Respo
         Color32::from_rgb(28, 31, 42)
     };
     let stroke_col = if is_selected {
-        VortexTheme::VORTEX_YELLOW
+        VortexTheme::current_skin().accent_primary
     } else {
         Color32::from_rgb(46, 51, 68)
     };
@@ -155,7 +155,7 @@ impl ControlPanel {
                             let tab_w = ((ui.available_width() - 12.0) / 4.0).max(85.0);
                             for (tab, label) in tabs {
                                 let is_active = self.active_tab == tab;
-                                let text_col = if is_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(165, 170, 185) };
+                                let text_col = if is_active { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(165, 170, 185) };
                                 let bg_col = if is_active { Color32::from_rgb(34, 38, 54) } else { Color32::TRANSPARENT };
                                 let stroke_col = if is_active { Color32::from_rgb(58, 68, 94) } else { Color32::TRANSPARENT };
 
@@ -183,7 +183,7 @@ impl ControlPanel {
                             ui.horizontal(|ui| {
                                 let v_codec = if stats.video_codec.is_empty() { "No Media Loaded" } else { &stats.video_codec };
                                 ui.label(RichText::new("CODEC:").size(9.5).strong().color(Color32::from_rgb(130, 138, 158)));
-                                ui.label(RichText::new(v_codec).size(11.5).strong().color(VortexTheme::VORTEX_YELLOW));
+                                ui.label(RichText::new(v_codec).size(11.5).strong().color(VortexTheme::current_skin().accent_primary));
 
                                 if stats.video_width > 0 && stats.video_height > 0 {
                                     ui.add_space(8.0);
@@ -207,7 +207,7 @@ impl ControlPanel {
                                 ui.label(RichText::new("(Default: 100% Neutral)").size(10.5).color(Color32::from_rgb(120, 126, 142)));
 
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    if ui.button(RichText::new("↺ Reset Colors (Q)").size(11.0).strong().color(VortexTheme::VORTEX_YELLOW)).clicked() {
+                                    if ui.button(RichText::new("↺ Reset Colors (Q)").size(11.0).strong().color(VortexTheme::current_skin().accent_primary)).clicked() {
                                         config.video_brightness = 100.0;
                                         config.video_contrast = 100.0;
                                         config.video_saturation = 100.0;
@@ -368,7 +368,7 @@ impl ControlPanel {
                             ui.horizontal(|ui| {
                                 let mut eq_en = config.eq_enabled;
                                 let is_eq = eq_en;
-                                if ui.checkbox(&mut eq_en, RichText::new("Equalizer Active").strong().color(if is_eq { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE })).changed() {
+                                if ui.checkbox(&mut eq_en, RichText::new("Equalizer Active").strong().color(if is_eq { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).changed() {
                                     config.eq_enabled = eq_en;
                                     player.set_equalizer(eq_en, &config.eq_bands);
                                     let _ = config.save();
@@ -391,7 +391,7 @@ impl ControlPanel {
                                     }
 
                                     egui::ComboBox::from_id_salt("cp_eq_preset")
-                                        .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::VORTEX_YELLOW).strong())
+                                        .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::current_skin().accent_primary).strong())
                                         .show_ui(ui, |ui| {
                                             ui.label(RichText::new("── Built-in Presets ──").size(10.0).color(Color32::from_rgb(120, 125, 140)));
                                             for preset in VORTEX_EQ_PRESETS {
@@ -405,7 +405,7 @@ impl ControlPanel {
 
                                             if !config.custom_eq_presets.is_empty() {
                                                 ui.separator();
-                                                ui.label(RichText::new("── Custom Presets ──").size(10.0).color(VortexTheme::VORTEX_YELLOW));
+                                                ui.label(RichText::new("── Custom Presets ──").size(10.0).color(VortexTheme::current_skin().accent_primary));
                                                 let mut to_delete: Option<String> = None;
                                                 let custom_names: Vec<String> = config.custom_eq_presets.keys().cloned().collect();
                                                 for c_name in custom_names {
@@ -480,7 +480,7 @@ impl ControlPanel {
                                     .inner_margin(egui::Margin::symmetric(10, 6))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new("Preset Name:").size(11.0).color(VortexTheme::VORTEX_YELLOW).strong());
+                                            ui.label(RichText::new("Preset Name:").size(11.0).color(VortexTheme::current_skin().accent_primary).strong());
                                             let text_resp = ui.add(
                                                 egui::TextEdit::singleline(&mut self.new_preset_name)
                                                     .desired_width(180.0)
@@ -591,7 +591,7 @@ impl ControlPanel {
                             ui.horizontal(|ui| {
                                 let mut norm = config.audio_normalize;
                                 let is_norm = norm;
-                                if ui.checkbox(&mut norm, RichText::new("Dynamic Volume Normalizer (Night Mode)").size(11.5).color(if is_norm { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE })).changed() {
+                                if ui.checkbox(&mut norm, RichText::new("Dynamic Volume Normalizer (Night Mode)").size(11.5).color(if is_norm { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).changed() {
                                     config.audio_normalize = norm;
                                     player.set_audio_normalize(norm);
                                     let _ = config.save();
@@ -610,7 +610,7 @@ impl ControlPanel {
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new("Playback Rate & Transport").strong().size(12.5).color(Color32::WHITE));
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    if ui.button(RichText::new("1.0x (Normal)").color(VortexTheme::VORTEX_YELLOW).size(11.0).strong()).clicked() {
+                                    if ui.button(RichText::new("1.0x (Normal)").color(VortexTheme::current_skin().accent_primary).size(11.0).strong()).clicked() {
                                         player.set_speed(1.0);
                                     }
                                 });
@@ -695,7 +695,7 @@ impl ControlPanel {
 
                                 let mut shuf = playlist.is_shuffle();
                                 let is_shuf = shuf;
-                                if ui.checkbox(&mut shuf, RichText::new("🔀 Shuffle").size(11.5).color(if is_shuf { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE })).changed() {
+                                if ui.checkbox(&mut shuf, RichText::new("🔀 Shuffle").size(11.5).color(if is_shuf { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).changed() {
                                     playlist.set_shuffle(shuf);
                                     config.playlist_shuffle = shuf;
                                     let _ = config.save();
@@ -710,7 +710,7 @@ impl ControlPanel {
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let has_loop = bookmark_mgr.ab_loop.point_a.is_some() && bookmark_mgr.ab_loop.point_b.is_some();
                                     if has_loop {
-                                        ui.label(RichText::new("● LOOP ACTIVE").size(9.5).strong().color(VortexTheme::VORTEX_YELLOW));
+                                        ui.label(RichText::new("● LOOP ACTIVE").size(9.5).strong().color(VortexTheme::current_skin().accent_primary));
                                     } else {
                                         ui.label(RichText::new("○ INACTIVE").size(9.5).color(Color32::from_rgb(130, 135, 150)));
                                     }
@@ -733,12 +733,12 @@ impl ControlPanel {
                                 ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Actions:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
 
                                 let a_is_set = bookmark_mgr.ab_loop.point_a.is_some();
-                                if ui.button(RichText::new("[ Set Point A").color(if a_is_set { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE })).clicked() {
+                                if ui.button(RichText::new("[ Set Point A").color(if a_is_set { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).clicked() {
                                     bookmark_mgr.set_loop_a(stats.time_pos);
                                 }
 
                                 let b_is_set = bookmark_mgr.ab_loop.point_b.is_some();
-                                if ui.button(RichText::new("] Set Point B").color(if b_is_set { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE })).clicked() {
+                                if ui.button(RichText::new("] Set Point B").color(if b_is_set { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).clicked() {
                                     let _ = bookmark_mgr.set_loop_b(stats.time_pos);
                                 }
 

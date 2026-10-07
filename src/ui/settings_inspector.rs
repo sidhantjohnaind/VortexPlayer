@@ -33,7 +33,7 @@ impl SettingsInspectorDialog {
             .default_height(420.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("EFFECTIVE SETTINGS & ORIGIN HIERARCHY").strong().color(VortexTheme::VORTEX_YELLOW));
+                    ui.label(RichText::new("EFFECTIVE SETTINGS & ORIGIN HIERARCHY").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.label(RichText::new("(Global → Profile → Folder → File)").color(Color32::from_rgb(140, 140, 160)));
                 });
                 ui.separator();

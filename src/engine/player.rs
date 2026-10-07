@@ -77,6 +77,7 @@ pub struct MediaStats {
     pub audio_delay: f64,
     pub subtitle_delay: f64,
     pub subtitles_visible: bool,
+    pub current_sub_text: String,
     pub audio_tracks: Vec<TrackInfo>,
     pub selected_audio_track: i64,
     pub subtitle_tracks: Vec<TrackInfo>,
@@ -415,11 +416,11 @@ impl Player {
         Self::set_opt_str(&ffi, ctx, "audio-display", "no"); // Disable GPU video rendering for audio/album art (saves ~30W GPU power)
         Self::set_opt_str(&ffi, ctx, "sub-font-size", "28");
         Self::set_opt_str(&ffi, ctx, "sub-ass-override", "yes");
-        Self::set_opt_str(&ffi, ctx, "sub-ass-force-margins", "yes");
-        Self::set_opt_str(&ffi, ctx, "sub-use-margins", "yes");
-        Self::set_opt_str(&ffi, ctx, "sub-pos", "90");
-        Self::set_opt_str(&ffi, ctx, "sub-margin-y", "85");
-        Self::set_opt_str(&ffi, ctx, "sub-ass-style-overrides", "MarginV=85");
+        Self::set_opt_str(&ffi, ctx, "sub-ass-force-margins", "no");
+        Self::set_opt_str(&ffi, ctx, "sub-use-margins", "no");
+        Self::set_opt_str(&ffi, ctx, "sub-pos", "100");
+        Self::set_opt_str(&ffi, ctx, "sub-margin-y", "65");
+        Self::set_opt_str(&ffi, ctx, "sub-ass-style-overrides", "");
         Self::set_opt_str(&ffi, ctx, "volume-max", "200");
 
         // Disable internal mpv OSD & OSC so our custom modern egui OSD engine has exclusive rendering control
@@ -1358,7 +1359,7 @@ impl Player {
         };
         let arch_str = std::env::consts::ARCH;
         ass.push_str(&format!(
-            "{{\\c&HFFFFFF&}}VortexPlayer/OS Version: {{\\c&H66FF00&}}v1.0.0(Rust {}){{\\c&HFFFFFF&}}, {{\\c&HFFFF00&}}{}\\N\\N",
+            "{{\\c&HFFFFFF&}}VortexPlayer/OS Version: {{\\c&H66FF00&}}v1.1.0(Rust {}){{\\c&HFFFFFF&}}, {{\\c&HFFFF00&}}{}\\N\\N",
             arch_str, os_version_str
         ));
 
@@ -1471,6 +1472,10 @@ impl Player {
 
     pub fn toggle_subtitles(&self) {
         self.command(&["cycle", "sub-visibility"]);
+    }
+
+    pub fn get_current_sub_text(&self) -> String {
+        self.get_property_string("sub-text").unwrap_or_default()
     }
 
     pub fn load_external_subtitle(&self, path: &str) {
@@ -1800,7 +1805,6 @@ impl Player {
     pub fn set_subtitle_margins(&self, margin_x: i32, margin_y: i32) {
         self.set_property_string("sub-margin-x", &format!("{}", margin_x));
         self.set_property_string("sub-margin-y", &format!("{}", margin_y));
-        self.set_property_string("sub-ass-style-overrides", &format!("MarginV={}", margin_y));
     }
 
     pub fn set_subtitle_ass_override(&self, mode: &str) {
@@ -1821,8 +1825,8 @@ impl Player {
         self.set_subtitle_shadow_offset(config.subtitle_shadow_offset);
         self.set_subtitle_shadow_color(&config.subtitle_shadow_color);
         self.set_subtitle_background_box(config.subtitle_background_box, &config.subtitle_background_color);
-        let effective_pos = if config.subtitle_vertical_pos > 92.0 {
-            90.0
+        let effective_pos = if config.subtitle_vertical_pos <= 0.0 || config.subtitle_vertical_pos > 100.0 {
+            100.0
         } else {
             config.subtitle_vertical_pos
         };
@@ -1830,7 +1834,11 @@ impl Player {
         self.set_subtitle_align_x(&config.subtitle_align_x);
         self.set_subtitle_align_y(&config.subtitle_align_y);
         self.set_subtitle_letter_spacing(config.subtitle_letter_spacing);
-        let effective_margin_y = config.subtitle_margin_y.max(85);
+        let effective_margin_y = if config.subtitle_margin_y < 50 || config.subtitle_margin_y >= 150 {
+            65
+        } else {
+            config.subtitle_margin_y
+        };
         self.set_subtitle_margins(config.subtitle_margin_x, effective_margin_y);
         let ass_override = if config.subtitle_ass_override.is_empty() || config.subtitle_ass_override == "scale" {
             "yes"
@@ -1838,9 +1846,10 @@ impl Player {
             &config.subtitle_ass_override
         };
         self.set_subtitle_ass_override(ass_override);
-        self.set_property_string("sub-use-margins", if config.subtitle_render_to_video { "no" } else { "yes" });
-        self.set_property_string("sub-ass-force-margins", "yes");
-        self.set_property_string("sub-ass-style-overrides", &format!("MarginV={}", effective_margin_y));
+        let use_margins = if config.subtitle_render_to_video { "no" } else { "yes" };
+        self.set_property_string("sub-use-margins", use_margins);
+        self.set_property_string("sub-ass-force-margins", use_margins);
+        self.set_property_string("sub-ass-style-overrides", "");
         self.set_secondary_subtitle_pos(config.subtitle_secondary_pos);
     }
 
@@ -2264,6 +2273,7 @@ impl Player {
             stats.audio_delay = get_double("audio-delay").unwrap_or(0.0);
             stats.subtitle_delay = get_double("sub-delay").unwrap_or(0.0);
             stats.subtitles_visible = get_bool("sub-visibility").unwrap_or(true);
+            stats.current_sub_text = get_str("sub-text").unwrap_or_default();
             stats.cache_buffer_percent = get_double("demuxer-cache-state/cache-end-duration")
                 .map(|dur| if stats.duration > 0.0 { (dur / stats.duration * 100.0).clamp(0.0, 100.0) } else { 0.0 })
                 .unwrap_or(0.0);

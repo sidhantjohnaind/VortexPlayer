@@ -155,7 +155,7 @@ impl OsdEngine {
         self.render_ctx(ui.ctx(), video_rect, stats);
     }
 
-    pub fn render_ctx(&mut self, ctx: &egui::Context, video_rect: Rect, stats: &MediaStats) {
+    pub fn render_ctx(&mut self, ctx: &egui::Context, video_rect: Rect, _stats: &MediaStats) {
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("vortex_osd_layer")));
         let now = Instant::now();
 

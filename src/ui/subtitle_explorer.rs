@@ -34,7 +34,7 @@ impl SubtitleExplorerDialog {
             .default_height(400.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("SUBTITLE LINES & DIALOGUE").strong().color(VortexTheme::VORTEX_YELLOW));
+                    ui.label(RichText::new("SUBTITLE LINES & DIALOGUE").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.text_edit_singleline(&mut self.search_query);
                         ui.label("🔍 Search Text:");
@@ -57,7 +57,7 @@ impl SubtitleExplorerDialog {
                                     let mins = (start / 60.0).floor() as u32;
                                     let secs = (start % 60.0).floor() as u32;
                                     let time_str = format!("{:02}:{:02}", mins, secs);
-                                    if ui.button(RichText::new(time_str).monospace().color(VortexTheme::VORTEX_YELLOW)).clicked() {
+                                    if ui.button(RichText::new(time_str).monospace().color(VortexTheme::current_skin().accent_primary)).clicked() {
                                         *seek_to_time = Some(*start);
                                     }
                                     ui.label(text);

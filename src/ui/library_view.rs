@@ -40,7 +40,7 @@ impl LibraryView {
             .default_height(520.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("LIBRARY").strong().color(VortexTheme::VORTEX_YELLOW));
+                    ui.label(RichText::new("LIBRARY").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.add(egui::TextEdit::singleline(&mut self.search_query).hint_text("Search library by title, season, or tag...").desired_width(320.0));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -68,8 +68,8 @@ impl LibraryView {
                 if filtered.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(60.0);
-                        ui.label(RichText::new("No media in library").color(VortexTheme::TEXT_MUTED).size(14.0));
-                        ui.label(RichText::new("Click 'Add Watch Folder' above to scan your movies and series.").color(VortexTheme::TEXT_SECONDARY));
+                        ui.label(RichText::new("No media in library").color(VortexTheme::current_skin().text_muted).size(14.0));
+                        ui.label(RichText::new("Click 'Add Watch Folder' above to scan your movies and series.").color(VortexTheme::current_skin().text_secondary));
                     });
                 } else {
                     egui::ScrollArea::vertical().id_salt("library_view_scroll").show(ui, |ui| {
@@ -87,7 +87,7 @@ impl LibraryView {
 
                                     let is_h = resp.hovered();
                                     let bg = if is_h { Color32::from_rgb(32, 35, 46) } else { Color32::from_rgb(18, 20, 26) };
-                                    let border = if is_h { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(30, 34, 44) };
+                                    let border = if is_h { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(30, 34, 44) };
 
                                     painter.rect_filled(card_rect, CornerRadius::same(4), bg);
                                     painter.rect_stroke(card_rect, CornerRadius::same(4), Stroke::new(1.0, border), StrokeKind::Inside);
@@ -112,7 +112,7 @@ impl LibraryView {
                                             Align2::LEFT_TOP,
                                             format!("S{:02}E{:02}", s, e),
                                             FontId::monospace(9.5),
-                                            VortexTheme::VORTEX_YELLOW,
+                                            VortexTheme::current_skin().accent_primary,
                                         );
                                     }
 

@@ -126,14 +126,11 @@ fn menu_item(
 ) -> Response {
     let icon = safe_icon(icon);
     let w = ui.available_width();
-    let row_h = 22.0;
-
-    let btn = egui::Button::new("")
-        .min_size(Vec2::new(w, row_h))
-        .fill(Color32::TRANSPARENT)
-        .frame(false);
-
-    let resp = ui.add_enabled(!is_disabled, btn);
+    let row_h = 19.0;
+    let (_, resp) = ui.allocate_exact_size(
+        Vec2::new(w, row_h),
+        if is_disabled { Sense::hover() } else { Sense::click() },
+    );
     let is_hovered = resp.hovered();
 
     // When hovering a regular menu item, clear any active child submenu at this menu level
@@ -151,12 +148,12 @@ fn menu_item(
         painter.rect_filled(
             hover_rect,
             CornerRadius::ZERO,
-            Color32::from_rgb(34, 42, 60), // Subtle blue-gray accent hover
+            skin.bg_btn_hover,
         );
         painter.rect_stroke(
             hover_rect,
             CornerRadius::ZERO,
-            Stroke::new(1.0, Color32::from_rgb(48, 64, 96)),
+            Stroke::new(1.0, skin.border_light),
             eframe::egui::StrokeKind::Inside,
         );
     } else if is_checked {
@@ -164,7 +161,7 @@ fn menu_item(
         painter.rect_filled(
             sel_rect,
             CornerRadius::ZERO,
-            Color32::from_rgb(26, 32, 46),
+            skin.bg_btn_active,
         );
     }
 
@@ -205,25 +202,31 @@ fn menu_item(
     // 3. Label & Shortcut collision-proof layout
     let shortcut_reserved_w = if !shortcut.is_empty() {
         let sc_galley = painter.layout_no_wrap(shortcut.to_string(), FontId::proportional(10.5), Color32::WHITE);
-        sc_galley.size().x + 14.0
+        sc_galley.size().x + 16.0
     } else {
         8.0
     };
 
     let label_avail_w = (rect.width() - 26.0 - shortcut_reserved_w).max(20.0);
-    let label_rect = Rect::from_min_max(
-        Pos2::new(rect.left() + 22.0, rect.top()),
-        Pos2::new(rect.left() + 22.0 + label_avail_w, rect.bottom()),
-    );
+    let full_galley = painter.layout_no_wrap(label.to_string(), FontId::proportional(11.5), label_col);
+    let display_galley = if full_galley.size().x > label_avail_w {
+        let mut truncated = label.to_string();
+        while !truncated.is_empty() {
+            truncated.pop();
+            let test_str = format!("{}…", truncated.trim_end());
+            let test_galley = painter.layout_no_wrap(test_str.clone(), FontId::proportional(11.5), label_col);
+            if test_galley.size().x <= label_avail_w {
+                break;
+            }
+        }
+        let final_str = if truncated.is_empty() { label.to_string() } else { format!("{}…", truncated.trim_end()) };
+        painter.layout_no_wrap(final_str, FontId::proportional(11.5), label_col)
+    } else {
+        full_galley
+    };
 
-    let label_painter = painter.with_clip_rect(label_rect);
-    label_painter.text(
-        Pos2::new(rect.left() + 22.0, cy),
-        Align2::LEFT_CENTER,
-        label,
-        FontId::proportional(11.5),
-        label_col,
-    );
+    let label_pos = Pos2::new(rect.left() + 22.0, cy - display_galley.size().y * 0.5);
+    painter.galley(label_pos, display_galley, label_col);
 
     // 4. Shortcut Text (Right-aligned before right edge)
     if !shortcut.is_empty() {
@@ -257,7 +260,7 @@ fn submenu_item<R>(
 ) -> (Response, Option<InnerResponse<R>>) {
     let icon = safe_icon(icon);
     let w = ui.available_width();
-    let row_h = 22.0;
+    let row_h = 19.0;
     let menu_state_id = ui.id().with("active_submenu_id");
     let item_id = ui.make_persistent_id(label);
 
@@ -283,12 +286,12 @@ fn submenu_item<R>(
         painter.rect_filled(
             sel_rect,
             CornerRadius::ZERO,
-            Color32::from_rgb(38, 52, 82), // Elevated active accent highlight
+            skin.bg_btn_active,
         );
         painter.rect_stroke(
             sel_rect,
             CornerRadius::ZERO,
-            Stroke::new(1.0, Color32::from_rgb(58, 82, 130)),
+            Stroke::new(1.0, skin.border_light),
             eframe::egui::StrokeKind::Inside,
         );
     } else if is_hovered {
@@ -296,12 +299,12 @@ fn submenu_item<R>(
         painter.rect_filled(
             hover_rect,
             CornerRadius::ZERO,
-            Color32::from_rgb(34, 42, 60),
+            skin.bg_btn_hover,
         );
         painter.rect_stroke(
             hover_rect,
             CornerRadius::ZERO,
-            Stroke::new(1.0, Color32::from_rgb(48, 64, 96)),
+            Stroke::new(1.0, skin.border_light),
             eframe::egui::StrokeKind::Inside,
         );
     }
@@ -359,26 +362,31 @@ fn submenu_item<R>(
     // 5. Render Cascading Submenu Popup Area when open
     let mut inner_res = None;
     if is_open {
-        let win_size = ui.ctx().input(|i| i.viewport().inner_rect.or(i.raw.screen_rect)).map(|r| r.size()).unwrap_or(Vec2::new(1280.0, 720.0));
+        let win_size = ui.ctx().input(|i| i.raw.screen_rect.or(i.viewport().inner_rect)).map(|r| r.size()).unwrap_or(Vec2::new(1280.0, 720.0));
         let last_rect: Option<Rect> = ui.ctx().data(|d| d.get_temp(item_id.with("submenu_rect")));
-        let sub_h = last_rect.map(|r| r.height()).unwrap_or(360.0).max(160.0);
+        let sub_h = last_rect.map(|r| r.height()).unwrap_or(220.0).max(40.0);
 
         // Submenu cascading direction: if right edge overflows screen, flip to the left side
-        let sub_w = last_rect.map(|r| r.width()).unwrap_or(280.0).max(220.0);
-        let open_right = rect.right() + sub_w <= win_size.x - 8.0;
+        let sub_w = last_rect.map(|r| r.width()).unwrap_or(260.0).max(180.0);
+        let open_right = rect.right() + sub_w <= win_size.x - 6.0;
         let (popup_x, pivot) = if open_right {
             (rect.right() - 2.0, egui::Align2::LEFT_TOP)
         } else {
             (rect.left() + 2.0, egui::Align2::RIGHT_TOP)
         };
 
-        let max_menu_h = (win_size.y - 44.0).max(180.0);
-        let popup_y = if rect.top() + sub_h > win_size.y - 8.0 {
-            (win_size.y - sub_h - 8.0).max(34.0)
+        let available_sub_window_h = (win_size.y - 12.0).max(100.0);
+        let sub_fits_in_window = available_sub_window_h >= sub_h;
+
+        let popup_y = if !sub_fits_in_window {
+            6.0
+        } else if rect.top() - 4.0 + sub_h > win_size.y - 6.0 {
+            (win_size.y - 6.0 - sub_h).max(6.0)
         } else {
-            (rect.top() - 4.0).max(34.0)
+            (rect.top() - 4.0).max(6.0)
         };
 
+        let max_menu_h = (win_size.y - popup_y - 6.0).max(120.0);
         let popup_pos = Pos2::new(popup_x, popup_y);
 
         let area_resp = egui::Area::new(item_id.with("submenu_cascade_area"))
@@ -388,8 +396,8 @@ fn submenu_item<R>(
             .show(ui.ctx(), |ui| {
                 ui.style_mut().animation_time = 0.0;
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(0, 0, 0))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(38, 42, 54)))
+                    .fill(skin.bg_panel)
+                    .stroke(Stroke::new(1.0, skin.border_dark))
                     .corner_radius(CornerRadius::ZERO)
                     .shadow(egui::Shadow {
                         offset: [0, 8],
@@ -397,18 +405,24 @@ fn submenu_item<R>(
                         spread: 2,
                         color: Color32::from_black_alpha(190),
                     })
-                    .inner_margin(Margin::symmetric(4, 5))
+                    .inner_margin(Margin::symmetric(3, 2))
                     .show(ui, |ui| {
                         ui.set_min_width(220.0);
-                        ui.set_max_width(450.0);
-                        egui::ScrollArea::vertical()
-                            .max_height(max_menu_h)
-                            .auto_shrink([true, true])
-                            .show(ui, |ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.5);
-                                ui.spacing_mut().button_padding = Vec2::new(6.0, 3.5);
-                                content(ui)
-                            })
+                        ui.set_max_width(520.0);
+                        ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.5);
+                        ui.spacing_mut().button_padding = Vec2::new(4.0, 1.0);
+                        ui.spacing_mut().menu_margin = Margin::symmetric(3, 2);
+                        if sub_fits_in_window {
+                            content(ui)
+                        } else {
+                            egui::ScrollArea::vertical()
+                                .max_height(max_menu_h)
+                                .auto_shrink([true, true])
+                                .show(ui, |ui| {
+                                    content(ui)
+                                })
+                                .inner
+                        }
                     })
             });
 
@@ -432,6 +446,7 @@ fn submenu_item<R>(
         ui.ctx().data_mut(|d| {
             d.insert_temp(item_id.with("submenu_rect"), actual_rect);
             d.insert_temp(item_id.with("submenu_bridge_rect"), total_active_rect);
+            d.insert_temp(egui::Id::new("latest_active_submenu_rect"), Some(total_active_rect));
             let list: &mut Vec<Rect> = d.get_temp_mut_or_default(egui::Id::new("all_active_submenu_rects"));
             list.push(actual_rect);
         });
@@ -445,7 +460,7 @@ fn submenu_item<R>(
         }
 
         inner_res = Some(InnerResponse {
-            inner: area_resp.inner.inner.inner,
+            inner: area_resp.inner.inner,
             response: area_resp.response,
         });
     }
@@ -534,7 +549,7 @@ fn audio_track_item(
 /// Reusable Context Menu Separator with Inset Padding
 fn menu_separator(ui: &mut egui::Ui) {
     let w = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 8.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 4.0), Sense::hover());
     let cy = rect.center().y;
     let inset = 8.0;
     ui.painter().line_segment(
@@ -542,7 +557,7 @@ fn menu_separator(ui: &mut egui::Ui) {
             Pos2::new(rect.left() + inset, cy),
             Pos2::new(rect.right() - inset, cy),
         ],
-        Stroke::new(1.0, Color32::from_rgb(36, 40, 52)),
+        Stroke::new(1.0, ui.visuals().window_stroke.color),
     );
 }
 
@@ -651,22 +666,22 @@ impl VortexMenu {
         // Apply Unified Global Menu Aesthetics across all popup and submenus (260px first menu width)
         ui.set_width(260.0);
         ui.set_min_width(260.0);
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.5);
-        ui.spacing_mut().button_padding = Vec2::new(4.0, 2.5);
-        ui.spacing_mut().menu_margin = Margin::symmetric(3, 4);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.5);
+        ui.spacing_mut().button_padding = Vec2::new(4.0, 1.0);
+        ui.spacing_mut().menu_margin = Margin::symmetric(3, 2);
 
         let visuals = ui.visuals_mut();
         visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
         visuals.widgets.inactive.bg_stroke = Stroke::NONE;
-        visuals.widgets.hovered.bg_fill = Color32::from_rgb(34, 42, 60);
+        visuals.widgets.hovered.bg_fill = skin.bg_btn_hover;
         visuals.widgets.hovered.bg_stroke = Stroke::NONE;
         visuals.widgets.hovered.corner_radius = CornerRadius::ZERO;
-        visuals.widgets.active.bg_fill = Color32::from_rgb(38, 52, 82);
+        visuals.widgets.active.bg_fill = skin.bg_btn_active;
         visuals.widgets.active.bg_stroke = Stroke::NONE;
         visuals.widgets.active.corner_radius = CornerRadius::ZERO;
         visuals.menu_corner_radius = CornerRadius::ZERO;
-        visuals.window_fill = Color32::from_rgb(0, 0, 0);
-        visuals.window_stroke = Stroke::new(1.0, Color32::from_rgb(38, 42, 54));
+        visuals.window_fill = skin.bg_panel;
+        visuals.window_stroke = Stroke::new(1.0, skin.border_dark);
         visuals.window_shadow = egui::Shadow {
             offset: [0, 8],
             blur: 24,
@@ -913,19 +928,56 @@ impl VortexMenu {
             });
             submenu_item(ui, &skin, "⏭", "Skip / Auto-Skip", |ui| {
                 ui.set_min_width(220.0);
-                let auto_skip_on = bookmark_mgr.auto_skip_bookmarks || config.skip_intro_enabled;
+                let auto_skip_on = config.skip_intro_enabled;
                 if menu_item(ui, &skin, if auto_skip_on { "✓" } else { " " }, "Enable Auto-Skip Engine", "Ctrl+Alt+S", auto_skip_on, false).clicked() {
-                    let new_state = !auto_skip_on;
-                    bookmark_mgr.auto_skip_bookmarks = new_state;
+                    let new_state = !config.skip_intro_enabled;
                     config.skip_intro_enabled = new_state;
+                    bookmark_mgr.auto_skip_bookmarks = new_state;
                     let _ = config.save();
                     ui.close();
                 }
                 if menu_item(ui, &skin, if config.skip_chapters_enabled { "✓" } else { " " }, "Auto-Skip Chapters (OP/ED)", "", config.skip_chapters_enabled, false).clicked() {
                     config.skip_chapters_enabled = !config.skip_chapters_enabled;
+                    if config.skip_chapters_enabled && !config.skip_intro_enabled {
+                        config.skip_intro_enabled = true;
+                        bookmark_mgr.auto_skip_bookmarks = true;
+                    }
                     let _ = config.save();
                     ui.close();
                 }
+                submenu_item(ui, &skin, "🏷", "Chapter Skip Keywords", |ui| {
+                    ui.set_min_width(200.0);
+                    let mut tags = crate::ui::auto_skip_dialog::tags_from_config_string(&config.skip_chapter_titles);
+                    let mut changed = false;
+
+                    for tag in &mut tags {
+                        let icon = if tag.enabled { "✓" } else { " " };
+                        let label = tag.keyword.clone();
+                        if menu_item(ui, &skin, icon, &label, "", tag.enabled, false).clicked() {
+                            tag.enabled = !tag.enabled;
+                            changed = true;
+                        }
+                    }
+
+                    menu_separator(ui);
+                    if menu_item(ui, &skin, "✓", "Enable All Keywords", "", false, false).clicked() {
+                        for tag in &mut tags {
+                            tag.enabled = true;
+                        }
+                        changed = true;
+                    }
+                    if menu_item(ui, &skin, "✕", "Disable All Keywords", "", false, false).clicked() {
+                        for tag in &mut tags {
+                            tag.enabled = false;
+                        }
+                        changed = true;
+                    }
+
+                    if changed {
+                        config.skip_chapter_titles = crate::ui::auto_skip_dialog::tags_to_config_string(&tags);
+                        let _ = config.save();
+                    }
+                });
                 menu_separator(ui);
                 if menu_item(ui, &skin, "📋", "Auto-Skip Range Table / Manager...", "Ctrl+Shift+A", false, false).clicked() {
                     actions.toggle_auto_skip_dialog = true;
@@ -1095,6 +1147,48 @@ impl VortexMenu {
                 actions.toggle_subtitle_lookup = true;
                 ui.close();
             }
+            menu_separator(ui);
+
+            if !stats.current_sub_text.is_empty() {
+                let clean_sub = stats.current_sub_text.replace('\n', " ").trim().to_string();
+                let short_sub = if clean_sub.chars().count() > 24 {
+                    format!("{}...", clean_sub.chars().take(22).collect::<String>())
+                } else {
+                    clean_sub.clone()
+                };
+                let search_label = format!("Search: \"{}\" on Google", short_sub);
+                if menu_item(ui, &skin, "🔍", &search_label, "Ctrl+G", false, false).clicked() {
+                    crate::ui::subtitle_lookup_dialog::SubtitleLookupDialog::open_web_search(&clean_sub, &config.subtitle_search_engine);
+                    ui.close();
+                }
+                if menu_item(ui, &skin, "🌐", "Translate Subtitle (Google Translate)", "", false, false).clicked() {
+                    crate::ui::subtitle_lookup_dialog::SubtitleLookupDialog::open_web_search(&clean_sub, "Google Translate");
+                    ui.close();
+                }
+                if menu_item(ui, &skin, "📋", "Copy Subtitle to Clipboard", "Ctrl+C", false, false).clicked() {
+                    ui.ctx().copy_text(clean_sub);
+                    ui.close();
+                }
+                menu_separator(ui);
+            }
+
+            submenu_item(ui, &skin, "🔎", "Subtitle Click Search", |ui| {
+                ui.set_min_width(220.0);
+                if menu_item(ui, &skin, if config.subtitle_click_search { "✓" } else { " " }, "Search on Subtitle Click / Hover", "", config.subtitle_click_search, false).clicked() {
+                    config.subtitle_click_search = !config.subtitle_click_search;
+                    let _ = config.save();
+                    ui.close();
+                }
+                menu_separator(ui);
+                for engine in &["Google", "Google Translate", "DuckDuckGo", "Bing", "Cambridge"] {
+                    let is_sel = config.subtitle_search_engine == *engine;
+                    if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, engine, "", is_sel, false).clicked() {
+                        config.subtitle_search_engine = engine.to_string();
+                        let _ = config.save();
+                        ui.close();
+                    }
+                }
+            });
             menu_separator(ui);
 
             // Subtitle Track Selection
@@ -1329,8 +1423,8 @@ impl VortexMenu {
                 }
                 menu_separator(ui);
                 let pos_presets = [
-                    (102.0, "Bottom Edge (102% - Recommended)"),
-                    (100.0, "Standard Bottom (100%)"),
+                    (100.0, "Standard Bottom (100% - Recommended)"),
+                    (96.0, "Safe In-Picture (96%)"),
                     (92.0, "Floating (92%)"),
                     (50.0, "Center (50%)"),
                     (10.0, "Top (10%)"),
@@ -1361,14 +1455,20 @@ impl VortexMenu {
                 let lb_sel = !config.subtitle_render_to_video;
                 if menu_item(ui, &skin, if lb_sel { "✓" } else { " " }, "Render in Black Bar Letterbox", "", lb_sel, false).clicked() {
                     config.subtitle_render_to_video = false;
-                    if let Some(p) = player { p.set_property_string("sub-use-margins", "yes"); }
+                    if let Some(p) = player {
+                        p.set_property_string("sub-use-margins", "yes");
+                        p.set_property_string("sub-ass-force-margins", "yes");
+                    }
                     let _ = config.save();
                     ui.close();
                 }
                 let vid_sel = config.subtitle_render_to_video;
                 if menu_item(ui, &skin, if vid_sel { "✓" } else { " " }, "Force Render Inside Video Frame", "", vid_sel, false).clicked() {
                     config.subtitle_render_to_video = true;
-                    if let Some(p) = player { p.set_property_string("sub-use-margins", "no"); }
+                    if let Some(p) = player {
+                        p.set_property_string("sub-use-margins", "no");
+                        p.set_property_string("sub-ass-force-margins", "no");
+                    }
                     let _ = config.save();
                     ui.close();
                 }
@@ -1686,7 +1786,7 @@ impl VortexMenu {
         // 5. AUDIO
         // =====================================================================
         submenu_item(ui, &skin, "🔊", "Audio", |ui| {
-            ui.set_min_width(350.0);
+            ui.set_min_width(380.0);
             if menu_item(ui, &skin, "🎤", "Karaoke Studio...", "Ctrl+K", false, false).clicked() {
                 actions.toggle_karaoke = true;
                 ui.close();
@@ -1979,66 +2079,57 @@ impl VortexMenu {
             }
             submenu_item(ui, &skin, "🧊", "3D Reverb Space", |ui| {
                 ui.set_min_width(140.0);
-                if menu_item(ui, &skin, "✓", "Off (Bypass)", "", true, false).clicked() {
-                    if let Some(p) = player {
-                        p.set_audio_reverb("off");
+                let reverb_modes = [
+                    ("off", "Off (Bypass)"),
+                    ("studio", "Studio Room"),
+                    ("living_room", "Living Room"),
+                    ("concert_hall", "Concert Hall"),
+                    ("arena", "Arena / Stadium"),
+                ];
+                for (rev_id, label) in reverb_modes {
+                    let is_sel = config.audio_reverb == rev_id;
+                    if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
+                        config.audio_reverb = rev_id.to_string();
+                        if let Some(p) = player {
+                            p.set_audio_reverb(rev_id);
+                        }
+                        let _ = config.save();
+                        actions.close_menu = true;
+                        ui.close();
                     }
-                    actions.close_menu = true;
-                    ui.close();
-                }
-                if menu_item(ui, &skin, " ", "Studio Room", "", false, false).clicked() {
-                    if let Some(p) = player {
-                        p.set_audio_reverb("studio");
-                    }
-                    actions.close_menu = true;
-                    ui.close();
-                }
-                if menu_item(ui, &skin, " ", "Living Room", "", false, false).clicked() {
-                    if let Some(p) = player {
-                        p.set_audio_reverb("living_room");
-                    }
-                    actions.close_menu = true;
-                    ui.close();
-                }
-                if menu_item(ui, &skin, " ", "Concert Hall", "", false, false).clicked() {
-                    if let Some(p) = player {
-                        p.set_audio_reverb("concert_hall");
-                    }
-                    actions.close_menu = true;
-                    ui.close();
-                }
-                if menu_item(ui, &skin, " ", "Arena / Stadium", "", false, false).clicked() {
-                    if let Some(p) = player {
-                        p.set_audio_reverb("arena");
-                    }
-                    actions.close_menu = true;
-                    ui.close();
                 }
             });
-            if menu_item(ui, &skin, "🖴", "HDMI / S/PDIF Bitstream Passthrough", "", false, false).clicked() {
+            let passthrough_icon = if config.audio_passthrough { "✓" } else { " " };
+            if menu_item(ui, &skin, passthrough_icon, "HDMI / S/PDIF Bitstream Passthrough", "", config.audio_passthrough, false).clicked() {
+                config.audio_passthrough = !config.audio_passthrough;
+                if let Some(p) = player {
+                    p.set_audio_passthrough(config.audio_passthrough);
+                }
+                let _ = config.save();
+                actions.close_menu = true;
                 ui.close();
             }
             if menu_item(ui, &skin, "🎛️", "VST2 / VST3 & Winamp DSP Host...", "Ctrl+Alt+V", false, false).clicked() {
                 actions.toggle_vst_winamp = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "🎧", "Bauer BS2B Headphone Crossfeed & HRTF...", "Ctrl+Alt+H", false, false).clicked() {
+            if menu_item(ui, &skin, "🎧", "BS2B Crossfeed & HRTF (Headphone)...", "Ctrl+Alt+H", false, false).clicked() {
                 actions.toggle_binaural_crossfeed = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "🔊", "Dynamic Range Compressor & Night Mode...", "Ctrl+Shift+N", false, false).clicked() {
+            if menu_item(ui, &skin, "🔊", "Audio Compressor & Night Mode...", "Ctrl+Shift+N", false, false).clicked() {
                 actions.toggle_audio_compressor = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "🎙️", "AI Neural Voice Isolation & RNNoise...", "Ctrl+Alt+6", false, false).clicked() {
+            if menu_item(ui, &skin, "🎙️", "AI Voice Isolation & RNNoise...", "Ctrl+Alt+6", false, false).clicked() {
                 actions.toggle_ai_audio = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "📊", "EBU R128 & LUFS Loudness Radar...", "Ctrl+Alt+7", false, false).clicked() {
+            if menu_item(ui, &skin, "📊", "EBU R128 Loudness Radar...", "Ctrl+Alt+7", false, false).clicked() {
                 actions.toggle_loudness_radar = true;
                 ui.close();
             }
-            if menu_item(ui, &skin, "🎵", "Musical Pitch & Formant Shifter...", "Ctrl+Alt+P", false, false).clicked() {
+            if menu_item(ui, &skin, "🎵", "Pitch & Formant Shifter...", "Ctrl+Alt+P", false, false).clicked() {
                 actions.toggle_pitch_formant = true;
                 ui.close();
             }
@@ -2180,29 +2271,6 @@ impl VortexMenu {
         // =====================================================================
         // 7. WINDOW SIZING & FULLSCREEN
         // =====================================================================
-        submenu_item(ui, &skin, "⛶", "Frame Size", |ui| {
-            ui.set_min_width(145.0);
-            if menu_item(ui, &skin, " ", "0.5× Half Size", "0.5×", false, false).clicked() {
-                actions.resize_window_factor = Some(0.5);
-                ui.close();
-            }
-            if menu_item(ui, &skin, " ", "1.0× Original Size", "1.0×", false, false).clicked() {
-                actions.resize_window_factor = Some(1.0);
-                ui.close();
-            }
-            if menu_item(ui, &skin, " ", "1.5× 150% Size", "1.5×", false, false).clicked() {
-                actions.resize_window_factor = Some(1.5);
-                ui.close();
-            }
-            if menu_item(ui, &skin, " ", "2.0× Double Size", "2.0×", false, false).clicked() {
-                actions.resize_window_factor = Some(2.0);
-                ui.close();
-            }
-            if menu_item(ui, &skin, " ", "Fit to Screen", "", false, false).clicked() {
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-                ui.close();
-            }
-        });
 
         submenu_item(ui, &skin, "🗖", "Aspect Ratio", |ui| {
             ui.set_min_width(135.0);

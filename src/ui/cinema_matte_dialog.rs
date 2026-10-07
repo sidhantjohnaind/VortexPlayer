@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use eframe::egui::{self, Color32, RichText, Slider, Vec2};
+use eframe::egui::{self, Color32, CornerRadius, Pos2, Rect, RichText, Slider, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CinemaMattePreset {
@@ -83,6 +83,55 @@ impl CinemaMatteDialog {
                 self.left_curtain_pct = 12.5; self.right_curtain_pct = 12.5;
             }
             _ => {}
+        }
+    }
+
+    pub fn render_curtains(&self, ui: &mut egui::Ui, video_rect: Rect) {
+        if !self.is_active || self.preset == CinemaMattePreset::Off {
+            return;
+        }
+
+        let painter = ui.painter();
+        let alpha = (self.curtain_opacity.clamp(0.0, 1.0) * 255.0) as u8;
+        let matte_col = Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
+
+        let w = video_rect.width();
+        let h = video_rect.height();
+
+        // Top Curtain
+        if self.top_curtain_pct > 0.0 {
+            let top_h = h * (self.top_curtain_pct / 100.0);
+            let top_rect = Rect::from_min_size(video_rect.left_top(), Vec2::new(w, top_h));
+            painter.rect_filled(top_rect, CornerRadius::ZERO, matte_col);
+            if self.ambient_bias_glow {
+                let glow_rect = Rect::from_min_size(Pos2::new(video_rect.left(), top_rect.bottom()), Vec2::new(w, 2.0));
+                painter.rect_filled(glow_rect, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(60, 100, 180, 70));
+            }
+        }
+
+        // Bottom Curtain
+        if self.bottom_curtain_pct > 0.0 {
+            let bot_h = h * (self.bottom_curtain_pct / 100.0);
+            let bot_rect = Rect::from_min_size(Pos2::new(video_rect.left(), video_rect.bottom() - bot_h), Vec2::new(w, bot_h));
+            painter.rect_filled(bot_rect, CornerRadius::ZERO, matte_col);
+            if self.ambient_bias_glow {
+                let glow_rect = Rect::from_min_size(Pos2::new(video_rect.left(), bot_rect.top() - 2.0), Vec2::new(w, 2.0));
+                painter.rect_filled(glow_rect, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(60, 100, 180, 70));
+            }
+        }
+
+        // Left Curtain (Pillarbox)
+        if self.left_curtain_pct > 0.0 {
+            let left_w = w * (self.left_curtain_pct / 100.0);
+            let left_rect = Rect::from_min_size(video_rect.left_top(), Vec2::new(left_w, h));
+            painter.rect_filled(left_rect, CornerRadius::ZERO, matte_col);
+        }
+
+        // Right Curtain (Pillarbox)
+        if self.right_curtain_pct > 0.0 {
+            let right_w = w * (self.right_curtain_pct / 100.0);
+            let right_rect = Rect::from_min_size(Pos2::new(video_rect.right() - right_w, video_rect.top()), Vec2::new(right_w, h));
+            painter.rect_filled(right_rect, CornerRadius::ZERO, matte_col);
         }
     }
 

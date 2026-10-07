@@ -71,7 +71,7 @@ impl Default for AutoSkipDialog {
 }
 
 /// Parse the semicolon-delimited config string into a Vec<SkipTag>.
-fn tags_from_config_string(s: &str) -> Vec<SkipTag> {
+pub fn tags_from_config_string(s: &str) -> Vec<SkipTag> {
     let mut tags: Vec<SkipTag> = Vec::new();
     for token in s.split(';') {
         let t = token.trim();
@@ -103,7 +103,7 @@ fn tags_from_config_string(s: &str) -> Vec<SkipTag> {
 
 /// Serialize tags back into a semicolon-delimited string for config storage.
 /// Disabled tags are prefixed with '!'.
-fn tags_to_config_string(tags: &[SkipTag]) -> String {
+pub fn tags_to_config_string(tags: &[SkipTag]) -> String {
     tags.iter()
         .map(|tag| {
             if tag.enabled {
@@ -579,7 +579,7 @@ impl AutoSkipDialog {
                                                 .color(if is_selected {
                                                     Color32::WHITE
                                                 } else {
-                                                    VortexTheme::VORTEX_YELLOW
+                                                    VortexTheme::current_skin().accent_primary
                                                 }),
                                             ));
                                         });

@@ -19,7 +19,7 @@ fn main() {
             };
 
             let rc_content = format!(
-                "1 ICON \"{}\"\r\n{}1 VERSIONINFO\r\nFILEVERSION 1,0,0,0\r\nPRODUCTVERSION 1,0,0,0\r\nBEGIN\r\n  BLOCK \"StringFileInfo\"\r\n  BEGIN\r\n    BLOCK \"040904B0\"\r\n    BEGIN\r\n      VALUE \"CompanyName\", \"Vortex Media\\0\"\r\n      VALUE \"FileDescription\", \"VortexPlayer - Modern Media Player\\0\"\r\n      VALUE \"FileVersion\", \"1.0.0.0\\0\"\r\n      VALUE \"InternalName\", \"VortexPlayer\\0\"\r\n      VALUE \"OriginalFilename\", \"vortex-player-egui.exe\\0\"\r\n      VALUE \"ProductName\", \"VortexPlayer\\0\"\r\n      VALUE \"ProductVersion\", \"1.0.0\\0\"\r\n    END\r\n  END\r\n  BLOCK \"VarFileInfo\"\r\n  BEGIN\r\n    VALUE \"Translation\", 0x0409, 0x04B0\r\n  END\r\nEND\r\n",
+                "1 ICON \"{}\"\r\n{}1 VERSIONINFO\r\nFILEVERSION 1,1,0,0\r\nPRODUCTVERSION 1,1,0,0\r\nBEGIN\r\n  BLOCK \"StringFileInfo\"\r\n  BEGIN\r\n    BLOCK \"040904B0\"\r\n    BEGIN\r\n      VALUE \"CompanyName\", \"Vortex Media\\0\"\r\n      VALUE \"FileDescription\", \"VortexPlayer - Modern Media Player\\0\"\r\n      VALUE \"FileVersion\", \"1.1.0.0\\0\"\r\n      VALUE \"InternalName\", \"VortexPlayer\\0\"\r\n      VALUE \"OriginalFilename\", \"vortex-player-egui.exe\\0\"\r\n      VALUE \"ProductName\", \"VortexPlayer\\0\"\r\n      VALUE \"ProductVersion\", \"1.1.0\\0\"\r\n    END\r\n  END\r\n  BLOCK \"VarFileInfo\"\r\n  BEGIN\r\n    VALUE \"Translation\", 0x0409, 0x04B0\r\n  END\r\nEND\r\n",
                 icon_str, manifest_line
             );
 

@@ -206,7 +206,7 @@ impl PlaylistPanel {
                         let pin_btn = egui::Button::new(
                             egui::RichText::new(if is_pinned { "★ PIN" } else { "☆ PIN" })
                                 .size(10.5)
-                                .color(if is_pinned { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 160) })
+                                .color(if is_pinned { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(140, 145, 160) })
                         );
                         if ui.add(pin_btn).on_hover_text(if is_pinned { "Pinned Always on Top" } else { "Pin window always on top" }).clicked() {
                             actions.toggle_pin = true;
@@ -260,7 +260,7 @@ impl PlaylistPanel {
                                 Pos2::new(r.min.x + 6.0, r.max.y - 2.0),
                                 Vec2::new(r.width() - 12.0, 2.0),
                             );
-                            painter.rect_filled(indicator_r, CornerRadius::same(1), VortexTheme::VORTEX_YELLOW);
+                            painter.rect_filled(indicator_r, CornerRadius::same(1), VortexTheme::current_skin().accent_primary);
                         }
 
                         let text_color = if is_active {
@@ -366,7 +366,7 @@ impl PlaylistPanel {
                             painter.rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, border), StrokeKind::Inside);
 
                             let text_color = if is_active {
-                                VortexTheme::VORTEX_YELLOW
+                                VortexTheme::current_skin().accent_primary
                             } else if resp.hovered() {
                                 Color32::from_rgb(200, 205, 220)
                             } else {
@@ -649,7 +649,7 @@ impl PlaylistPanel {
                                     let rep_btn = egui::Button::new(
                                         egui::RichText::new(rep_label)
                                             .size(10.0)
-                                            .color(if is_rep_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
+                                            .color(if is_rep_active { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(160, 165, 175) })
                                     );
                                     if ui.add(rep_btn).on_hover_text("Cycle Repeat Mode").clicked() {
                                         playlist.cycle_repeat_mode();
@@ -660,7 +660,7 @@ impl PlaylistPanel {
                                     let shuf_btn = egui::Button::new(
                                         egui::RichText::new("Shuf")
                                             .size(10.0)
-                                            .color(if is_shuf_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 175) })
+                                            .color(if is_shuf_active { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(160, 165, 175) })
                                     );
                                     if ui.add(shuf_btn).on_hover_text("Toggle Shuffle Playback").clicked() {
                                         playlist.toggle_shuffle();
@@ -670,7 +670,7 @@ impl PlaylistPanel {
                                     let restore_btn = egui::Button::new(
                                         egui::RichText::new(if restore_prev { "Prev: ON" } else { "Prev: OFF" })
                                             .size(10.0)
-                                            .color(if restore_prev { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(140, 145, 155) })
+                                            .color(if restore_prev { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(140, 145, 155) })
                                     );
                                     if ui.add(restore_btn).on_hover_text("Toggle restoring previous playlist on direct launch (switched OFF by default)").clicked() {
                                         actions.toggle_restore_prev = true;
@@ -720,7 +720,7 @@ impl PlaylistPanel {
                         let folder_name = browser_dir.file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or_else(|| browser_dir.to_str().unwrap_or("Root"));
-                        ui.label(egui::RichText::new(folder_name).strong().color(VortexTheme::VORTEX_YELLOW));
+                        ui.label(egui::RichText::new(folder_name).strong().color(VortexTheme::current_skin().accent_primary));
                     });
 
                     // Search box in current folder
@@ -824,7 +824,7 @@ impl PlaylistPanel {
                 // =========================================================================
                 DrawerTab::ChaptersBookmarks => {
                     ui.horizontal(|ui| {
-                        if ui.button(egui::RichText::new("➕ Add Bookmark (P)").color(VortexTheme::VORTEX_YELLOW).strong()).clicked() {
+                        if ui.button(egui::RichText::new("➕ Add Bookmark (P)").color(VortexTheme::current_skin().accent_primary).strong()).clicked() {
                             actions.add_bookmark = true;
                         }
                     });
@@ -844,7 +844,7 @@ impl PlaylistPanel {
                                     let time_str = format_time(ch.time_pos);
                                     let title = if ch.title.is_empty() { format!("Chapter {}", idx + 1) } else { ch.title.clone() };
                                     ui.horizontal(|ui| {
-                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::VORTEX_YELLOW)).clicked() {
+                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::current_skin().accent_primary)).clicked() {
                                             actions.seek_to = Some(ch.time_pos);
                                         }
                                         if ui.selectable_label(false, &title).clicked() {
@@ -857,7 +857,7 @@ impl PlaylistPanel {
                             }
 
                             // 2. User PBF Bookmarks
-                            ui.label(egui::RichText::new(format!("USER BOOKMARKS ({})", bookmark_mgr.bookmarks.len())).strong().color(VortexTheme::VORTEX_YELLOW));
+                            ui.label(egui::RichText::new(format!("USER BOOKMARKS ({})", bookmark_mgr.bookmarks.len())).strong().color(VortexTheme::current_skin().accent_primary));
                             if bookmark_mgr.bookmarks.is_empty() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(20.0);
@@ -868,7 +868,7 @@ impl PlaylistPanel {
                                 for (b_idx, bm) in bookmark_mgr.bookmarks.iter().enumerate() {
                                     let time_str = format_time(bm.time_pos);
                                     ui.horizontal(|ui| {
-                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::VORTEX_YELLOW)).clicked() {
+                                        if ui.button(egui::RichText::new(&time_str).monospace().color(VortexTheme::current_skin().accent_primary)).clicked() {
                                             actions.seek_to = Some(bm.time_pos);
                                         }
                                         if ui.selectable_label(false, &bm.title).clicked() {
@@ -914,7 +914,7 @@ impl PlaylistPanel {
                                         count += 1;
                                         let time_str = format_time(*start);
                                         ui.horizontal(|ui| {
-                                            if ui.button(egui::RichText::new(&time_str).monospace().size(10.0).color(VortexTheme::VORTEX_YELLOW)).clicked() {
+                                            if ui.button(egui::RichText::new(&time_str).monospace().size(10.0).color(VortexTheme::current_skin().accent_primary)).clicked() {
                                                 actions.seek_to = Some(*start);
                                             }
                                             if ui.selectable_label(false, text).clicked() {

@@ -2,6 +2,7 @@
 
 use eframe::egui::{self, Color32, CornerRadius, Margin, Stroke, Vec2};
 pub use crate::config::ThemeMode;
+use std::sync::RwLock;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SkinColors {
@@ -20,6 +21,9 @@ pub struct SkinColors {
     pub border_dark: Color32,
     pub border_light: Color32,
 }
+
+/// Global active skin – updated by `VortexTheme::apply()`.
+static CURRENT_SKIN: RwLock<Option<SkinColors>> = RwLock::new(None);
 
 pub struct VortexTheme;
 
@@ -41,6 +45,16 @@ impl VortexTheme {
     pub const BG_CARD: Color32           = Color32::from_rgb(32, 34, 40);
     pub const BG_ACTIVE: Color32         = Color32::from_rgb(58, 62, 75);
     pub const BG_HOVER: Color32          = Color32::from_rgb(46, 50, 60);
+
+    /// Returns the currently active skin (set by the last `apply()` call).
+    /// Falls back to VortexClassic if apply() has never been called.
+    pub fn current_skin() -> SkinColors {
+        CURRENT_SKIN
+            .read()
+            .ok()
+            .and_then(|guard| *guard)
+            .unwrap_or_else(|| Self::get_skin(ThemeMode::VortexClassic))
+    }
 
     pub fn get_skin(mode: ThemeMode) -> SkinColors {
         match mode {
@@ -172,20 +186,120 @@ impl VortexTheme {
                 border_dark: Color32::from_rgb(38, 46, 62),
                 border_light: Color32::from_rgb(55, 68, 90),
             },
+            ThemeMode::SolarizedDark => SkinColors {
+                bg_canvas: Color32::from_rgb(0, 43, 54),
+                bg_titlebar: Color32::from_rgb(7, 54, 66),
+                bg_toolbar: Color32::from_rgb(10, 60, 74),
+                bg_panel: Color32::from_rgb(4, 34, 43),
+                bg_btn: Color32::from_rgb(15, 68, 82),
+                bg_btn_hover: Color32::from_rgb(22, 85, 102),
+                bg_btn_active: Color32::from_rgb(32, 105, 124),
+                accent_primary: Color32::from_rgb(181, 137, 0),
+                accent_bright: Color32::from_rgb(203, 75, 22),
+                text_primary: Color32::from_rgb(147, 161, 161),
+                text_secondary: Color32::from_rgb(101, 123, 131),
+                text_muted: Color32::from_rgb(88, 110, 117),
+                border_dark: Color32::from_rgb(7, 54, 66),
+                border_light: Color32::from_rgb(14, 75, 92),
+            },
+            ThemeMode::Dracula => SkinColors {
+                bg_canvas: Color32::from_rgb(40, 42, 54),
+                bg_titlebar: Color32::from_rgb(33, 34, 44),
+                bg_toolbar: Color32::from_rgb(36, 38, 50),
+                bg_panel: Color32::from_rgb(30, 31, 41),
+                bg_btn: Color32::from_rgb(68, 71, 90),
+                bg_btn_hover: Color32::from_rgb(98, 103, 130),
+                bg_btn_active: Color32::from_rgb(120, 126, 160),
+                accent_primary: Color32::from_rgb(189, 147, 249),
+                accent_bright: Color32::from_rgb(255, 121, 198),
+                text_primary: Color32::from_rgb(248, 248, 242),
+                text_secondary: Color32::from_rgb(180, 185, 205),
+                text_muted: Color32::from_rgb(98, 114, 164),
+                border_dark: Color32::from_rgb(50, 52, 68),
+                border_light: Color32::from_rgb(75, 78, 102),
+            },
+            ThemeMode::TokyoNight => SkinColors {
+                bg_canvas: Color32::from_rgb(26, 27, 38),
+                bg_titlebar: Color32::from_rgb(22, 22, 30),
+                bg_toolbar: Color32::from_rgb(31, 35, 53),
+                bg_panel: Color32::from_rgb(20, 20, 28),
+                bg_btn: Color32::from_rgb(41, 46, 66),
+                bg_btn_hover: Color32::from_rgb(56, 63, 90),
+                bg_btn_active: Color32::from_rgb(72, 80, 115),
+                accent_primary: Color32::from_rgb(122, 162, 247),
+                accent_bright: Color32::from_rgb(125, 207, 255),
+                text_primary: Color32::from_rgb(192, 202, 245),
+                text_secondary: Color32::from_rgb(154, 165, 206),
+                text_muted: Color32::from_rgb(86, 95, 137),
+                border_dark: Color32::from_rgb(38, 42, 60),
+                border_light: Color32::from_rgb(58, 64, 92),
+            },
+            ThemeMode::GruvboxDark => SkinColors {
+                bg_canvas: Color32::from_rgb(40, 40, 40),
+                bg_titlebar: Color32::from_rgb(29, 32, 33),
+                bg_toolbar: Color32::from_rgb(50, 48, 47),
+                bg_panel: Color32::from_rgb(32, 30, 29),
+                bg_btn: Color32::from_rgb(60, 56, 54),
+                bg_btn_hover: Color32::from_rgb(80, 73, 69),
+                bg_btn_active: Color32::from_rgb(102, 92, 84),
+                accent_primary: Color32::from_rgb(254, 128, 25),
+                accent_bright: Color32::from_rgb(250, 189, 47),
+                text_primary: Color32::from_rgb(235, 219, 178),
+                text_secondary: Color32::from_rgb(189, 174, 147),
+                text_muted: Color32::from_rgb(146, 131, 116),
+                border_dark: Color32::from_rgb(50, 48, 47),
+                border_light: Color32::from_rgb(80, 73, 69),
+            },
+            ThemeMode::MonokaiPro => SkinColors {
+                bg_canvas: Color32::from_rgb(45, 42, 46),
+                bg_titlebar: Color32::from_rgb(34, 31, 34),
+                bg_toolbar: Color32::from_rgb(38, 35, 38),
+                bg_panel: Color32::from_rgb(28, 25, 28),
+                bg_btn: Color32::from_rgb(64, 60, 65),
+                bg_btn_hover: Color32::from_rgb(84, 80, 86),
+                bg_btn_active: Color32::from_rgb(105, 100, 108),
+                accent_primary: Color32::from_rgb(255, 216, 102),
+                accent_bright: Color32::from_rgb(255, 97, 136),
+                text_primary: Color32::from_rgb(252, 252, 250),
+                text_secondary: Color32::from_rgb(180, 178, 182),
+                text_muted: Color32::from_rgb(114, 112, 116),
+                border_dark: Color32::from_rgb(55, 52, 57),
+                border_light: Color32::from_rgb(80, 76, 83),
+            },
+            ThemeMode::Synthwave84 => SkinColors {
+                bg_canvas: Color32::from_rgb(38, 35, 53),
+                bg_titlebar: Color32::from_rgb(28, 25, 42),
+                bg_toolbar: Color32::from_rgb(33, 30, 48),
+                bg_panel: Color32::from_rgb(24, 21, 35),
+                bg_btn: Color32::from_rgb(55, 48, 80),
+                bg_btn_hover: Color32::from_rgb(75, 65, 110),
+                bg_btn_active: Color32::from_rgb(95, 82, 140),
+                accent_primary: Color32::from_rgb(255, 126, 219),
+                accent_bright: Color32::from_rgb(54, 249, 246),
+                text_primary: Color32::from_rgb(249, 248, 245),
+                text_secondary: Color32::from_rgb(195, 185, 215),
+                text_muted: Color32::from_rgb(120, 110, 145),
+                border_dark: Color32::from_rgb(50, 44, 72),
+                border_light: Color32::from_rgb(85, 72, 120),
+            },
         }
     }
 
     pub fn apply(ctx: &egui::Context, mode: ThemeMode) {
         let skin = Self::get_skin(mode);
+        // Store globally so current_skin() works everywhere
+        if let Ok(mut guard) = CURRENT_SKIN.write() {
+            *guard = Some(skin);
+        }
         let mut visuals = egui::Visuals::dark();
 
         visuals.override_text_color                  = Some(skin.text_primary);
         visuals.panel_fill                           = skin.bg_canvas;
-        visuals.window_fill                          = Color32::from_rgb(0, 0, 0);
-        visuals.extreme_bg_color                     = Color32::from_rgb(0, 0, 0);
-        visuals.window_stroke                        = Stroke::new(1.0, Color32::from_rgb(45, 50, 65));
-        visuals.window_corner_radius                 = CornerRadius::same(4);
-        visuals.menu_corner_radius                   = CornerRadius::same(4);
+        visuals.window_fill                          = skin.bg_panel;
+        visuals.extreme_bg_color                     = skin.bg_canvas;
+        visuals.window_stroke                        = Stroke::new(1.0, skin.border_light);
+        visuals.window_corner_radius                 = CornerRadius::same(6);
+        visuals.menu_corner_radius                   = CornerRadius::same(6);
 
         visuals.window_shadow = egui::Shadow {
             offset: [0, 6],
@@ -201,27 +315,27 @@ impl VortexTheme {
         };
 
         // Tooltip & Non-interactive widgets styling
-        visuals.widgets.noninteractive.bg_fill       = Color32::from_rgb(10, 10, 14);
-        visuals.widgets.noninteractive.bg_stroke     = Stroke::new(1.0, Color32::from_rgb(45, 50, 65));
-        visuals.widgets.noninteractive.fg_stroke     = Stroke::new(1.0, Color32::from_rgb(240, 242, 248));
+        visuals.widgets.noninteractive.bg_fill       = skin.bg_panel;
+        visuals.widgets.noninteractive.bg_stroke     = Stroke::new(1.0, skin.border_dark);
+        visuals.widgets.noninteractive.fg_stroke     = Stroke::new(1.0, skin.text_primary);
         visuals.widgets.noninteractive.corner_radius = CornerRadius::same(4);
 
         visuals.widgets.inactive.bg_fill             = skin.bg_btn;
         visuals.widgets.inactive.bg_stroke           = Stroke::new(1.0, skin.border_dark);
         visuals.widgets.inactive.fg_stroke           = Stroke::new(1.0, skin.text_primary);
-        visuals.widgets.inactive.corner_radius       = CornerRadius::same(3);
+        visuals.widgets.inactive.corner_radius       = CornerRadius::same(4);
 
-        visuals.widgets.hovered.bg_fill              = Color32::from_rgb(34, 42, 60);
+        visuals.widgets.hovered.bg_fill              = skin.bg_btn_hover;
         visuals.widgets.hovered.bg_stroke            = Stroke::new(1.0, skin.border_light);
         visuals.widgets.hovered.fg_stroke            = Stroke::new(1.0, Color32::WHITE);
-        visuals.widgets.hovered.corner_radius        = CornerRadius::same(3);
+        visuals.widgets.hovered.corner_radius        = CornerRadius::same(4);
 
-        visuals.widgets.active.bg_fill               = Color32::from_rgb(42, 58, 90);
+        visuals.widgets.active.bg_fill               = skin.bg_btn_active;
         visuals.widgets.active.bg_stroke             = Stroke::new(1.0, skin.accent_primary);
         visuals.widgets.active.fg_stroke             = Stroke::new(1.0, Color32::WHITE);
-        visuals.widgets.active.corner_radius         = CornerRadius::same(3);
+        visuals.widgets.active.corner_radius         = CornerRadius::same(4);
 
-        visuals.selection.bg_fill                    = Color32::from_rgb(38, 70, 130);
+        visuals.selection.bg_fill                    = skin.accent_primary.gamma_multiply(0.35);
         visuals.selection.stroke                     = Stroke::new(1.0, skin.accent_primary);
 
         ctx.set_visuals(visuals);

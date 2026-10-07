@@ -64,7 +64,7 @@ impl ChannelMatrixDialog {
             .default_height(480.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut config.enabled, RichText::new("Enable Custom Channel Matrix").strong().color(VortexTheme::VORTEX_YELLOW));
+                    ui.checkbox(&mut config.enabled, RichText::new("Enable Custom Channel Matrix").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Reset Identity").clicked() {
                             *config = ChannelMatrixConfig::default();
@@ -145,7 +145,7 @@ impl ChannelMatrixDialog {
                         // Header: Outputs
                         ui.label(RichText::new("IN \\ OUT").strong().color(Color32::from_rgb(180, 180, 200)));
                         for col in Self::CHANNELS {
-                            ui.label(RichText::new(col).strong().color(VortexTheme::VORTEX_YELLOW));
+                            ui.label(RichText::new(col).strong().color(VortexTheme::current_skin().accent_primary));
                         }
                         ui.label(RichText::new("Mute").size(10.5));
                         ui.label(RichText::new("Solo").size(10.5));

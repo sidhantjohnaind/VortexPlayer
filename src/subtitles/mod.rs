@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 pub mod controller;
 pub mod online;
 pub mod sami;

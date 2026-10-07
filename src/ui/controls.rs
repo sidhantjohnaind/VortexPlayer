@@ -132,13 +132,14 @@ impl ControlBar {
             Sense::empty(),
         );
 
+        let skin = VortexTheme::get_skin(config.theme_mode);
         let painter = ui.painter();
 
-        // ── 1. Matte Charcoal Dark Background & Top Highlight ──────────────
-        painter.rect_filled(total_rect, CornerRadius::ZERO, Color32::from_rgb(22, 23, 27));
+        // ── 1. Themed Surface Background & Top Highlight ──────────────
+        painter.rect_filled(total_rect, CornerRadius::ZERO, skin.bg_toolbar);
         painter.line_segment(
             [total_rect.left_top(), total_rect.right_top()],
-            Stroke::new(1.0, Color32::from_rgb(42, 44, 52)),
+            Stroke::new(1.0, skin.border_dark),
         );
 
         let mut current_y = total_rect.top();
@@ -151,11 +152,11 @@ impl ControlBar {
                 Vec2::new(total_rect.width(), dash_h),
             );
 
-            // Dashboard Vortex matte charcoal fill & bottom hairline
-            painter.rect_filled(dash_rect, CornerRadius::ZERO, Color32::from_rgb(33, 34, 39));
+            // Dashboard themed panel fill & bottom hairline
+            painter.rect_filled(dash_rect, CornerRadius::ZERO, skin.bg_panel);
             painter.line_segment(
                 [dash_rect.left_bottom(), dash_rect.right_bottom()],
-                Stroke::new(1.0, Color32::from_rgb(22, 23, 27)),
+                Stroke::new(1.0, skin.border_dark),
             );
 
             let is_wide_dash = dash_rect.width() >= 480.0;
@@ -311,7 +312,7 @@ impl ControlBar {
             if a_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let a_col = if a_active { VortexTheme::VORTEX_YELLOW } else if a_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
+            let a_col = if a_active { skin.accent_primary } else if a_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
             painter.text(a_rect.center(), Align2::CENTER_CENTER, "A", FontId::monospace(11.5), a_col);
 
             // [⇄]
@@ -333,7 +334,7 @@ impl ControlBar {
             if loop_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let loop_col = if loop_active { VortexTheme::VORTEX_YELLOW } else if loop_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(130, 135, 150) };
+            let loop_col = if loop_active { skin.accent_primary } else if loop_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(130, 135, 150) };
             let rc = loop_toggle_rect.center();
             let y1 = rc.y - 2.5;
             painter.line_segment([Pos2::new(rc.x - 4.0, y1), Pos2::new(rc.x + 2.5, y1)], Stroke::new(1.1, loop_col));
@@ -358,7 +359,7 @@ impl ControlBar {
             if b_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let b_col = if b_active { VortexTheme::VORTEX_YELLOW } else if b_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
+            let b_col = if b_active { skin.accent_primary } else if b_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(140, 145, 160) };
             painter.text(b_rect.center(), Align2::CENTER_CENTER, "B", FontId::monospace(11.5), b_col);
 
             // 3. Compact dark Repeat button, matching the classic Vortex skin.
@@ -366,11 +367,11 @@ impl ControlBar {
             let rep_active = playlist.repeat_mode != crate::playlist::RepeatMode::Off;
             let rep_resp = ui.interact(rep_pill_rect, ui.id().with("dash_repeat_btn"), Sense::click());
             
-            let rep_bg = if rep_resp.hovered() { Color32::from_rgb(44, 48, 60) } else { Color32::from_rgb(26, 28, 34) };
+            let rep_bg = if rep_resp.hovered() { skin.bg_btn_hover } else { skin.bg_btn };
             painter.rect_filled(rep_pill_rect, CornerRadius::same(3), rep_bg);
-            painter.rect_stroke(rep_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if rep_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(44, 48, 58) }), StrokeKind::Inside);
+            painter.rect_stroke(rep_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if rep_active { skin.accent_primary } else { skin.border_dark }), StrokeKind::Inside);
 
-            let rep_icon_col = if rep_active { VortexTheme::VORTEX_YELLOW } else if rep_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
+            let rep_icon_col = if rep_active { skin.accent_primary } else if rep_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
             let is_one = playlist.repeat_mode == crate::playlist::RepeatMode::RepeatTrack;
             Icons::draw_repeat(painter, rep_pill_rect, rep_icon_col, is_one);
 
@@ -391,11 +392,11 @@ impl ControlBar {
             let shuf_active = playlist.is_shuffle();
             let shuf_resp = ui.interact(shuf_pill_rect, ui.id().with("dash_shuffle_btn"), Sense::click());
 
-            let shuf_bg = if shuf_resp.hovered() { Color32::from_rgb(44, 48, 60) } else { Color32::from_rgb(26, 28, 34) };
+            let shuf_bg = if shuf_resp.hovered() { skin.bg_btn_hover } else { skin.bg_btn };
             painter.rect_filled(shuf_pill_rect, CornerRadius::same(3), shuf_bg);
-            painter.rect_stroke(shuf_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if shuf_active { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(44, 48, 58) }), StrokeKind::Inside);
+            painter.rect_stroke(shuf_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if shuf_active { skin.accent_primary } else { skin.border_dark }), StrokeKind::Inside);
 
-            let shuf_icon_col = if shuf_active { VortexTheme::VORTEX_YELLOW } else if shuf_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
+            let shuf_icon_col = if shuf_active { skin.accent_primary } else if shuf_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
             Icons::draw_shuffle(painter, shuf_pill_rect, shuf_icon_col);
 
             if shuf_resp.hovered() {
@@ -451,12 +452,12 @@ impl ControlBar {
         let played_w = track_rect.width() * progress;
         if played_w > 0.0 {
             let played_rect = Rect::from_min_size(track_rect.min, Vec2::new(played_w, track_h));
-            painter.rect_filled(played_rect, CornerRadius::same(2), VortexTheme::VORTEX_YELLOW);
+            painter.rect_filled(played_rect, CornerRadius::same(2), skin.accent_primary);
             if seek_hovered {
                 painter.rect_filled(
                     played_rect.expand(1.0),
                     CornerRadius::same(3),
-                    Color32::from_rgba_unmultiplied(245, 166, 35, 50),
+                    skin.accent_bright.gamma_multiply(0.35),
                 );
             }
         }
@@ -505,7 +506,7 @@ impl ControlBar {
                     let diamond_color = if is_skip {
                         Color32::from_rgb(255, 75, 75)
                     } else {
-                        VortexTheme::VORTEX_YELLOW
+                        skin.accent_primary
                     };
 
                     let points = vec![
@@ -528,8 +529,8 @@ impl ControlBar {
         let knob_x = (track_rect.left() + played_w).clamp(track_rect.left() + knob_r, track_rect.right() - knob_r);
         let knob_y = track_rect.center().y;
         if seek_hovered {
-            painter.circle_filled(Pos2::new(knob_x, knob_y), 11.0, Color32::from_rgba_unmultiplied(245, 166, 35, 55));
-            painter.circle_filled(Pos2::new(knob_x, knob_y), 7.5, Color32::from_rgba_unmultiplied(245, 166, 35, 130));
+            painter.circle_filled(Pos2::new(knob_x, knob_y), 11.0, skin.accent_bright.gamma_multiply(0.35));
+            painter.circle_filled(Pos2::new(knob_x, knob_y), 7.5, skin.accent_bright.gamma_multiply(0.70));
         }
         painter.circle_filled(Pos2::new(knob_x, knob_y), knob_r, Color32::WHITE);
         painter.circle_stroke(Pos2::new(knob_x, knob_y), knob_r, Stroke::new(1.0, Color32::from_rgb(35, 38, 48)));
@@ -663,7 +664,7 @@ impl ControlBar {
         // Horizontal separator line under seekbar
         painter.line_segment(
             [Pos2::new(total_rect.left(), current_y), Pos2::new(total_rect.right(), current_y)],
-            Stroke::new(1.0, Color32::from_rgb(28, 30, 36)),
+            Stroke::new(1.0, skin.border_dark),
         );
 
         // ── 4. Lower Transport Bar: Tiled Segments with Dividers ─────────────
@@ -674,7 +675,7 @@ impl ControlBar {
         let draw_v_divider = |p: &Painter, x: f32| {
             p.line_segment(
                 [Pos2::new(x, row_top + 3.0), Pos2::new(x, row_top + row_h - 3.0)],
-                Stroke::new(1.0, Color32::from_rgb(32, 34, 42)),
+                Stroke::new(1.0, skin.border_dark),
             );
         };
 
@@ -698,7 +699,7 @@ impl ControlBar {
             let resp = ui.interact(tile_r, ui.id().with("tile_play"), Sense::click());
             
             if resp.hovered() {
-                painter.rect_filled(tile_r, CornerRadius::ZERO, Color32::from_rgb(32, 34, 42));
+                painter.rect_filled(tile_r, CornerRadius::ZERO, skin.bg_btn_hover);
                 let tip = if stats.is_paused || stats.is_idle { "Play (Space)" } else { "Pause (Space)" };
                 hovered_tooltip = Some((tile_r, tip.to_string()));
             }
@@ -726,7 +727,7 @@ impl ControlBar {
             let resp = ui.interact(tile_r, ui.id().with(id_str), Sense::click());
             
             if resp.hovered() {
-                painter.rect_filled(tile_r, CornerRadius::ZERO, Color32::from_rgb(32, 34, 42));
+                painter.rect_filled(tile_r, CornerRadius::ZERO, skin.bg_btn_hover);
                 hovered_tooltip = Some((tile_r, tip_text.to_string()));
             }
 
@@ -787,7 +788,7 @@ impl ControlBar {
         if !is_song && is_wide && is_in_intro {
             let skip_tip = if is_in_intro { "Skip Opening / Intro (S)" } else { "Skip Forward 85s (S)" };
             if make_tile("tile_skip_intro", 28.0, skip_tip, &|p, r, c| {
-                let col = if is_in_intro { VortexTheme::VORTEX_YELLOW } else { c };
+                let col = if is_in_intro { skin.accent_primary } else { c };
                 p.text(r.center(), Align2::CENTER_CENTER, "⏭OP", FontId::proportional(9.5), col);
             }) {
                 actions.skip_intro = true;
@@ -804,7 +805,7 @@ impl ControlBar {
                 _ => "Repeat: Off (Ctrl+R)",
             };
             if make_tile("tile_repeat", 26.0, rep_tip, &|p, r, c| {
-                let col = if is_rep_active { VortexTheme::VORTEX_YELLOW } else { c };
+                let col = if is_rep_active { skin.accent_primary } else { c };
                 Icons::draw_repeat(p, r, col, is_rep_one);
             }) {
                 actions.cycle_repeat = true;
@@ -813,7 +814,7 @@ impl ControlBar {
             let is_shuf_active = playlist.is_shuffle();
             let shuf_tip = if is_shuf_active { "Shuffle: ON (Ctrl+S / S)" } else { "Shuffle: OFF (Ctrl+S / S)" };
             if make_tile("tile_shuffle", 26.0, shuf_tip, &|p, r, c| {
-                let col = if is_shuf_active { VortexTheme::VORTEX_YELLOW } else { c };
+                let col = if is_shuf_active { skin.accent_primary } else { c };
                 Icons::draw_shuffle(p, r, col);
             }) {
                 actions.toggle_shuffle = true;
@@ -834,7 +835,7 @@ impl ControlBar {
         if !is_song && is_ultra_wide && !stats.subtitle_tracks.is_empty() {
             let sub_tip = if stats.subtitles_visible { "Cycle Subtitle Track / Language (Alt+H)" } else { "Subtitles: Off (Click to enable)" };
             if make_tile("tile_sub_quick", 28.0, sub_tip, &|p, r, c| {
-                let col = if stats.subtitles_visible { VortexTheme::VORTEX_YELLOW } else { c };
+                let col = if stats.subtitles_visible { skin.accent_primary } else { c };
                 Icons::draw_subtitles(p, r, col);
             }) {
                 actions.cycle_subtitle = true;
@@ -1022,7 +1023,7 @@ impl ControlBar {
             let lcd_r = Rect::from_min_size(Pos2::new(left_x, row_top), Vec2::new(lcd_w, row_h));
             
             // Background container (pure visual background plate, does NOT consume clicks)
-            painter.rect_filled(lcd_r, CornerRadius::ZERO, Color32::from_rgb(18, 19, 23));
+            painter.rect_filled(lcd_r, CornerRadius::ZERO, skin.bg_canvas);
 
             // Tightly scoped time click area (ONLY covers the time string)
             let time_click_rect = Rect::from_min_size(
@@ -1037,7 +1038,7 @@ impl ControlBar {
                     "Elapsed Time active (Click to switch to Remaining Time -)"
                 };
                 hovered_tooltip = Some((time_click_rect, tip.to_string()));
-                painter.rect_filled(time_click_rect, CornerRadius::same(2), Color32::from_rgb(28, 30, 38));
+                painter.rect_filled(time_click_rect, CornerRadius::same(2), skin.bg_btn_hover);
             }
 
             if time_resp.clicked() {
@@ -1118,7 +1119,7 @@ impl ControlBar {
                         };
                         let bg = if r.hovered() { Color32::from_rgb(42, 45, 58) } else { Color32::from_rgb(26, 28, 36) };
                         let stroke = Color32::from_rgb(45, 48, 58);
-                        let text = if r.hovered() { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(145, 150, 165) };
+                        let text = if r.hovered() { skin.accent_primary } else { Color32::from_rgb(145, 150, 165) };
                         (r, bg, stroke, text, tip)
                     }
                     BadgeKind::Hdr => {
@@ -1146,7 +1147,7 @@ impl ControlBar {
                             format!("Audio: {} [Shared Mode]\nClick for Bit-Perfect WASAPI Exclusive\nRight-click for Media Info", stats.audio_codec)
                         };
                         let (bg, stroke, text) = if is_exclusive {
-                            (Color32::from_rgb(52, 38, 12), Color32::from_rgb(180, 130, 24), VortexTheme::VORTEX_YELLOW)
+                            (Color32::from_rgb(52, 38, 12), Color32::from_rgb(180, 130, 24), skin.accent_primary)
                         } else if r.hovered() {
                             (Color32::from_rgb(36, 40, 52), Color32::from_rgb(60, 90, 140), Color32::WHITE)
                         } else {
@@ -1211,7 +1212,7 @@ impl ControlBar {
         // 1. Playlist Drawer ☰ (28px) — Rightmost button with vertical divider on left
         let is_pl_open = is_playlist_open;
         if make_right_tile("tile_playlist", 28.0, "Toggle Playlist (F6 / F8)", &|p, r, c| {
-            let col = if is_pl_open { VortexTheme::VORTEX_YELLOW } else { c };
+            let col = if is_pl_open { skin.accent_primary } else { c };
             Icons::draw_hamburger(p, r, col);
         }) {
             actions.toggle_playlist = true;
@@ -1245,22 +1246,22 @@ impl ControlBar {
 
             let is_non_standard = (stats.speed - 1.0).abs() > 0.05;
             let bg_col = if is_non_standard {
-                Color32::from_rgb(46, 44, 30)
+                skin.accent_primary.gamma_multiply(0.25)
             } else if spd_resp.hovered() {
-                Color32::from_rgb(38, 41, 52)
+                skin.bg_btn_hover
             } else {
-                Color32::from_rgb(26, 28, 36)
+                skin.bg_btn
             };
 
             painter.rect_filled(pill_r, CornerRadius::same(3), bg_col);
             painter.rect_stroke(
                 pill_r,
                 CornerRadius::same(3),
-                Stroke::new(1.0, if is_non_standard { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(44, 48, 62) }),
+                Stroke::new(1.0, if is_non_standard { skin.accent_primary } else { skin.border_dark }),
                 StrokeKind::Inside,
             );
 
-            let text_col = if is_non_standard { VortexTheme::VORTEX_YELLOW } else if spd_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(175, 180, 195) };
+            let text_col = if is_non_standard { skin.accent_primary } else if spd_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(175, 180, 195) };
             let speed_str = format!("{:.1}x", stats.speed);
             painter.text(pill_r.center(), Align2::CENTER_CENTER, speed_str, FontId::monospace(10.0), text_col);
 
@@ -1351,13 +1352,13 @@ impl ControlBar {
                     hovered_tooltip = Some((vbar_r, format!("Volume: {:.0}%", display_vol_pct * 100.0)));
                 }
 
-                // Dark groove
-                painter.rect_filled(vbar_r, CornerRadius::ZERO, Color32::from_rgb(32, 34, 42));
+                // Groove & Fill
+                painter.rect_filled(vbar_r, CornerRadius::ZERO, skin.border_dark);
 
                 let fill_w = vbar_w * display_vol_pct;
                 if fill_w > 0.0 {
                     let fill_r = Rect::from_min_size(vbar_r.min, Vec2::new(fill_w, 2.5));
-                    painter.rect_filled(fill_r, CornerRadius::ZERO, VortexTheme::VORTEX_YELLOW);
+                    painter.rect_filled(fill_r, CornerRadius::ZERO, skin.accent_primary);
                 }
 
                 // Volume Knob
@@ -1372,7 +1373,6 @@ impl ControlBar {
                     ui.ctx().request_repaint();
                     let step = if scroll_y > 0.0 { 5.0 } else { -5.0 };
                     let new_vol = (stats.volume + step).clamp(0.0, 100.0);
-                    display_vol_pct = (new_vol / 100.0) as f32;
                     if let Some(p) = player {
                         p.set_volume(new_vol);
                     }

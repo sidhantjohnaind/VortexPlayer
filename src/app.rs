@@ -3379,6 +3379,7 @@ impl eframe::App for VortexApp {
                         &mut self.menu_position,
                         is_fullscreen_active,
                         is_max_state,
+                        self.config.theme_mode,
                     );
                     titlebar_tooltip = tb_resp.tooltip;
                     if !prev_menu && self.show_main_menu {
@@ -4140,7 +4141,7 @@ impl eframe::App for VortexApp {
 
                             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(shelf_rect.shrink(8.0)));
                             child_ui.horizontal(|ui| {
-                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(12.0).strong().color(VortexTheme::VORTEX_YELLOW));
+                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(12.0).strong().color(VortexTheme::current_skin().accent_primary));
                                 let total_items = if !self.playback_history.entries.is_empty() {
                                     self.playback_history.entries.len()
                                 } else {
@@ -4190,7 +4191,7 @@ impl eframe::App for VortexApp {
                                                     if entry.completed {
                                                         ui.label(RichText::new("✓").size(13.0).color(Color32::from_rgb(60, 200, 100)));
                                                     } else if pct > 0 {
-                                                        ui.label(RichText::new(format!("{:2}%", pct)).size(11.0).strong().color(VortexTheme::VORTEX_YELLOW));
+                                                        ui.label(RichText::new(format!("{:2}%", pct)).size(11.0).strong().color(VortexTheme::current_skin().accent_primary));
                                                     } else {
                                                         ui.label(RichText::new("•").size(15.0).color(Color32::from_rgb(140, 145, 165)));
                                                     }
@@ -4236,9 +4237,9 @@ impl eframe::App for VortexApp {
                                                             file_to_open = Some(pb.clone());
                                                         }
                                                         if resume_pos > 1.0 && entry.duration > 0.0 {
-                                                            ui.label(RichText::new(format!("Resume {} / {}", format_time(resume_pos), format_time(entry.duration))).size(10.5).color(VortexTheme::VORTEX_YELLOW));
+                                                            ui.label(RichText::new(format!("Resume {} / {}", format_time(resume_pos), format_time(entry.duration))).size(10.5).color(VortexTheme::current_skin().accent_primary));
                                                         } else if resume_pos > 1.0 {
-                                                            ui.label(RichText::new(format!("Resume {}", format_time(resume_pos))).size(10.5).color(VortexTheme::VORTEX_YELLOW));
+                                                            ui.label(RichText::new(format!("Resume {}", format_time(resume_pos))).size(10.5).color(VortexTheme::current_skin().accent_primary));
                                                         } else if entry.duration > 0.0 {
                                                             ui.label(RichText::new(format_time(entry.duration)).size(10.5).color(Color32::from_rgb(160, 170, 195)));
                                                         }
@@ -4269,7 +4270,7 @@ impl eframe::App for VortexApp {
                                                 let text_w = (card_w - action_w - 75.0).max(180.0);
 
                                                 ui.horizontal(|ui| {
-                                                    ui.label(RichText::new("•").size(15.0).color(VortexTheme::VORTEX_YELLOW));
+                                                    ui.label(RichText::new("•").size(15.0).color(VortexTheme::current_skin().accent_primary));
 
                                                     let ext = pb.extension().and_then(|e| e.to_str()).unwrap_or("").to_uppercase();
                                                     if !ext.is_empty() {
@@ -4309,7 +4310,7 @@ impl eframe::App for VortexApp {
                                                             file_to_open = Some(pb.clone());
                                                         }
                                                         if let Some(rt) = resume_time {
-                                                            ui.label(RichText::new(format!("Resume {}", format_time(rt))).size(10.5).color(VortexTheme::VORTEX_YELLOW));
+                                                            ui.label(RichText::new(format!("Resume {}", format_time(rt))).size(10.5).color(VortexTheme::current_skin().accent_primary));
                                                         }
                                                     });
                                                 });
@@ -4700,7 +4701,7 @@ impl eframe::App for VortexApp {
         if let Ok(ref player) = self.player {
             self.device_capture.render(&ctx, player);
         }
-        if let Some(r) = self.subtitle_lookup.render(&ctx) {
+        if let Some(r) = self.subtitle_lookup.render(&ctx, &self.config.subtitle_search_engine) {
             self.active_popup_rects.push(r);
         }
 
@@ -5025,25 +5026,33 @@ impl eframe::App for VortexApp {
             let win_size = get_window_client_rect(&ctx).size();
             let raw_pos = self.menu_position.unwrap_or(Pos2::new(6.0, 32.0));
             let menu_w = 260.0;
-            let full_menu_h: f32 = 560.0;
+            let cached_h: Option<f32> = ctx.data(|d| d.get_temp(egui::Id::new("vortex_context_menu_height")));
+            let full_menu_h = cached_h.unwrap_or(440.0);
 
             // X: open directly at cursor / button, flip left if overflowing right edge
-            let clamped_x = if raw_pos.x + menu_w > win_size.x - 8.0 {
-                (raw_pos.x - menu_w).max(8.0)
+            let clamped_x = if raw_pos.x + menu_w > win_size.x - 6.0 {
+                (raw_pos.x - menu_w).max(4.0)
             } else {
                 raw_pos.x.max(4.0)
             };
 
             // Y: If full menu fits in window height, shift up just enough so it never overflows bottom edge.
-            // If window is smaller than full menu, start near top (32.0) and allow scrolling.
-            let clamped_y = if win_size.y >= full_menu_h + 16.0 {
-                raw_pos.y.clamp(32.0, (win_size.y - full_menu_h - 8.0).max(32.0))
+            // When menu fits, we NEVER want it to scroll!
+            let available_window_h = (win_size.y - 12.0).max(100.0);
+            let menu_fits_in_window = available_window_h >= full_menu_h;
+
+            let clamped_y = if menu_fits_in_window {
+                if raw_pos.y + full_menu_h > win_size.y - 6.0 {
+                    (win_size.y - full_menu_h - 6.0).max(4.0)
+                } else {
+                    raw_pos.y.max(4.0)
+                }
             } else {
-                32.0
+                4.0
             };
 
             let menu_pos = Pos2::new(clamped_x, clamped_y);
-            let available_menu_h = (win_size.y - clamped_y - 8.0).max(180.0);
+            let available_menu_h = (win_size.y - clamped_y - 6.0).max(120.0);
             self.active_popup_rects.push(Rect::from_min_size(menu_pos, Vec2::new(menu_w, available_menu_h)));
             let player_opt = self.player.as_ref().ok().map(|p| p.as_ref());
             let mut close_menu = false;
@@ -5079,20 +5088,33 @@ impl eframe::App for VortexApp {
                         })
                         .inner_margin(Margin::symmetric(4, 6))
                         .show(ui, |ui| {
-                    let menu_actions = egui::ScrollArea::vertical()
-                        .max_height(available_menu_h)
-                        .auto_shrink([true, true])
-                        .show(ui, |ui| {
-                            VortexMenu::render(
-                                ui,
-                                player_opt,
-                                &stats,
-                                &mut *self.playlist.lock().unwrap(),
-                                &mut self.config,
-                                &mut self.bookmark_mgr,
-                            )
-                        })
-                        .inner;
+                    let menu_actions = if menu_fits_in_window {
+                        // When the menu fits, render it directly without ScrollArea so it NEVER scrolls or truncates!
+                        VortexMenu::render(
+                            ui,
+                            player_opt,
+                            &stats,
+                            &mut *self.playlist.lock().unwrap(),
+                            &mut self.config,
+                            &mut self.bookmark_mgr,
+                        )
+                    } else {
+                        // Only scroll if window is physically too small to fit the menu
+                        egui::ScrollArea::vertical()
+                            .max_height(available_menu_h)
+                            .auto_shrink([true, true])
+                            .show(ui, |ui| {
+                                VortexMenu::render(
+                                    ui,
+                                    player_opt,
+                                    &stats,
+                                    &mut *self.playlist.lock().unwrap(),
+                                    &mut self.config,
+                                    &mut self.bookmark_mgr,
+                                )
+                            })
+                            .inner
+                    };
 
                     if menu_actions.close_menu {
                         self.show_main_menu = false;
@@ -5463,6 +5485,9 @@ impl eframe::App for VortexApp {
             });
 
             let main_menu_rect = area_resp.response.rect;
+            if main_menu_rect.height() > 50.0 {
+                ctx.data_mut(|d| d.insert_temp(egui::Id::new("vortex_context_menu_height"), main_menu_rect.height()));
+            }
             self.active_popup_rects.push(main_menu_rect);
 
             if menu_toggle_fullscreen {
@@ -5568,7 +5593,7 @@ impl eframe::App for VortexApp {
                             // Header
                             ui.horizontal(|ui| {
                                 let (icon_r, _) = ui.allocate_exact_size(Vec2::new(14.0, 14.0), Sense::hover());
-                                Icons::draw_volume(ui.painter(), icon_r, VortexTheme::VORTEX_YELLOW, false, 100.0);
+                                Icons::draw_volume(ui.painter(), icon_r, VortexTheme::current_skin().accent_primary, false, 100.0);
                                 ui.add_space(2.0);
                                 ui.label(egui::RichText::new("Audio Channel Configuration").size(12.0).color(Color32::WHITE).strong());
                             });
@@ -5593,7 +5618,7 @@ impl eframe::App for VortexApp {
 
                                 // Vector Radio Indicator
                                 let radio_c = Pos2::new(rect.left() + 11.0, rect.center().y);
-                                Icons::draw_radio(ui.painter(), radio_c, 4.8, is_sel, is_hovered, VortexTheme::VORTEX_YELLOW);
+                                Icons::draw_radio(ui.painter(), radio_c, 4.8, is_sel, is_hovered, VortexTheme::current_skin().accent_primary);
 
                                 // Icon
                                 let mut text_x = rect.left() + 23.0;
@@ -5603,7 +5628,7 @@ impl eframe::App for VortexApp {
                                         Align2::LEFT_CENTER,
                                         icon,
                                         FontId::proportional(11.0),
-                                        if is_sel { VortexTheme::VORTEX_YELLOW } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
+                                        if is_sel { VortexTheme::current_skin().accent_primary } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
                                     );
                                     text_x += 16.0;
                                 }
@@ -5774,12 +5799,12 @@ impl eframe::App for VortexApp {
 
                             // Header
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("⚡").color(VortexTheme::VORTEX_YELLOW).size(13.0));
+                                ui.label(egui::RichText::new("⚡").color(VortexTheme::current_skin().accent_primary).size(13.0));
                                 ui.add_space(2.0);
                                 ui.label(egui::RichText::new("Playback Speed").size(12.0).color(Color32::WHITE).strong());
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     let is_custom = (stats.speed - 1.0).abs() > 0.03;
-                                    let badge_col = if is_custom { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(160, 165, 180) };
+                                    let badge_col = if is_custom { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(160, 165, 180) };
                                     ui.label(egui::RichText::new(format!("{:.2}x", stats.speed)).monospace().size(11.0).color(badge_col).strong());
                                 });
                             });
@@ -5817,7 +5842,7 @@ impl eframe::App for VortexApp {
 
                                 // Vector Radio Indicator
                                 let radio_c = Pos2::new(rect.left() + 10.0, rect.center().y);
-                                Icons::draw_radio(ui.painter(), radio_c, 4.5, is_sel, is_hovered, VortexTheme::VORTEX_YELLOW);
+                                Icons::draw_radio(ui.painter(), radio_c, 4.5, is_sel, is_hovered, VortexTheme::current_skin().accent_primary);
 
                                 let mut text_x = rect.left() + 22.0;
                                 if !icon.is_empty() {
@@ -5826,7 +5851,7 @@ impl eframe::App for VortexApp {
                                         Align2::LEFT_CENTER,
                                         icon,
                                         FontId::proportional(11.0),
-                                        if is_sel { VortexTheme::VORTEX_YELLOW } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
+                                        if is_sel { VortexTheme::current_skin().accent_primary } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
                                     );
                                     text_x += 16.0;
                                 }
@@ -5884,7 +5909,7 @@ impl eframe::App for VortexApp {
                                         player.set_speed(new_spd);
                                     }
                                 }
-                                let reset_text = egui::RichText::new("↺ 1.0x").color(if (stats.speed - 1.0).abs() > 0.03 { VortexTheme::VORTEX_YELLOW } else { Color32::WHITE });
+                                let reset_text = egui::RichText::new("↺ 1.0x").color(if (stats.speed - 1.0).abs() > 0.03 { VortexTheme::current_skin().accent_primary } else { Color32::WHITE });
                                 if ui.add_sized([btn_w, 22.0], egui::Button::new(reset_text)).on_hover_text("Reset to normal 1.0x speed").clicked() {
                                     if let Ok(ref player) = self.player {
                                         player.reset_speed();
@@ -6012,7 +6037,7 @@ impl eframe::App for VortexApp {
                 .frame(
                     egui::Frame::new()
                         .fill(Color32::from_rgb(0, 0, 0))
-                        .stroke(Stroke::new(1.0, VortexTheme::VORTEX_PURPLE))
+                        .stroke(Stroke::new(1.0, VortexTheme::current_skin().accent_primary))
                         .corner_radius(CornerRadius::same(8)),
                 )
                 .show(&ctx, |ui| {
@@ -6022,7 +6047,7 @@ impl eframe::App for VortexApp {
                         Icons::draw_vertex_logo(ui.painter(), logo_rect.center(), 24.0);
 
                         ui.add_space(8.0);
-                        ui.label(RichText::new("VortexPlayer v1.0.0").size(16.0).strong().color(VortexTheme::VORTEX_CYAN));
+                        ui.label(RichText::new("VortexPlayer v1.1.0").size(16.0).strong().color(VortexTheme::VORTEX_CYAN));
                         ui.label(RichText::new("High-Quality Hardware Accelerated Media Player").size(11.5).color(Color32::from_rgb(170, 160, 200)));
 
                         ui.add_space(10.0);

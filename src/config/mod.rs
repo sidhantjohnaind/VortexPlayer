@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 pub mod associations;
 pub mod gestures;
 pub mod osd_config;
@@ -30,14 +32,20 @@ use crate::engine::shaders::ShaderConfig;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeMode {
     #[serde(alias = "VortexClassic")]
-    VortexClassic, // Black & Gold
-    OnyxDiamond,      // OLED Pitch Black & Emerald
-    MidnightNavy,     // Deep Ocean Blue & Sapphire
-    CyberpunkNeon,    // Dark Violet & Neon Magenta
-    TitaniumSilver,   // Brushed Steel & Ice Blue
-    EmeraldForest,    // Tactical Dark Green & Mint
-    CrimsonRuby,      // Dark Burgundy & Ruby Flame
-    NordicFrost,      // Minimal Dark Slate & Arctic White
+    VortexClassic,  // Black & Gold
+    OnyxDiamond,    // OLED Pitch Black & Emerald
+    MidnightNavy,   // Deep Ocean Blue & Sapphire
+    CyberpunkNeon,  // Dark Violet & Neon Magenta
+    TitaniumSilver, // Brushed Steel & Ice Blue
+    EmeraldForest,  // Tactical Dark Green & Mint
+    CrimsonRuby,    // Dark Burgundy & Ruby Flame
+    NordicFrost,    // Minimal Dark Slate & Arctic White
+    SolarizedDark,  // Deep Teal & Solar Amber
+    Dracula,        // Vampire Purple & Neon Lilac
+    TokyoNight,     // Twilight Storm & Electric Cyan
+    GruvboxDark,    // Warm Retro Charcoal & Orange
+    MonokaiPro,     // Obsidian Charcoal & Vivid Gold
+    Synthwave84,    // 80s Outrun Neon & Sunset Pink
 }
 
 impl Default for ThemeMode {
@@ -47,7 +55,7 @@ impl Default for ThemeMode {
 }
 
 impl ThemeMode {
-    pub const ALL: [ThemeMode; 8] = [
+    pub const ALL: [ThemeMode; 14] = [
         ThemeMode::VortexClassic,
         ThemeMode::OnyxDiamond,
         ThemeMode::MidnightNavy,
@@ -56,6 +64,12 @@ impl ThemeMode {
         ThemeMode::EmeraldForest,
         ThemeMode::CrimsonRuby,
         ThemeMode::NordicFrost,
+        ThemeMode::SolarizedDark,
+        ThemeMode::Dracula,
+        ThemeMode::TokyoNight,
+        ThemeMode::GruvboxDark,
+        ThemeMode::MonokaiPro,
+        ThemeMode::Synthwave84,
     ];
 
     pub fn display_name(&self) -> &'static str {
@@ -68,6 +82,31 @@ impl ThemeMode {
             Self::EmeraldForest => "Emerald Forest (Tactical Green)",
             Self::CrimsonRuby => "Crimson Ruby (Dark Red)",
             Self::NordicFrost => "Nordic Frost (Clean Minimal Slate)",
+            Self::SolarizedDark => "Solarized Dark (Teal & Amber)",
+            Self::Dracula => "Dracula (Vampire Purple & Lilac)",
+            Self::TokyoNight => "Tokyo Night (Storm Blue & Cyan)",
+            Self::GruvboxDark => "Gruvbox Dark (Retro Charcoal & Orange)",
+            Self::MonokaiPro => "Monokai Pro (Obsidian & Vivid Gold)",
+            Self::Synthwave84 => "Synthwave '84 (Outrun Cyber & Neon Pink)",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::VortexClassic => "Deep carbon black canvas with radiant gold accents — the signature Vortex look.",
+            Self::OnyxDiamond => "Pitch black optimized for OLED displays with vibrant emerald diamond accents.",
+            Self::MidnightNavy => "Dark abyssal ocean blue paired with glowing sapphire blue indicators.",
+            Self::CyberpunkNeon => "High-contrast dark violet with glowing neon rose magenta elements.",
+            Self::TitaniumSilver => "Precision-machined dark gunmetal titanium with crisp ice blue highlights.",
+            Self::EmeraldForest => "Tactical dark foliage and jade green canvas with luminous mint accents.",
+            Self::CrimsonRuby => "Dramatic dark burgundy wine with intense ruby flame highlights.",
+            Self::NordicFrost => "Arctic dark slate and navy with ultra-clean ice crystal accents.",
+            Self::SolarizedDark => "Scientifically tuned deep teal background with warm solar amber accents.",
+            Self::Dracula => "Beloved dark fantasy gothic purple with electric lilac and pink highlights.",
+            Self::TokyoNight => "Stormy twilight Tokyo skyline with vibrant electric cyan and neon blue.",
+            Self::GruvboxDark => "Warm retro earthy groove with matte charcoal and bright autumnal orange.",
+            Self::MonokaiPro => "Refined obsidian charcoal canvas with brilliant electric gold and magenta.",
+            Self::Synthwave84 => "80s retro outrun aesthetics with sunset neon pink and cyan laser glow.",
         }
     }
 
@@ -80,7 +119,13 @@ impl ThemeMode {
             Self::TitaniumSilver => Self::EmeraldForest,
             Self::EmeraldForest => Self::CrimsonRuby,
             Self::CrimsonRuby => Self::NordicFrost,
-            Self::NordicFrost => Self::VortexClassic,
+            Self::NordicFrost => Self::SolarizedDark,
+            Self::SolarizedDark => Self::Dracula,
+            Self::Dracula => Self::TokyoNight,
+            Self::TokyoNight => Self::GruvboxDark,
+            Self::GruvboxDark => Self::MonokaiPro,
+            Self::MonokaiPro => Self::Synthwave84,
+            Self::Synthwave84 => Self::VortexClassic,
         }
     }
 }
@@ -247,6 +292,10 @@ pub struct AppConfig {
     pub wasapi_exclusive: bool,
     pub audio_device: String,
     pub audio_channels: String,
+    #[serde(default)]
+    pub audio_passthrough: bool,
+    #[serde(default = "default_audio_reverb")]
+    pub audio_reverb: String,
     pub skip_intro_sec: f64,
     pub skip_outro_sec: f64,
     pub skip_intro_enabled: bool,
@@ -256,6 +305,8 @@ pub struct AppConfig {
     pub skip_chapter_titles: String,
     pub skip_intervals: Vec<ConfigSkipInterval>,
     pub secondary_subtitle_track: i64,
+    pub subtitle_click_search: bool,
+    pub subtitle_search_engine: String,
 
     // Advanced Vortex Power Additions
     pub lut_file: Option<String>,
@@ -305,7 +356,115 @@ pub struct AppConfig {
     pub osd_font_size: f32,
     pub mouse_middle_click_action: String,
     pub mouse_wheel_action: String,
+
+    // System Power, Cursor & Window Behavior
+    pub prevent_system_sleep: bool,
+    pub cursor_autohide_ms: u32,
+    pub start_in_fullscreen: bool,
+    pub mouse_left_click_action: String,
+    pub mouse_gestures_enabled: bool,
+
+    // Audio Pitch Correction & Seeking
+    pub audio_pitch_correction: bool,
+    pub pitch_engine: String,
+    pub exact_seek: bool,
+
+    // Hardware Codecs & Display HDR Peak
+    pub hwdec_codecs: String,
+    pub hdr_target_peak: f64,
+
+    // Subtitle & Audio Language Preferences
+    pub subtitle_languages: String,
+    pub audio_languages: String,
+    pub sub_auto_mode: String,
+    pub auto_download_subtitles: bool,
+
+    // Input & Hotkeys Management
+    pub global_hotkeys_enabled: bool,
+    pub background_hotkeys_enabled: bool,
+    pub input_profile_name: String,
+
+    // Gamepad & Controller Subsystem
+    pub gamepad_enabled: bool,
+    pub gamepad_deadzone: f32,
+    pub gamepad_action_a: String,
+    pub gamepad_action_b: String,
+    pub gamepad_action_x: String,
+    pub gamepad_action_y: String,
+
+    // Network Streaming, Buffering, Proxy & Quality
+    pub network_cache_sec: f64,
+    pub network_cache_mb: u32,
+    pub network_timeout: u32,
+    pub network_user_agent: String,
+    pub http_proxy: String,
+    pub ytdl_format: String,
+
+    // Windows Desktop Integration & Shell
+    pub smtc_enabled: bool,
+    pub taskbar_controls_enabled: bool,
+    pub discord_rpc_enabled: bool,
+    pub discord_privacy_mode: String,
+
+    // Screenshots & Media Capture Hub
+    #[serde(default = "default_screenshot_format")]
+    pub screenshot_format: String,
+    #[serde(default = "default_screenshot_quality")]
+    pub screenshot_quality: u32,
+    #[serde(default)]
+    pub screenshot_directory: String,
+    #[serde(default = "default_true")]
+    pub screenshot_include_subtitles: bool,
+    #[serde(default = "default_screenshot_template")]
+    pub screenshot_template: String,
+
+    // Subtitle Encoding, Codepages & Sizing
+    #[serde(default = "default_subtitle_codepage")]
+    pub subtitle_codepage: String,
+    #[serde(default = "default_true")]
+    pub subtitle_scale_with_window: bool,
+
+    // Audiophile Crossfeed & Dialogue
+    #[serde(default = "default_audio_crossfeed")]
+    pub audio_crossfeed: String,
+    #[serde(default)]
+    pub audio_dialogue_boost: f64,
+
+    // Display Color Calibration & ICC
+    #[serde(default)]
+    pub icc_profile: Option<String>,
+
+    // Network Resiliency & Streaming Auth
+    #[serde(default)]
+    pub ytdl_cookies_file: String,
+    #[serde(default = "default_network_max_reconnects")]
+    pub network_max_reconnects: u32,
+    #[serde(default = "default_network_reconnect_delay")]
+    pub network_reconnect_delay_sec: u32,
+
+    // Smart Playback & UI Density
+    #[serde(default = "default_smart_resume_min")]
+    pub smart_resume_min_sec: f64,
+    #[serde(default = "default_smart_resume_max")]
+    pub smart_resume_max_percent: f64,
+    #[serde(default)]
+    pub auto_hide_controls_windowed: bool,
+    #[serde(default = "default_ui_scale")]
+    pub ui_scale_override: f32,
 }
+
+fn default_true() -> bool { true }
+fn default_screenshot_format() -> String { "png".to_string() }
+fn default_screenshot_quality() -> u32 { 90 }
+fn default_screenshot_template() -> String { "vortex_%F_%P".to_string() }
+fn default_subtitle_codepage() -> String { "auto".to_string() }
+fn default_audio_crossfeed() -> String { "none".to_string() }
+fn default_audio_reverb() -> String { "off".to_string() }
+fn default_network_max_reconnects() -> u32 { 5 }
+fn default_network_reconnect_delay() -> u32 { 2 }
+fn default_smart_resume_min() -> f64 { 15.0 }
+fn default_smart_resume_max() -> f64 { 95.0 }
+fn default_ui_scale() -> f32 { 1.0 }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -335,7 +494,7 @@ impl Default for AppConfig {
             adaptive_seek: false,
             playlist_end_action: PlaylistEndAction::ShowHomeScreen,
             subtitle_font_size: 28.0,
-            subtitle_vertical_pos: 90.0,
+            subtitle_vertical_pos: 100.0,
             subtitle_color: "#FFFFFF".to_string(),
             subtitle_outline_color: "#000000".to_string(),
             subtitle_outline_width: 2.5,
@@ -351,7 +510,7 @@ impl Default for AppConfig {
             subtitle_letter_spacing: 0.0,
             subtitle_ass_override: "yes".to_string(),
             subtitle_margin_x: 25,
-            subtitle_margin_y: 85,
+            subtitle_margin_y: 65,
             subtitle_secondary_pos: 10.0,
             eq_enabled: false,
             eq_preset: "Flat".to_string(),
@@ -390,6 +549,8 @@ impl Default for AppConfig {
             wasapi_exclusive: false,
             audio_channels: "auto".to_string(),
             audio_device: "auto".to_string(),
+            audio_passthrough: false,
+            audio_reverb: "off".to_string(),
             skip_intro_sec: 0.0,
             skip_outro_sec: 0.0,
             skip_intro_enabled: false,
@@ -399,6 +560,8 @@ impl Default for AppConfig {
             skip_chapter_titles: "opening;begin;ending;intro;credits;op;ed;prologue;recap;preview;theme;outro;".to_string(),
             skip_intervals: Vec::new(),
             secondary_subtitle_track: 0,
+            subtitle_click_search: true,
+            subtitle_search_engine: "Google".to_string(),
 
             lut_file: None,
             crop_left: 0,
@@ -433,12 +596,76 @@ impl Default for AppConfig {
             video_sync_mode: "audio".to_string(),
             framedrop_mode: "vo".to_string(),
             subtitle_sub_font: "Segoe UI".to_string(),
-            subtitle_render_to_video: false,
+            subtitle_render_to_video: true,
             osd_duration_ms: 1500,
             osd_font_size: 20.0,
             mouse_middle_click_action: "Mute".to_string(),
             mouse_wheel_action: "Volume".to_string(),
             toast_position: ToastPosition::default(),
+
+            prevent_system_sleep: true,
+            cursor_autohide_ms: 1500,
+            start_in_fullscreen: false,
+            mouse_left_click_action: "PlayPause".to_string(),
+            mouse_gestures_enabled: true,
+
+            audio_pitch_correction: true,
+            pitch_engine: "scaletempo2".to_string(),
+            exact_seek: true,
+
+            hwdec_codecs: "all".to_string(),
+            hdr_target_peak: 200.0,
+
+            subtitle_languages: "hi,hin,en,eng,ja,jpn".to_string(),
+            audio_languages: "hi,hin,en,eng,ja,jpn".to_string(),
+            sub_auto_mode: "fuzzy".to_string(),
+            auto_download_subtitles: false,
+
+            global_hotkeys_enabled: true,
+            background_hotkeys_enabled: true,
+            input_profile_name: "Standard".to_string(),
+
+            gamepad_enabled: true,
+            gamepad_deadzone: 0.15,
+            gamepad_action_a: "PlayPause".to_string(),
+            gamepad_action_b: "ToggleControls".to_string(),
+            gamepad_action_x: "ToggleSubtitles".to_string(),
+            gamepad_action_y: "CycleAudio".to_string(),
+
+            network_cache_sec: 60.0,
+            network_cache_mb: 512,
+            network_timeout: 30,
+            network_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) VortexPlayer/2.0".to_string(),
+            http_proxy: String::new(),
+            ytdl_format: "bestvideo+bestaudio/best".to_string(),
+
+            smtc_enabled: true,
+            taskbar_controls_enabled: true,
+            discord_rpc_enabled: true,
+            discord_privacy_mode: "FullDetails".to_string(),
+
+            screenshot_format: "png".to_string(),
+            screenshot_quality: 90,
+            screenshot_directory: String::new(),
+            screenshot_include_subtitles: true,
+            screenshot_template: "vortex_%F_%P".to_string(),
+
+            subtitle_codepage: "auto".to_string(),
+            subtitle_scale_with_window: true,
+
+            audio_crossfeed: "none".to_string(),
+            audio_dialogue_boost: 0.0,
+
+            icc_profile: None,
+
+            ytdl_cookies_file: String::new(),
+            network_max_reconnects: 5,
+            network_reconnect_delay_sec: 2,
+
+            smart_resume_min_sec: 15.0,
+            smart_resume_max_percent: 95.0,
+            auto_hide_controls_windowed: false,
+            ui_scale_override: 1.0,
         }
     }
 }
@@ -481,6 +708,13 @@ impl AppConfig {
                     if cfg.video_gamma == 0.0 {
                         cfg.video_gamma = 100.0;
                     }
+                    // Ensure subtitle clearance so subtitles never clip into bottom seekbar / letterbox
+                    if cfg.subtitle_margin_y < 50 {
+                        cfg.subtitle_margin_y = 65;
+                    }
+                    if cfg.subtitle_vertical_pos > 100.0 || cfg.subtitle_vertical_pos <= 0.0 {
+                        cfg.subtitle_vertical_pos = 100.0;
+                    }
                     return cfg;
                 }
             }
@@ -507,7 +741,25 @@ impl AppConfig {
     pub fn save_resume_time(&mut self, path: &str, time: f64) {
         let win_key = path.replace('/', "\\");
         let unix_key = path.replace('\\', "/");
-        if time <= 2.0 {
+        let min_thresh = self.smart_resume_min_sec.max(2.0);
+        if time <= min_thresh {
+            self.resume_timestamps.remove(&win_key);
+            self.resume_timestamps.remove(&unix_key);
+            self.resume_timestamps.remove(path);
+        } else {
+            self.resume_timestamps.insert(path.to_string(), time);
+            self.resume_timestamps.insert(unix_key, time);
+            self.resume_timestamps.insert(win_key, time);
+        }
+        let _ = self.save();
+    }
+
+    pub fn save_smart_resume_time(&mut self, path: &str, time: f64, duration: f64) {
+        let win_key = path.replace('/', "\\");
+        let unix_key = path.replace('\\', "/");
+        let min_thresh = self.smart_resume_min_sec.max(2.0);
+        let is_credits = duration > 0.0 && (time / duration * 100.0) >= self.smart_resume_max_percent;
+        if time <= min_thresh || is_credits {
             self.resume_timestamps.remove(&win_key);
             self.resume_timestamps.remove(&unix_key);
             self.resume_timestamps.remove(path);

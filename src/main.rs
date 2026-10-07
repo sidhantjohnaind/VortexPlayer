@@ -83,7 +83,7 @@ fn main() {
     if args.len() > 1 {
         let first_arg = &args[1];
         if first_arg == "-v" || first_arg == "--version" {
-            println!("VortexPlayer - egui v1.0.0 (Rust Edition)");
+            println!("VortexPlayer - egui v1.1.0 (Rust Edition)");
             return;
         }
         if first_arg == "-h" || first_arg == "--help" {

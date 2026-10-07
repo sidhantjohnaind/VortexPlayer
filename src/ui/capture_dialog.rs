@@ -44,8 +44,8 @@ impl CaptureDialog {
                     let tabs = ["Burst Snapshot", "Contact Sheet", "Video & Stream Recording"];
                     for t in tabs {
                         let is_sel = self.active_tab == t;
-                        let color = if is_sel { VortexTheme::VORTEX_YELLOW } else { VortexTheme::TEXT_SECONDARY };
-                        let bg = if is_sel { VortexTheme::BG_ACTIVE } else { Color32::TRANSPARENT };
+                        let color = if is_sel { VortexTheme::current_skin().accent_primary } else { VortexTheme::current_skin().text_secondary };
+                        let bg = if is_sel { VortexTheme::current_skin().bg_btn_active } else { Color32::TRANSPARENT };
                         if ui.add(egui::Button::new(RichText::new(t).strong().color(color)).fill(bg)).clicked() {
                             self.active_tab = t.to_string();
                         }
@@ -56,7 +56,7 @@ impl CaptureDialog {
 
                 match self.active_tab.as_str() {
                     "Burst Snapshot" => {
-                        ui.label(RichText::new("Continuous Burst Capture").strong().color(VortexTheme::VORTEX_YELLOW));
+                        ui.label(RichText::new("Continuous Burst Capture").strong().color(VortexTheme::current_skin().accent_primary));
                         ui.horizontal(|ui| {
                             ui.label("Format:");
                             for fmt in CaptureFormat::ALL {
@@ -81,7 +81,7 @@ impl CaptureDialog {
 
                         ui.separator();
                         let btn_text = if burst.is_running { "⏹ Stop Burst Capture" } else { "▶ Start Burst Capture" };
-                        let btn_col = if burst.is_running { Color32::from_rgb(200, 40, 40) } else { VortexTheme::VORTEX_YELLOW };
+                        let btn_col = if burst.is_running { Color32::from_rgb(200, 40, 40) } else { VortexTheme::current_skin().accent_primary };
                         if ui.add(egui::Button::new(RichText::new(btn_text).color(btn_col).strong()).min_size(Vec2::new(180.0, 28.0))).clicked() {
                             burst.toggle();
                         }
@@ -90,7 +90,7 @@ impl CaptureDialog {
                         }
                     }
                     "Contact Sheet" => {
-                        ui.label(RichText::new("Thumbnail Sheet / Contact Sheet").strong().color(VortexTheme::VORTEX_YELLOW));
+                        ui.label(RichText::new("Thumbnail Sheet / Contact Sheet").strong().color(VortexTheme::current_skin().accent_primary));
                         ui.label("Generates a structured grid of preview frames across the video duration.");
                         ui.horizontal(|ui| {
                             ui.label("Grid Columns:");
@@ -104,7 +104,7 @@ impl CaptureDialog {
                         }
                     }
                     "Video & Stream Recording" => {
-                        ui.label(RichText::new("Direct Playback & Stream Recorder").strong().color(VortexTheme::VORTEX_YELLOW));
+                        ui.label(RichText::new("Direct Playback & Stream Recorder").strong().color(VortexTheme::current_skin().accent_primary));
                         ui.horizontal(|ui| {
                             ui.label("Encoding Engine:");
                             for codec in &["copy (lossless direct stream)", "hevc_nvenc (NVIDIA 10-bit)", "h264_qsv (Intel)"] {

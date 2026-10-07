@@ -18,3 +18,8 @@ mpv-dev/
 *.png
 test_*.py
 list_windows.py
+run_player_on_desktop.py
+CHAT_CONTEXT_TRANSFER.md
+chat_transcript.jsonl
+*.json
+json/

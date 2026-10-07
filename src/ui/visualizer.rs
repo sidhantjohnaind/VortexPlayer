@@ -122,7 +122,7 @@ impl VisualizerSuite {
                     let color = if i < 20 {
                         Color32::from_rgb(100, 180, 255)
                     } else if i < 44 {
-                        VortexTheme::VORTEX_YELLOW
+                        VortexTheme::current_skin().accent_primary
                     } else {
                         Color32::from_rgb(255, 90, 90)
                     };
@@ -150,7 +150,7 @@ impl VisualizerSuite {
                 }).collect();
 
                 for w in pts.windows(2) {
-                    painter.line_segment([w[0], w[1]], Stroke::new(2.0, VortexTheme::VORTEX_YELLOW));
+                    painter.line_segment([w[0], w[1]], Stroke::new(2.0, VortexTheme::current_skin().accent_primary));
                 }
             }
             VisualizerMode::Vectorscope | VisualizerMode::LufsMeter => {
@@ -160,7 +160,7 @@ impl VisualizerSuite {
                     Align2::LEFT_CENTER,
                     "EBU R128 LUFS: -16.2 LUFS | True Peak: -0.8 dBTP | Dynamic Range: 12.4 LU",
                     FontId::monospace(12.0),
-                    VortexTheme::VORTEX_YELLOW,
+                    VortexTheme::current_skin().accent_primary,
                 );
             }
         }

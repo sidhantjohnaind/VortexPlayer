@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 pub mod queue;
 pub use queue::{PlayNextQueue, SequenceDetector};
 pub mod smart;

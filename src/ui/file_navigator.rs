@@ -60,7 +60,7 @@ impl FileNavigatorSidebar {
                             self.refresh();
                         }
                     }
-                    ui.label(RichText::new(self.current_dir.file_name().unwrap_or_default().to_string_lossy()).strong().color(VortexTheme::VORTEX_YELLOW));
+                    ui.label(RichText::new(self.current_dir.file_name().unwrap_or_default().to_string_lossy()).strong().color(VortexTheme::current_skin().accent_primary));
                 });
                 ui.separator();
 

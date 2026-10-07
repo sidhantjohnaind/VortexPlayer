@@ -1,9 +1,17 @@
 [package]
 name = "vortex-player-egui"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 default-run = "vortex-player-egui"
 description = "VertexPlayer - High-Quality Modern Rust Media Player (egui Edition)"
+include = [
+    "src/**/*",
+    "assets/**/*",
+    "Cargo.toml",
+    "build.rs",
+    "README.md",
+    "LICENSE",
+]
 
 [lib]
 name = "vortex_player"

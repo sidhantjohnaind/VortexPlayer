@@ -192,7 +192,7 @@ impl MediaInfoDialog {
                             Align2::CENTER_CENTER,
                             if is_pinned { "📌" } else { "📍" },
                             FontId::proportional(12.0),
-                            if is_pinned { VortexTheme::VORTEX_YELLOW } else if pin_hover { Color32::WHITE } else { Color32::from_rgb(160, 165, 180) },
+                            if is_pinned { VortexTheme::current_skin().accent_primary } else if pin_hover { Color32::WHITE } else { Color32::from_rgb(160, 165, 180) },
                         );
                     }
 
@@ -640,7 +640,7 @@ impl MediaInfoDialog {
                                     ui.label(RichText::new("Audio Info").size(11.0).strong().color(Color32::from_rgb(225, 230, 240)));
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         let btn_txt = if is_ex { "⚡ WASAPI Exclusive: ON (Bit-Perfect)" } else { "WASAPI Shared (Click to Toggle)" };
-                                        let btn_col = if is_ex { VortexTheme::VORTEX_YELLOW } else { Color32::from_rgb(150, 155, 175) };
+                                        let btn_col = if is_ex { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(150, 155, 175) };
                                         if ui.button(RichText::new(btn_txt).size(10.0).strong().color(btn_col))
                                             .on_hover_text("Click to toggle Bit-Perfect Direct WASAPI Exclusive Output")
                                             .clicked()
@@ -1068,6 +1068,7 @@ impl MediaInfoDialog {
         crate::engine::mediainfo::get_mediainfo_text(&stats.file_path, stats)
     }
 
+    #[allow(unused_mut)]
     pub fn generate_system_info_text(stats: &MediaStats) -> String {
         let threads = std::thread::available_parallelism()
             .map(|p| p.get())

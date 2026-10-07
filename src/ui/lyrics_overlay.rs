@@ -37,7 +37,7 @@ impl LyricsOverlay {
                     Align2::CENTER_CENTER,
                     &active_line.text,
                     FontId::proportional(22.0),
-                    VortexTheme::VORTEX_YELLOW,
+                    VortexTheme::current_skin().accent_primary,
                 );
 
                 // Draw Next Line (Muted Grey)

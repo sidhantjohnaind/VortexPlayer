@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 pub mod navigation;
 pub use navigation::NavigationEngine;
 pub mod archive;

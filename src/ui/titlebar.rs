@@ -28,6 +28,7 @@ impl TitleBar {
         menu_pos_out: &mut Option<Pos2>,
         is_fullscreen: bool,
         is_maximized: bool,
+        theme_mode: crate::config::ThemeMode,
     ) -> TitleBarResponse {
         let mut hovered_tooltip: Option<(Pos2, String)> = None;
         let mut drag_started = false;
@@ -39,15 +40,16 @@ impl TitleBar {
             Sense::hover(),
         );
 
+        let skin = VortexTheme::get_skin(theme_mode);
         let painter = ui.painter();
 
-        // ── 1. Pitch Black Gunmetal Background ──────────────────────────────
-        painter.rect_filled(rect, CornerRadius::ZERO, Color32::from_rgb(18, 18, 20));
+        // ── 1. Themed Background & Divider ──────────────────────────────
+        painter.rect_filled(rect, CornerRadius::ZERO, skin.bg_titlebar);
         
         // Bottom fine divider
         painter.line_segment(
             [rect.left_bottom(), rect.right_bottom()],
-            Stroke::new(1.0, Color32::from_rgb(30, 30, 34)),
+            Stroke::new(1.0, skin.border_dark),
         );
 
         // ── 2. Left: VortexPlayer ⌵ Brand Button ───────────────────────────────
@@ -64,7 +66,7 @@ impl TitleBar {
             painter.rect_filled(
                 brand_rect,
                 CornerRadius::same(2),
-                Color32::from_rgb(35, 36, 42),
+                skin.bg_btn_hover,
             );
             hovered_tooltip = Some((Pos2::new(brand_rect.center().x, brand_rect.bottom() + 4.0), "VortexPlayer Main Menu".to_string()));
         }
@@ -85,7 +87,7 @@ impl TitleBar {
             if brand_resp.hovered() {
                 Color32::WHITE
             } else {
-                Color32::from_rgb(220, 222, 228)
+                skin.text_primary
             },
         );
 
@@ -97,7 +99,7 @@ impl TitleBar {
             if brand_resp.hovered() {
                 Color32::WHITE
             } else {
-                Color32::from_rgb(150, 154, 165)
+                skin.text_secondary
             },
         );
 
@@ -140,7 +142,7 @@ impl TitleBar {
                     Pos2::new(cursor_left, rect.top() + 6.0),
                     Pos2::new(cursor_left, rect.bottom() - 6.0),
                 ],
-                Stroke::new(1.0, Color32::from_rgb(50, 52, 60)),
+                Stroke::new(1.0, skin.border_dark),
             );
             cursor_left += 8.0;
 
@@ -154,7 +156,7 @@ impl TitleBar {
                         Align2::LEFT_CENTER,
                         badge_text,
                         FontId::monospace(11.0),
-                        Color32::from_rgb(155, 160, 175),
+                        skin.accent_primary,
                     );
                     cursor_left += badge_w + 8.0;
 
@@ -164,7 +166,7 @@ impl TitleBar {
                             Pos2::new(cursor_left, rect.top() + 6.0),
                             Pos2::new(cursor_left, rect.bottom() - 6.0),
                         ],
-                        Stroke::new(1.0, Color32::from_rgb(50, 52, 60)),
+                        Stroke::new(1.0, skin.border_dark),
                     );
                     cursor_left += 8.0;
                 }
@@ -184,7 +186,7 @@ impl TitleBar {
                 Align2::LEFT_CENTER,
                 clipped_title,
                 FontId::proportional(12.0),
-                Color32::from_rgb(220, 222, 230),
+                skin.text_primary,
             );
         }
 
@@ -201,7 +203,7 @@ impl TitleBar {
         Icons::draw_close(
             painter,
             close_rect,
-            if close_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(200, 204, 215) },
+            if close_resp.hovered() { Color32::WHITE } else { skin.text_primary },
         );
         if close_resp.clicked() {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -213,13 +215,13 @@ impl TitleBar {
         let max_rect = Rect::from_min_size(Pos2::new(btn_right - btn_w, btn_y), Vec2::new(btn_w, btn_h));
         let max_resp = ui.interact(max_rect, ui.id().with("tb_max"), Sense::click());
         if max_resp.hovered() {
-            painter.rect_filled(max_rect, CornerRadius::same(2), Color32::from_rgb(38, 40, 48));
+            painter.rect_filled(max_rect, CornerRadius::same(2), skin.bg_btn_hover);
             hovered_tooltip = Some((Pos2::new(max_rect.center().x, max_rect.bottom() + 4.0), if is_max { "Restore Window".to_string() } else { "Maximize Window".to_string() }));
         }
         Icons::draw_maximize(
             painter,
             max_rect,
-            if max_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(200, 204, 215) },
+            if max_resp.hovered() { Color32::WHITE } else { skin.text_secondary },
             is_max,
         );
         if max_resp.clicked() {
@@ -231,13 +233,13 @@ impl TitleBar {
         let min_rect = Rect::from_min_size(Pos2::new(btn_right - btn_w, btn_y), Vec2::new(btn_w, btn_h));
         let min_resp = ui.interact(min_rect, ui.id().with("tb_min"), Sense::click());
         if min_resp.hovered() {
-            painter.rect_filled(min_rect, CornerRadius::same(2), Color32::from_rgb(38, 40, 48));
+            painter.rect_filled(min_rect, CornerRadius::same(2), skin.bg_btn_hover);
             hovered_tooltip = Some((Pos2::new(min_rect.center().x, min_rect.bottom() + 4.0), "Minimize Window".to_string()));
         }
         Icons::draw_minimize(
             painter,
             min_rect,
-            if min_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(200, 204, 215) },
+            if min_resp.hovered() { Color32::WHITE } else { skin.text_secondary },
         );
         if min_resp.clicked() {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
@@ -248,15 +250,15 @@ impl TitleBar {
         let pin_rect = Rect::from_min_size(Pos2::new(btn_right - btn_w, btn_y), Vec2::new(btn_w, btn_h));
         let pin_resp = ui.interact(pin_rect, ui.id().with("tb_pin"), Sense::click());
         if pin_resp.hovered() {
-            painter.rect_filled(pin_rect, CornerRadius::same(2), Color32::from_rgb(38, 40, 48));
+            painter.rect_filled(pin_rect, CornerRadius::same(2), skin.bg_btn_hover);
             hovered_tooltip = Some((Pos2::new(pin_rect.center().x, pin_rect.bottom() + 4.0), if *always_on_top { "Always On Top: ON (Click to toggle)".to_string() } else { "Always On Top: OFF (Click to toggle)".to_string() }));
         }
         let pin_color = if *always_on_top {
-            VortexTheme::VORTEX_YELLOW
+            skin.accent_primary
         } else if pin_resp.hovered() {
             Color32::WHITE
         } else {
-            Color32::from_rgb(140, 144, 155)
+            skin.text_muted
         };
         Icons::draw_pin(painter, pin_rect, pin_color, *always_on_top);
         if pin_resp.clicked() {

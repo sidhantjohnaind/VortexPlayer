@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::theme::VortexTheme;
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 

@@ -27,7 +27,7 @@ impl BookmarkOverlay {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 6.0);
 
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Saved Bookmarks").strong().color(VortexTheme::VORTEX_YELLOW));
+                    ui.label(RichText::new("Saved Bookmarks").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.button("+ Add at Current Pos").clicked() {
                             bookmark_mgr.add_bookmark(stats.time_pos, None);
@@ -45,8 +45,8 @@ impl BookmarkOverlay {
                         if bookmark_mgr.bookmarks.is_empty() {
                             ui.vertical_centered(|ui| {
                                 ui.add_space(30.0);
-                                ui.label(RichText::new("No bookmarks saved for this file").color(VortexTheme::TEXT_MUTED).size(12.0));
-                                ui.label(RichText::new("Press [P] or [Ctrl+B] to bookmark timestamps").color(VortexTheme::TEXT_MUTED).size(11.0));
+                                ui.label(RichText::new("No bookmarks saved for this file").color(VortexTheme::current_skin().text_muted).size(12.0));
+                                ui.label(RichText::new("Press [P] or [Ctrl+B] to bookmark timestamps").color(VortexTheme::current_skin().text_muted).size(11.0));
                             });
                         } else {
                             let mut delete_idx = None;
@@ -59,7 +59,7 @@ impl BookmarkOverlay {
                                     let time_label = ui.button(
                                         RichText::new(format_time(bm.time_pos))
                                             .monospace()
-                                            .color(VortexTheme::VORTEX_YELLOW)
+                                            .color(VortexTheme::current_skin().accent_primary)
                                             .size(11.5),
                                     );
                                     if time_label.clicked() {
@@ -70,7 +70,7 @@ impl BookmarkOverlay {
                                     ui.add(egui::TextEdit::singleline(&mut bm.title).desired_width(ui.available_width() - 35.0));
 
                                     // Delete Button
-                                    if ui.button(RichText::new("✕").size(10.0).color(VortexTheme::TEXT_MUTED)).clicked() {
+                                    if ui.button(RichText::new("✕").size(10.0).color(VortexTheme::current_skin().text_muted)).clicked() {
                                         delete_idx = Some(idx);
                                     }
                                 });

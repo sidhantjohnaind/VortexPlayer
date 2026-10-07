@@ -51,7 +51,7 @@ impl AudioMeterWidget {
                     RichText::new(format!("{} {}", layout_str, codec_str))
                         .size(10.5)
                         .strong()
-                        .color(VortexTheme::VORTEX_YELLOW),
+                        .color(VortexTheme::current_skin().accent_primary),
                 );
             });
         });
@@ -240,7 +240,7 @@ impl AudioMeterWidget {
             // ── E. Speaker Label (L, R, C, LFE, SL, SR, BL, BR) ───────────────
             let label_y = bar_rect.bottom() + 10.0;
             let speaker_col = if ch.is_solo {
-                VortexTheme::VORTEX_YELLOW
+                VortexTheme::current_skin().accent_primary
             } else if ch.is_muted {
                 Color32::from_rgb(120, 60, 60)
             } else {

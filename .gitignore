@@ -1,6 +1,7 @@
 /target
 target/
 dist/
+dist-*/
 *.exe
 *.EXE
 *.dll

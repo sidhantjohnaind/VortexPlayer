@@ -149,6 +149,12 @@ pub struct VortexApp {
     show_peq_dialog: bool,
     show_jump_time_dialog: bool,
     jump_time_dialog: JumpTimeDialog,
+    pub show_sleep_timer_dialog: bool,
+    pub sleep_timer_dialog: SleepTimerDialog,
+    pub show_update_dialog: bool,
+    pub update_dialog: UpdateDialog,
+    pub show_surround_eq_dialog: bool,
+    pub surround_eq_dialog: SurroundEqDialog,
     show_library_view: bool,
     show_bookmark_overlay: bool,
     show_capture_dialog: bool,
@@ -421,6 +427,12 @@ impl VortexApp {
             show_peq_dialog: false,
             show_jump_time_dialog: false,
             jump_time_dialog: JumpTimeDialog::new(),
+            show_sleep_timer_dialog: false,
+            sleep_timer_dialog: SleepTimerDialog::new(),
+            show_update_dialog: false,
+            update_dialog: UpdateDialog::new(),
+            show_surround_eq_dialog: false,
+            surround_eq_dialog: SurroundEqDialog::new(),
             show_library_view: false,
             capture_dialog: CaptureDialog::new(),
             capture_config: crate::capture::CaptureConfig::default(),
@@ -853,6 +865,17 @@ impl VortexApp {
 
         let wants_kb = ctx.egui_wants_keyboard_input();
 
+        // ── Sleep Timer Expiration Check ─────────────────────────────────────
+        if self.sleep_timer.is_expired() {
+            let action = self.sleep_timer.completion_action;
+            self.sleep_timer.cancel();
+            if let Ok(ref player) = self.player {
+                player.pause();
+            }
+            self.osd.show(format!("🌙 Sleep Timer Triggered: {}", action.label()), 3000);
+            self.sleep_timer.execute_system_action();
+        }
+
         if let Ok(ref player) = self.player {
             let input = ctx.input(|i| i.clone());
 
@@ -872,6 +895,9 @@ impl VortexApp {
                 self.show_stream_url_dialog = false;
                 self.show_about_dialog = false;
                 self.show_peq_dialog = false;
+                self.show_sleep_timer_dialog = false;
+                self.show_update_dialog = false;
+                self.show_surround_eq_dialog = false;
                 self.show_jump_time_dialog = false;
                 self.show_library_view = false;
                 self.show_speed_popup = false;
@@ -984,7 +1010,8 @@ impl VortexApp {
                 self.show_stream_url_dialog = !self.show_stream_url_dialog;
             }
             if (input.modifiers.ctrl || input.modifiers.command) && input.modifiers.shift && input.key_pressed(egui::Key::U) {
-                self.network_browser.is_open = !self.network_browser.is_open;
+                self.show_update_dialog = true;
+                self.update_dialog.check_for_updates();
             }
 
             // ── Ctrl / Cmd Combinations ───────────────────────────────────────
@@ -1075,6 +1102,17 @@ impl VortexApp {
 
             // ── Ctrl+Shift Combinations ───────────────────────────────────────
             if input.modifiers.ctrl && input.modifiers.shift && !input.modifiers.alt {
+                if input.key_pressed(egui::Key::Z) {
+                    self.show_sleep_timer_dialog = !self.show_sleep_timer_dialog;
+                }
+                if input.key_pressed(egui::Key::V) {
+                    self.visualizer.toggle();
+                    let state = if self.visualizer.is_visible { "ON" } else { "OFF" };
+                    self.osd.show(format!("Visualizer Suite: {}", state), 1200);
+                }
+                if input.key_pressed(egui::Key::Num7) {
+                    self.show_surround_eq_dialog = !self.show_surround_eq_dialog;
+                }
                 if input.key_pressed(egui::Key::F) {
                     self.chain_editor.is_open = !self.chain_editor.is_open;
                 }
@@ -1999,6 +2037,15 @@ impl VortexApp {
                     return Some(next);
                 }
 
+                // Check if sleep timer was set for end of playlist
+                if self.sleep_timer.active && self.sleep_timer.trigger_on_playlist_end {
+                    let action = self.sleep_timer.completion_action;
+                    self.sleep_timer.cancel();
+                    player.pause();
+                    self.osd.show(format!("🌙 Sleep Timer Triggered (Playlist End): {}", action.label()), 3000);
+                    self.sleep_timer.execute_system_action();
+                }
+
                 // If playlist has reached its end with RepeatMode::Off, apply configured end action
                 match self.config.playlist_end_action {
                     PlaylistEndAction::RepeatPlaylist => {
@@ -2055,6 +2102,9 @@ impl VortexApp {
             || self.show_stream_url_dialog
             || self.show_bookmark_overlay
             || self.show_peq_dialog
+            || self.show_sleep_timer_dialog
+            || self.show_update_dialog
+            || self.show_surround_eq_dialog
             || self.show_capture_dialog
             || self.show_jump_time_dialog
             || self.bookmark_studio.is_open
@@ -4047,6 +4097,11 @@ impl eframe::App for VortexApp {
                         self.music_view.render(ui, player, effective_rect, &stats);
                     }
 
+                    // Ultra-Modern Audio Visualizer Suite Overlay
+                    if self.visualizer.is_visible {
+                        self.visualizer.render(ui, effective_rect, &stats);
+                    }
+
                     // Ultra-Modern Vortex Glassmorphic Idle Screen & Media Launchpad
                     if stats.is_idle || stats.file_path.is_empty() {
                         let top_bar_h = if show_top_menu { 32.0 } else { 0.0 };
@@ -4773,6 +4828,10 @@ impl eframe::App for VortexApp {
 
         self.broadcast_dialog.render(&ctx, &stats);
         self.channel_matrix_dialog.render(&ctx, &mut self.channel_matrix_config);
+        if self.channel_matrix_dialog.open_surround_eq {
+            self.channel_matrix_dialog.open_surround_eq = false;
+            self.show_surround_eq_dialog = true;
+        }
         self.chain_editor.render(&ctx, &mut self.video_chain, &mut self.audio_chain);
         if let Some(r) = self.auto_skip_dialog.render(
             &ctx,
@@ -5477,6 +5536,37 @@ impl eframe::App for VortexApp {
                             self.show_main_menu = false;
                             file_to_open = Some(p);
                         }
+                        if menu_actions.toggle_sleep_timer {
+                            self.show_main_menu = false;
+                            self.show_sleep_timer_dialog = !self.show_sleep_timer_dialog;
+                        }
+                        if menu_actions.toggle_visualizer {
+                            self.show_main_menu = false;
+                            self.visualizer.toggle();
+                            let state = if self.visualizer.is_visible { "ON" } else { "OFF" };
+                            self.osd.show(format!("Visualizer Suite: {}", state), 1200);
+                        }
+                        if menu_actions.cycle_visualizer_mode {
+                            self.show_main_menu = false;
+                            self.visualizer.is_visible = true;
+                            let mode = self.visualizer.cycle_mode();
+                            self.osd.show(format!("Visualizer Mode: {}", mode.display_name()), 1200);
+                        }
+                        if let Some(mode) = menu_actions.set_visualizer_mode {
+                            self.show_main_menu = false;
+                            self.visualizer.mode = mode;
+                            self.visualizer.is_visible = true;
+                            self.osd.show(format!("Visualizer Mode: {}", mode.display_name()), 1200);
+                        }
+                        if menu_actions.check_updates {
+                            self.show_main_menu = false;
+                            self.show_update_dialog = true;
+                            self.update_dialog.check_for_updates();
+                        }
+                        if menu_actions.toggle_surround_eq {
+                            self.show_main_menu = false;
+                            self.show_surround_eq_dialog = !self.show_surround_eq_dialog;
+                        }
 
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                         self.show_main_menu = false;
@@ -6071,6 +6161,26 @@ impl eframe::App for VortexApp {
             }
             if close_about {
                 self.show_about_dialog = false;
+            }
+        }
+
+        if self.show_sleep_timer_dialog {
+            if let Some(r) = self.sleep_timer_dialog.render(&ctx, &mut self.show_sleep_timer_dialog, &mut self.sleep_timer) {
+                self.active_popup_rects.push(r);
+            }
+        }
+
+        if self.show_update_dialog {
+            if let Some(r) = self.update_dialog.render(&ctx, &mut self.show_update_dialog) {
+                self.active_popup_rects.push(r);
+            }
+        }
+
+        if self.show_surround_eq_dialog {
+            if let Ok(ref player) = self.player {
+                if let Some(r) = self.surround_eq_dialog.render(&ctx, &mut self.show_surround_eq_dialog, &mut self.config.surround_eq, player) {
+                    self.active_popup_rects.push(r);
+                }
             }
         }
 

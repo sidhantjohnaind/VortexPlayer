@@ -96,6 +96,12 @@ pub struct MenuActions {
     pub resize_window_factor: Option<f32>,
     pub center_window: bool,
     pub open_subtitle_preferences: bool,
+    pub toggle_sleep_timer: bool,
+    pub toggle_visualizer: bool,
+    pub cycle_visualizer_mode: bool,
+    pub set_visualizer_mode: Option<crate::ui::visualizer::VisualizerMode>,
+    pub check_updates: bool,
+    pub toggle_surround_eq: bool,
 }
 
 
@@ -654,6 +660,12 @@ impl VortexMenu {
             resize_window_factor: None,
             center_window: false,
             open_subtitle_preferences: false,
+            toggle_sleep_timer: false,
+            toggle_visualizer: false,
+            cycle_visualizer_mode: false,
+            set_visualizer_mode: None,
+            check_updates: false,
+            toggle_surround_eq: false,
         };
 
 
@@ -1096,6 +1108,10 @@ impl VortexMenu {
             }
             if menu_item(ui, &skin, "📝", "Rich Bookmarks & Study Notes...", "Ctrl+Alt+8", false, false).clicked() {
                 actions.toggle_rich_bookmark_notes = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🌙", "Sleep Timer...", "Ctrl+Shift+Z", false, false).clicked() {
+                actions.toggle_sleep_timer = true;
                 ui.close();
             }
             menu_separator(ui);
@@ -1791,6 +1807,24 @@ impl VortexMenu {
                 actions.toggle_karaoke = true;
                 ui.close();
             }
+            submenu_item(ui, &skin, "📊", "Audio Visualizer Suite", |ui| {
+                ui.set_min_width(260.0);
+                if menu_item(ui, &skin, "👁", "Toggle Visualizer Overlay", "Ctrl+Shift+V", false, false).clicked() {
+                    actions.toggle_visualizer = true;
+                    ui.close();
+                }
+                if menu_item(ui, &skin, "🔄", "Cycle Mode (FFT/Scope/Phase/LUFS)", "", false, false).clicked() {
+                    actions.cycle_visualizer_mode = true;
+                    ui.close();
+                }
+                menu_separator(ui);
+                for m in crate::ui::visualizer::VisualizerMode::ALL {
+                    if menu_item(ui, &skin, "•", m.display_name(), "", false, false).clicked() {
+                        actions.set_visualizer_mode = Some(m);
+                        ui.close();
+                    }
+                }
+            });
             if menu_item(ui, &skin, "🔄", "Cycle Audio Stream", "Alt+A", false, false).clicked() {
                 if let Some(p) = player {
                     p.cycle_audio_track();
@@ -2053,6 +2087,10 @@ impl VortexMenu {
 
             if menu_item(ui, &skin, "📈", "Parametric Equalizer (PEQ)...", "F9", false, false).clicked() {
                 actions.toggle_control_panel = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "🎛", "7.1 Surround Per-Channel Equalizer...", "Ctrl+Shift+7", false, false).clicked() {
+                actions.toggle_surround_eq = true;
                 ui.close();
             }
 
@@ -2406,6 +2444,11 @@ impl VortexMenu {
 
         if menu_item(ui, &skin, "ⓘ", "About...", "F1", false, false).clicked() {
             actions.show_about = true;
+            ui.close();
+        }
+
+        if menu_item(ui, &skin, "✨", "Check for Updates...", "Ctrl+Shift+U", false, false).clicked() {
+            actions.check_updates = true;
             ui.close();
         }
 

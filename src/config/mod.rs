@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use crate::engine::parametric_eq::ParametricEqConfig;
+use crate::engine::surround_eq::SurroundEqConfig;
 use crate::engine::shaders::ShaderConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -326,6 +327,8 @@ pub struct AppConfig {
 
     pub per_file_settings: HashMap<String, PerFileConfig>,
     pub parametric_eq: ParametricEqConfig,
+    #[serde(default)]
+    pub surround_eq: SurroundEqConfig,
     pub shaders: ShaderConfig,
     pub display_sync_enabled: bool,
     pub motion_interpolation: bool,
@@ -579,6 +582,7 @@ impl Default for AppConfig {
 
             per_file_settings: HashMap::new(),
             parametric_eq: ParametricEqConfig::default(),
+            surround_eq: SurroundEqConfig::default(),
             shaders: ShaderConfig::default(),
             display_sync_enabled: false,
             motion_interpolation: false,

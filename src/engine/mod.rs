@@ -74,3 +74,6 @@ pub use smtc::{SmtcCommand, SmtcEngine};
 pub use dsp_chain::{AudioDspChain, AudioDspStage, AudioDspStageKind};
 pub use filter_chain::{VideoFilterChain, VideoFilterStage, VideoFilterStageKind};
 pub use track_priority::TrackPriorityConfig;
+
+pub mod surround_eq;
+pub use surround_eq::{ChannelEq, ChannelId, SurroundEqConfig, SURROUND_EQ_FREQS, SURROUND_EQ_LABELS};

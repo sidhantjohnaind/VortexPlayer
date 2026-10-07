@@ -208,3 +208,12 @@ pub use motion_vector_inspector_dialog::{MotionVectorInspectorDialog, VectorVisu
 pub use rich_bookmark_notes_dialog::{RichBookmarkNotesDialog, RichNoteEntry};
 pub use pitch_formant_dialog::{PitchFormantDialog, PitchKeyPreset};
 
+pub mod sleep_timer_dialog;
+pub use sleep_timer_dialog::SleepTimerDialog;
+
+pub mod update_dialog;
+pub use update_dialog::UpdateDialog;
+
+pub mod surround_eq_dialog;
+pub use surround_eq_dialog::{SurroundEqDialog, SurroundTab};
+

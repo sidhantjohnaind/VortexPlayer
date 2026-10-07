@@ -134,6 +134,10 @@ VortexPlayer elevates the deep power-user feature set of traditional desktop med
 ## 🚀 Key Highlights
 
 * **Pure Rust Performance**: Zero bloat, instant startup, zero background telemetry.
+* **7.1 Surround Per-Channel EQ Studio (`Ctrl+Shift+7`)**: Independent 10-band octave equalization across all 8 surround channels (`FL`, `FR`, `FC`, `LFE`, `SL`, `SR`, `BL`, `BR`) with stereo pair linking and cinema presets.
+* **Multi-Mode Audio Visualizer Suite (`Ctrl+Shift+V`)**: Real-time 64-band FFT Spectrum Analyzer, phosphor Oscilloscope, stereo Vectorscope Lissajous phase correlation, and EBU R128 LUFS loudness meter.
+* **Smart Sleep Timer & Power Control (`Ctrl+Shift+Z`)**: Configurable countdown timer with sleep, hibernate, shutdown, and playlist-end triggers.
+* **In-App Auto-Update Checker (`Ctrl+Shift+U`)**: Asynchronous GitHub Releases checking with integrated changelog viewer and direct download.
 * **Native D3D11 HDR Engine**: Output uncompressed 10-bit/12-bit BT.2020 HDR to HDR monitors or dynamic ITU-R BT.2446a tone-mapping to SDR monitors.
 * **System Media Transport Controls (SMTC)**: Control playback from the Windows 11 lock screen, action center flyout, and hardware keyboard media keys.
 * **18-Band Parametric Audio DSP**: Studio-grade EQ, Bauer binaural crossfeed (bs2b), HRTF 3D audio, and HDMI bitstream passthrough.
@@ -152,6 +156,10 @@ VortexPlayer elevates the deep power-user feature set of traditional desktop med
 | `F` / `Enter` | Toggle Fullscreen |
 | `Ctrl + O` | Open Media File |
 | `Ctrl + U` | Open Network Stream URL |
+| `Ctrl + Shift + 7` | **7.1 Surround Per-Channel Equalizer Studio** |
+| `Ctrl + Shift + V` | **Audio Visualizer Suite Overlay (FFT/Scope/Phase/LUFS)** |
+| `Ctrl + Shift + Z` | **Sleep Timer & PC Power Actions Dialog** |
+| `Ctrl + Shift + U` | **Check for Updates Dialog** |
 | `Ctrl + G` | Open Animated GIF & Clip Trimmer Studio |
 | `Ctrl + W` | Open DirectShow Webcam / HDMI Capture Card |
 | `Ctrl + B` | Open Live RTMP Broadcast Studio |

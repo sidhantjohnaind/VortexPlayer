@@ -34,11 +34,15 @@ impl Default for ChannelMatrixConfig {
 
 pub struct ChannelMatrixDialog {
     pub is_open: bool,
+    pub open_surround_eq: bool,
 }
 
 impl Default for ChannelMatrixDialog {
     fn default() -> Self {
-        Self { is_open: false }
+        Self {
+            is_open: false,
+            open_surround_eq: false,
+        }
     }
 }
 
@@ -68,6 +72,9 @@ impl ChannelMatrixDialog {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Reset Identity").clicked() {
                             *config = ChannelMatrixConfig::default();
+                        }
+                        if ui.button("🎛 7.1 Per-Channel EQ...").clicked() {
+                            self.open_surround_eq = true;
                         }
                     });
                 });

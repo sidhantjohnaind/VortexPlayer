@@ -6,11 +6,13 @@ use walkdir::WalkDir;
 pub const SUPPORTED_VIDEO_EXTENSIONS: &[&str] = &[
     "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "m2ts", "mts", "vob",
     "ogv", "3gp", "3g2", "asf", "rm", "rmvb", "f4v", "divx", "mpg", "mpeg", "m1v", "m2v",
-    "mpv", "dv",
+    "mpv", "dv", "iso", "m2t", "wtv", "dvr-ms", "evo", "av1", "hevc", "264", "265",
 ];
 
 pub const SUPPORTED_AUDIO_EXTENSIONS: &[&str] = &[
-    "mp3", "flac", "aac", "wav", "m4a", "ogg", "opus", "wma", "alac", "aiff", "ape", "ac3", "dts",
+    "mp3", "flac", "aac", "wav", "m4a", "m4b", "ogg", "opus", "wma", "alac", "aiff", "aif",
+    "ape", "ac3", "dts", "mka", "dsf", "dff", "wv", "tak", "mid", "midi", "mod", "xm", "s3m",
+    "it", "mp2", "mpa",
 ];
 
 pub const SUPPORTED_SUBTITLE_EXTENSIONS: &[&str] = &[
@@ -63,12 +65,26 @@ pub fn scan_neighboring_episodes(file_path: &Path) -> Vec<PathBuf> {
 /// Recursively scan a folder for media files
 pub fn scan_folder_recursive(folder_path: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for entry in WalkDir::new(folder_path)
+    let walker = WalkDir::new(folder_path)
         .follow_links(false)
-        .max_depth(10)
+        .max_depth(12)
         .into_iter()
-        .filter_map(|e| e.ok())
-    {
+        .filter_entry(|entry| {
+            // Ignore hidden files and system directories like $RECYCLE.BIN, System Volume Information, .git
+            let file_name = entry.file_name().to_string_lossy();
+            if file_name.starts_with('.') && file_name.len() > 1 {
+                return false;
+            }
+            if file_name.starts_with('$')
+                || file_name == "System Volume Information"
+                || file_name == "node_modules"
+            {
+                return false;
+            }
+            true
+        });
+
+    for entry in walker.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_file() && is_media_file(path) {
             files.push(path.to_path_buf());

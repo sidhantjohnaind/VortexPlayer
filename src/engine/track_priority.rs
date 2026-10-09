@@ -56,6 +56,40 @@ impl Default for TrackPriorityConfig {
 }
 
 impl TrackPriorityConfig {
+    /// Builds a TrackPriorityConfig from the user's active AppConfig
+    pub fn from_config(config: &crate::config::AppConfig) -> Self {
+        let preferred_audio_languages: Vec<String> = config
+            .audio_languages
+            .split(&[',', ' ', ';'][..])
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let preferred_subtitle_languages: Vec<String> = config
+            .subtitle_languages
+            .split(&[',', ' ', ';'][..])
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        Self {
+            preferred_subtitle_languages,
+            preferred_audio_languages,
+            prefer_forced_subtitles: config.prefer_forced_subtitles,
+            ignore_sdh_subtitles: config.ignore_sdh_subtitles,
+            ignore_commentary: config.ignore_commentary_audio,
+            prefer_surround_audio: config.prefer_surround_audio,
+            preferred_codecs: vec![
+                "truehd".to_string(),
+                "dts-hd".to_string(),
+                "flac".to_string(),
+                "eac3".to_string(),
+                "ac3".to_string(),
+                "aac".to_string(),
+                "opus".to_string(),
+            ],
+        }
+    }
+
     /// Evaluates all available subtitle tracks and returns the highest-scoring track ID
     pub fn select_best_subtitle_track(&self, sub_tracks: &[TrackInfo]) -> Option<i64> {
         if sub_tracks.is_empty() {

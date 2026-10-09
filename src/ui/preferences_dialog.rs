@@ -139,6 +139,17 @@ pub fn section_header(ui: &mut egui::Ui, breadcrumb: &str, title: &str, descript
     ui.add_space(8.0);
 }
 
+pub fn append_lang_tags(target: &mut String, tags: &str) {
+    let mut parts: Vec<String> = target.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    for subtag in tags.split(',') {
+        let sub = subtag.trim();
+        if !sub.is_empty() && !parts.iter().any(|p| p.eq_ignore_ascii_case(sub)) {
+            parts.push(sub.to_string());
+        }
+    }
+    *target = parts.join(",");
+}
+
 pub fn parse_hex_color(hex: &str) -> Color32 {
     let s = hex.trim().trim_start_matches('#');
     if s.len() == 6 {
@@ -377,6 +388,7 @@ pub const SEARCH_DATABASE: &[SearchEntry] = &[
     SearchEntry { category: "Audio", sub_category: "Output Device", title: "Audio Endpoint & WASAPI Exclusive", description: "Select sound output card and bit-perfect WASAPI mode", keywords: "wasapi exclusive dac soundcard headphones spdif device audio" },
     SearchEntry { category: "Audio", sub_category: "Channels & Surround Matrix", title: "Audio Channels (Stereo / 5.1 / 7.1)", description: "Downmix or passthrough surround speaker channels", keywords: "stereo surround 5.1 7.1 channels downmix passthrough" },
     SearchEntry { category: "Audio", sub_category: "18-Band Equalizer", title: "Graphic Equalizer Presets & Bands", description: "Fine-tune 18-frequency acoustic spectrum", keywords: "eq equalizer bands bass treble acoustic sound rock pop vocal" },
+    SearchEntry { category: "Audio", sub_category: "Language & Track Priority", title: "Audio Language Priority & Track Matching", description: "Preferred spoken language tags, surround audio preference, and commentary filters", keywords: "audio language track priority alang english japanese hindi surround commentary" },
     SearchEntry { category: "Subtitles", sub_category: "Font & Typography", title: "Subtitle Font Family & Size", description: "Select font typeface, pt size, bold, italic, and letter spacing", keywords: "font family size pt typography bold italic tracking letter spacing" },
     SearchEntry { category: "Subtitles", sub_category: "Colors, Outlines & Shadow", title: "Subtitle Color, Outlines & Drop Shadow", description: "Text color, outline border, soft glow blur, and drop shadow", keywords: "color outline border blur glow shadow box background yellow white" },
     SearchEntry { category: "Subtitles", sub_category: "Position, Margins & Canvas", title: "Subtitle Position & Letterbox", description: "Vertical placement, horizontal alignment, and letterbox rendering", keywords: "position align top bottom margin letterbox canvas frame" },
@@ -417,6 +429,9 @@ pub fn get_category_modified_count(category: &str, config: &AppConfig, def: &App
             if config.audio_channels != def.audio_channels { c += 1; }
             if config.wasapi_exclusive != def.wasapi_exclusive { c += 1; }
             if config.eq_enabled != def.eq_enabled { c += 1; }
+            if config.audio_languages != def.audio_languages { c += 1; }
+            if config.prefer_surround_audio != def.prefer_surround_audio { c += 1; }
+            if config.ignore_commentary_audio != def.ignore_commentary_audio { c += 1; }
             c
         }
         "Subtitles" => {
@@ -426,6 +441,9 @@ pub fn get_category_modified_count(category: &str, config: &AppConfig, def: &App
             if config.subtitle_bold != def.subtitle_bold { c += 1; }
             if config.subtitle_ass_override != def.subtitle_ass_override { c += 1; }
             if (config.subtitle_vertical_pos - def.subtitle_vertical_pos).abs() > 0.5 { c += 1; }
+            if config.subtitle_languages != def.subtitle_languages { c += 1; }
+            if config.prefer_forced_subtitles != def.prefer_forced_subtitles { c += 1; }
+            if config.ignore_sdh_subtitles != def.ignore_sdh_subtitles { c += 1; }
             c
         }
         "Advanced" => {
@@ -661,7 +679,7 @@ impl PreferencesDialog {
                                 ("⚙", "General", &["Basic & Startup", "Power & Performance", "Window & Screen", "Mouse & Gestures", "OSD Diagnostics"]),
                                 ("▶", "Playback", &["Time & Seeking", "Speed & Pitch", "Auto-Skip & Chapters", "Loop & End Actions"]),
                                 ("🎬", "Video", &["Hardware Video Decoder", "Renderer & Presentation", "Pixel Scalers & Anime4K", "HDR & Color Management", "Aspect Ratio & Framing", "Color Adjustments"]),
-                                ("🔊", "Audio", &["Output Device", "Channels & Surround Matrix", "DSP & Volume Dynamics", "18-Band Equalizer", "Soxr Resampling & ReplayGain"]),
+                                ("🔊", "Audio", &["Output Device", "Channels & Surround Matrix", "DSP & Volume Dynamics", "18-Band Equalizer", "Soxr Resampling & ReplayGain", "Language & Track Priority"]),
                                 ("💬", "Subtitles", &["Font & Typography", "Colors, Outlines & Shadow", "Position, Margins & Canvas", "Engine, ASS & Dual Subtitles", "Language Priority & Download"]),
                                 ("⌨", "Input & Hotkeys", &["Keyboard & Global Hotkeys", "Gamepad & Controller"]),
                                 ("🌐", "Network & Cloud", &["Stream Buffering & Protocols"]),
@@ -1895,6 +1913,95 @@ impl PreferencesDialog {
                                             });
                                         });
                                     }
+                                    ("Audio", "Language & Track Priority") => {
+                                        section_header(ui, "Audio  ›  Language & Track Priority", "Audio Language & Track Priority", "Configure preferred spoken languages, surround track prioritization, and commentary filtering.");
+                                        settings_card(ui, |ui| {
+                                            ui.label(RichText::new("Language Priority Sequence").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                            ui.label(RichText::new("VortexPlayer automatically picks the highest priority matching audio stream. Enter ISO-639 codes separated by commas (e.g. 'en,eng,ja,jpn').").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                            ui.add_space(4.0);
+
+                                            let prev_alang = config.audio_languages.clone();
+                                            settings_row(ui, "Preferred Audio Languages (alang)", "Ordered list of preferred audio streams", |ui| {
+                                                ui.add(egui::TextEdit::singleline(&mut config.audio_languages).hint_text("en,eng,ja,jpn,hi,hin").desired_width(220.0));
+                                            });
+                                            if config.audio_languages != prev_alang {
+                                                if let Some(p) = player {
+                                                    p.set_property_string("alang", &config.audio_languages);
+                                                }
+                                            }
+
+                                            ui.separator();
+                                            ui.horizontal_wrapped(|ui| {
+                                                ui.label(RichText::new("Quick Presets:").size(11.0).color(Color32::from_rgb(160, 166, 185)).strong());
+                                                let presets = [
+                                                    ("Default (EN / JA / HI)", "en,eng,ja,jpn,hi,hin"),
+                                                    ("English Only", "en,eng,mul"),
+                                                    ("Japanese / Anime", "ja,jpn,en,eng"),
+                                                    ("Hindi / Bollywood", "hi,hin,en,eng"),
+                                                    ("Spanish", "es,spa,en,eng"),
+                                                    ("French", "fr,fra,fre,en,eng"),
+                                                    ("German", "de,deu,ger,en,eng"),
+                                                    ("Korean", "ko,kor,en,eng"),
+                                                    ("Original / Auto", "auto"),
+                                                ];
+                                                for (name, val) in presets {
+                                                    let is_sel = config.audio_languages == val;
+                                                    if ui.selectable_label(is_sel, name).clicked() {
+                                                        config.audio_languages = val.to_string();
+                                                        if let Some(p) = player {
+                                                            p.set_property_string("alang", &config.audio_languages);
+                                                        }
+                                                    }
+                                                }
+                                            });
+
+                                            ui.add_space(2.0);
+                                            ui.horizontal_wrapped(|ui| {
+                                                ui.label(RichText::new("Add Tag:").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                                let tags = [
+                                                    ("English (+en)", "en,eng"),
+                                                    ("Japanese (+ja)", "ja,jpn"),
+                                                    ("Hindi (+hi)", "hi,hin"),
+                                                    ("Spanish (+es)", "es,spa"),
+                                                    ("French (+fr)", "fr,fra"),
+                                                    ("German (+de)", "de,deu"),
+                                                    ("Korean (+ko)", "ko,kor"),
+                                                    ("Chinese (+zh)", "zh,chi,zho"),
+                                                    ("Russian (+ru)", "ru,rus"),
+                                                    ("Italian (+it)", "it,ita"),
+                                                    ("Portuguese (+pt)", "pt,por"),
+                                                ];
+                                                for (label, code) in tags {
+                                                    if ui.small_button(label).clicked() {
+                                                        append_lang_tags(&mut config.audio_languages, code);
+                                                        if let Some(p) = player {
+                                                            p.set_property_string("alang", &config.audio_languages);
+                                                        }
+                                                    }
+                                                }
+                                                if ui.small_button("✕ Clear").clicked() {
+                                                    config.audio_languages.clear();
+                                                    if let Some(p) = player {
+                                                        p.set_property_string("alang", "");
+                                                    }
+                                                }
+                                            });
+                                        });
+
+                                        ui.add_space(8.0);
+                                        settings_card(ui, |ui| {
+                                            ui.label(RichText::new("Smart Track Prioritization & Filters").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                            ui.add_space(4.0);
+
+                                            settings_row(ui, "Prefer Surround Sound Streams", "Prioritize multi-channel 7.1 / 5.1 / Atmos audio streams over stereo tracks within the preferred language", |ui| {
+                                                fluent_switch(ui, &mut config.prefer_surround_audio);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Filter Commentary & Audio Descriptions", "Skip director commentary, visual descriptions, and secondary narrative tracks during automatic track selection", |ui| {
+                                                fluent_switch(ui, &mut config.ignore_commentary_audio);
+                                            });
+                                        });
+                                    }
 
                                     // ──────────────────────────────────────────────
                                     // 5. SUBTITLES (VORTEX-GRADE CUSTOMIZATION)
@@ -2150,12 +2257,122 @@ impl PreferencesDialog {
                                         });
                                     }
                                     ("Subtitles", "Language Priority & Download") => {
-                                        section_header(ui, "Subtitles  ›  Language Priority & Download", "Language Priority & OpenSubtitles", "Automated track matching priority and online subtitle downloads.");
+                                        section_header(ui, "Subtitles  ›  Language Priority & Download", "Subtitle Language Priority & Downloader", "Configure preferred subtitle languages, forced track matching, and OpenSubtitles integration.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Automatic Track Matching Priority").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
-                                            ui.label(RichText::new("VortexPlayer automatically scans embedded and external subtitle files in order of priority:\n1. Hindi (hi / hin)\n2. English (en / eng)\n3. Japanese (ja / jpn)").size(11.0).color(Color32::from_rgb(140, 146, 165)));
+                                            ui.label(RichText::new("Language Priority Sequence").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                            ui.label(RichText::new("VortexPlayer automatically scans embedded and external subtitles in priority order. Enter comma-separated language tags (or 'no' to disable by default).").size(11.0).color(Color32::from_rgb(140, 146, 168)));
                                             ui.add_space(4.0);
-                                            ui.label(RichText::new("💡 Press Ctrl + L at any time during playback to open the OpenSubtitles search modal and fetch matched subtitles instantly.").size(10.5).color(VortexTheme::current_skin().accent_primary));
+
+                                            let prev_slang = config.subtitle_languages.clone();
+                                            settings_row(ui, "Preferred Subtitle Languages (slang)", "Ordered list of subtitle languages", |ui| {
+                                                ui.add(egui::TextEdit::singleline(&mut config.subtitle_languages).hint_text("en,eng,hi,hin,ja,jpn").desired_width(220.0));
+                                            });
+                                            if config.subtitle_languages != prev_slang {
+                                                if let Some(p) = player {
+                                                    p.set_property_string("slang", &config.subtitle_languages);
+                                                }
+                                            }
+
+                                            ui.separator();
+                                            ui.horizontal_wrapped(|ui| {
+                                                ui.label(RichText::new("Quick Presets:").size(11.0).color(Color32::from_rgb(160, 166, 185)).strong());
+                                                let presets = [
+                                                    ("Default (EN / HI / JA)", "en,eng,hi,hin,ja,jpn"),
+                                                    ("English Only", "en,eng,enUS"),
+                                                    ("Hindi / Indian", "hi,hin,en,eng"),
+                                                    ("Japanese / Anime", "ja,jpn,en,eng"),
+                                                    ("Spanish", "es,spa,en,eng"),
+                                                    ("French", "fr,fra,fre,en,eng"),
+                                                    ("German", "de,deu,ger,en,eng"),
+                                                    ("Korean", "ko,kor,en,eng"),
+                                                    ("None (Off by Default)", "no"),
+                                                ];
+                                                for (name, val) in presets {
+                                                    let is_sel = config.subtitle_languages == val;
+                                                    if ui.selectable_label(is_sel, name).clicked() {
+                                                        config.subtitle_languages = val.to_string();
+                                                        if let Some(p) = player {
+                                                            p.set_property_string("slang", &config.subtitle_languages);
+                                                        }
+                                                    }
+                                                }
+                                            });
+
+                                            ui.add_space(2.0);
+                                            ui.horizontal_wrapped(|ui| {
+                                                ui.label(RichText::new("Add Tag:").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                                let tags = [
+                                                    ("English (+en)", "en,eng"),
+                                                    ("Hindi (+hi)", "hi,hin"),
+                                                    ("Japanese (+ja)", "ja,jpn"),
+                                                    ("Spanish (+es)", "es,spa"),
+                                                    ("French (+fr)", "fr,fra"),
+                                                    ("German (+de)", "de,deu"),
+                                                    ("Korean (+ko)", "ko,kor"),
+                                                    ("Chinese (+zh)", "zh,chi,zho"),
+                                                    ("Russian (+ru)", "ru,rus"),
+                                                    ("Italian (+it)", "it,ita"),
+                                                    ("Portuguese (+pt)", "pt,por"),
+                                                ];
+                                                for (label, code) in tags {
+                                                    if ui.small_button(label).clicked() {
+                                                        append_lang_tags(&mut config.subtitle_languages, code);
+                                                        if let Some(p) = player {
+                                                            p.set_property_string("slang", &config.subtitle_languages);
+                                                        }
+                                                    }
+                                                }
+                                                if ui.small_button("✕ Clear").clicked() {
+                                                    config.subtitle_languages.clear();
+                                                    if let Some(p) = player {
+                                                        p.set_property_string("slang", "");
+                                                    }
+                                                }
+                                            });
+                                        });
+
+                                        ui.add_space(8.0);
+                                        settings_card(ui, |ui| {
+                                            ui.label(RichText::new("Subtitle Selection & Auto-Matching Rules").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                            ui.add_space(4.0);
+
+                                            settings_row(ui, "Prefer Forced & Signs / Songs Subtitles", "Prioritize forced subtitle tracks for foreign dialogue and translations when audio is in original language", |ui| {
+                                                fluent_switch(ui, &mut config.prefer_forced_subtitles);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Ignore SDH / Closed Captions", "Avoid subtitles for the deaf and hard of hearing (containing audio descriptors like '[footsteps]') if regular dialog subtitles exist", |ui| {
+                                                fluent_switch(ui, &mut config.ignore_sdh_subtitles);
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "External Subtitle Auto-Match Mode", "Algorithm used to detect and match external .srt / .ass files in the media folder", |ui| {
+                                                egui::ComboBox::from_id_salt("sub_auto_mode_pref")
+                                                    .selected_text(match config.sub_auto_mode.as_str() {
+                                                        "fuzzy" => "Fuzzy (Recommended - Matches similar filenames)",
+                                                        "exact" => "Exact (Requires identical base filename)",
+                                                        "all" => "All (Loads all subtitles found in directory)",
+                                                        _ => "Fuzzy",
+                                                    })
+                                                    .show_ui(ui, |ui| {
+                                                        ui.selectable_value(&mut config.sub_auto_mode, "fuzzy".to_string(), "Fuzzy (Recommended - Matches similar filenames)");
+                                                        ui.selectable_value(&mut config.sub_auto_mode, "exact".to_string(), "Exact (Requires identical base filename)");
+                                                        ui.selectable_value(&mut config.sub_auto_mode, "all".to_string(), "All (Loads all subtitles found in directory)");
+                                                    });
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Automatic Online Subtitle Downloads", "Search and fetch missing subtitles via OpenSubtitles on playback startup", |ui| {
+                                                fluent_switch(ui, &mut config.auto_download_subtitles);
+                                            });
+                                        });
+
+                                        ui.add_space(8.0);
+                                        settings_card(ui, |ui| {
+                                            ui.horizontal(|ui| {
+                                                ui.label(RichText::new("🌐").size(18.0));
+                                                ui.vertical(|ui| {
+                                                    ui.label(RichText::new("OpenSubtitles Integration").size(12.5).strong().color(Color32::from_rgb(235, 240, 252)));
+                                                    ui.label(RichText::new("VortexPlayer includes an integrated OpenSubtitles studio. Press Ctrl + L at any time during playback to search, preview, and download synchronized subtitles in any language.").size(11.0).color(Color32::from_rgb(140, 146, 168)));
+                                                });
+                                            });
                                         });
                                     }
 

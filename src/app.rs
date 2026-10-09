@@ -331,6 +331,8 @@ impl VortexApp {
             }
         };
 
+        let track_priority = crate::engine::TrackPriorityConfig::from_config(&config);
+
         let mut app = Self {
             smtc: crate::engine::SmtcEngine::new(),
             shader_studio: ShaderStudioDialog::new(),
@@ -467,7 +469,7 @@ impl VortexApp {
             chain_editor: ChainEditorDialog::new(),
             video_chain: crate::engine::VideoFilterChain::default(),
             audio_chain: crate::engine::AudioDspChain::default(),
-            track_priority: crate::engine::TrackPriorityConfig::default(),
+            track_priority,
             auto_skip_dialog: AutoSkipDialog::new(),
             show_playlist: false,
             show_control_panel: false,
@@ -734,6 +736,8 @@ impl VortexApp {
                 player.set_property_string("vo", "libmpv");
             }
 
+            player.set_property_string("alang", &self.config.audio_languages);
+            player.set_property_string("slang", &self.config.subtitle_languages);
 
             if let Some(pos) = resume_pos {
                 player.set_property_string("start", &format!("{:.2}", pos));
@@ -796,6 +800,7 @@ impl VortexApp {
                 }
             } else {
                 // Apply intelligent Track Priority engine rules
+                self.track_priority = crate::engine::TrackPriorityConfig::from_config(&self.config);
                 let stats = player.stats();
                 if let Some(best_aid) = self.track_priority.select_best_audio_track(&stats.audio_tracks) {
                     player.set_audio_track(best_aid);
@@ -812,7 +817,7 @@ impl VortexApp {
             let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
             self.osd.show(format!("Playing: {}", filename), 2000);
 
-            if self.config.auto_load_next_episode {
+            if self.config.auto_load_next_episode && self.playlist.lock().unwrap().len() <= 1 {
                 let scan_path = path.clone();
                 let (tx, rx) = std::sync::mpsc::channel();
                 self.neighbor_scan_receiver = Some(rx);
@@ -3028,39 +3033,63 @@ impl eframe::App for VortexApp {
 
         // Process completed asynchronous background folder scanning
         if let Some(ref rx) = self.folder_scan_receiver {
-            if let Ok(media_files) = rx.try_recv() {
-                if !media_files.is_empty() {
-                    let count = media_files.len();
-                    let first = media_files[0].clone();
-                    self.playlist.lock().unwrap().clear();
-                    self.playlist.lock().unwrap().add_items(media_files);
-                    file_to_open = Some(first);
-                    let msg = format!("Loaded {} files from folder", count);
-                    self.osd.show(msg, 2500);
-                } else {
-                    self.osd.show("No supported media files found in folder".to_string(), 2000);
+            ctx.request_repaint();
+            match rx.try_recv() {
+                Ok(media_files) => {
+                    if !media_files.is_empty() {
+                        let count = media_files.len();
+                        let first = media_files[0].clone();
+                        {
+                            let mut pl = self.playlist.lock().unwrap();
+                            pl.clear();
+                            pl.add_items(media_files);
+                            pl.current_index = Some(0);
+                            self.config.last_playlist = pl.items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
+                            self.config.last_playlist_index = Some(0);
+                            let _ = self.config.save();
+                        }
+                        file_to_open = Some(first);
+                        let msg = format!("Loaded {} files from folder", count);
+                        self.osd.show(msg, 2500);
+                    } else {
+                        self.osd.show("No supported media files found in folder".to_string(), 2500);
+                    }
+                    self.folder_scan_receiver = None;
                 }
-                self.folder_scan_receiver = None;
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.folder_scan_receiver = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
 
         // Process completed asynchronous background neighboring episodes scanning
         if let Some(ref rx) = self.neighbor_scan_receiver {
-            if let Ok(media_files) = rx.try_recv() {
-                if !media_files.is_empty() {
-                    let mut pl = self.playlist.lock().unwrap();
-                    let current_path = pl.current_item().map(|it| it.path.clone());
-                    for f in media_files {
-                        if !pl.items.iter().any(|i| i.path == f) {
-                            pl.items.push(crate::playlist::PlaylistItem::from_path(f));
+            ctx.request_repaint();
+            match rx.try_recv() {
+                Ok(media_files) => {
+                    if !media_files.is_empty() {
+                        let mut pl = self.playlist.lock().unwrap();
+                        let current_path = pl.current_item().map(|it| it.path.clone());
+                        for f in media_files {
+                            if !pl.items.iter().any(|i| i.path == f) {
+                                pl.items.push(crate::playlist::PlaylistItem::from_path(f));
+                            }
                         }
+                        pl.sort_natural();
+                        if let Some(ref cp) = current_path {
+                            pl.current_index = pl.items.iter().position(|i| &i.path == cp);
+                        }
+                        self.config.last_playlist = pl.items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
+                        self.config.last_playlist_index = pl.current_index;
+                        let _ = self.config.save();
                     }
-                    pl.sort_natural();
-                    if let Some(ref cp) = current_path {
-                        pl.current_index = pl.items.iter().position(|i| &i.path == cp);
-                    }
+                    self.neighbor_scan_receiver = None;
                 }
-                self.neighbor_scan_receiver = None;
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.neighbor_scan_receiver = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
 

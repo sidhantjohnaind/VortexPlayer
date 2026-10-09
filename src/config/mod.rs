@@ -381,6 +381,10 @@ pub struct AppConfig {
     pub audio_languages: String,
     pub sub_auto_mode: String,
     pub auto_download_subtitles: bool,
+    pub prefer_forced_subtitles: bool,
+    pub ignore_sdh_subtitles: bool,
+    pub ignore_commentary_audio: bool,
+    pub prefer_surround_audio: bool,
 
     // Input & Hotkeys Management
     pub global_hotkeys_enabled: bool,
@@ -620,10 +624,14 @@ impl Default for AppConfig {
             hwdec_codecs: "all".to_string(),
             hdr_target_peak: 200.0,
 
-            subtitle_languages: "hi,hin,en,eng,ja,jpn".to_string(),
-            audio_languages: "hi,hin,en,eng,ja,jpn".to_string(),
+            subtitle_languages: "en,eng,hi,hin,ja,jpn".to_string(),
+            audio_languages: "en,eng,ja,jpn,hi,hin".to_string(),
             sub_auto_mode: "fuzzy".to_string(),
             auto_download_subtitles: false,
+            prefer_forced_subtitles: false,
+            ignore_sdh_subtitles: false,
+            ignore_commentary_audio: true,
+            prefer_surround_audio: true,
 
             global_hotkeys_enabled: true,
             background_hotkeys_enabled: true,

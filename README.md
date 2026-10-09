@@ -108,6 +108,7 @@ VortexPlayer elevates the deep power-user feature set of traditional desktop med
 | **Live Word Lookup & TTS** | Bing/Google Translate, SAPI5 TTS | **Instant Dictionary Lookup + Windows TTS Voice** |
 | **Online Subtitle Downloader** | OpenSubtitles API integration | **Built-in OpenSubtitles Downloader** |
 | **Supported Formats** | ASS, SSA, SRT, VTT, SMI, PGS, SUP | **Full ASS/SSA (libass), SRT, VTT, SMI, PGS** |
+| **Language & Track Priority** | Static language dropdown | **Multi-tier ISO Sequence (alang/slang), Surround Preference, Commentary & SDH Filters** |
 | **Styling & Typography** | Font, size, outline, vertical position | **Custom typography, outline, color, position** |
 
 ### 4. 📹 Capture, Recording & Broadcast

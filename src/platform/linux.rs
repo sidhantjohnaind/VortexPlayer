@@ -133,3 +133,4 @@ pub fn is_taskbar_autohide() -> bool {
 pub unsafe fn mark_fullscreen_window(_hwnd: isize, _fullscreen: bool) {}
 pub fn set_native_fullscreen_state(_v: bool) {}
 pub fn is_native_fullscreen() -> bool { false }
+pub fn set_window_corner_style(_style: &str) {}

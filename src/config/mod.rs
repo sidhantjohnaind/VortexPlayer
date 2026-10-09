@@ -226,6 +226,8 @@ pub struct AppConfig {
     pub auto_load_next_episode: bool,
     pub remember_window_size: bool,
     pub always_on_top: bool,
+    #[serde(default = "default_window_corner_style")]
+    pub window_corner_style: String,
     pub window_width: f32,
     pub window_height: f32,
     pub show_playlist: bool,
@@ -472,6 +474,7 @@ fn default_network_reconnect_delay() -> u32 { 2 }
 fn default_smart_resume_min() -> f64 { 15.0 }
 fn default_smart_resume_max() -> f64 { 95.0 }
 fn default_ui_scale() -> f32 { 1.0 }
+fn default_window_corner_style() -> String { "auto".to_string() }
 
 impl Default for AppConfig {
     fn default() -> Self {
@@ -489,6 +492,7 @@ impl Default for AppConfig {
             auto_load_next_episode: true,
             remember_window_size: true,
             always_on_top: false,
+            window_corner_style: "auto".to_string(),
             window_width: 1100.0,
             window_height: 680.0,
             show_playlist: false,

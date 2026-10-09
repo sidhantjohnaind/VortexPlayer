@@ -378,6 +378,7 @@ pub const SEARCH_DATABASE: &[SearchEntry] = &[
     SearchEntry { category: "General", sub_category: "Basic & Startup", title: "Auto-Queue Neighboring Episodes", description: "Scan folder for next sequential episodes and queue them", keywords: "playlist next episode binge anime series queue" },
     SearchEntry { category: "General", sub_category: "Power & Performance", title: "Prevent System Sleep During Video", description: "Keep display awake and prevent computer standby", keywords: "sleep standby screen saver suspend power" },
     SearchEntry { category: "General", sub_category: "Window & Screen", title: "Always on Top", description: "Keep the player window floating above other desktop applications", keywords: "top topmost float pin floating window" },
+    SearchEntry { category: "General", sub_category: "Window & Screen", title: "Window Corner Style (Rectangle / Rounded)", description: "Configure rectangular corners vs rounded corners for tiled and windowed modes", keywords: "corner round square rectangle tile snap border dwm" },
     SearchEntry { category: "General", sub_category: "OSD Diagnostics", title: "OSD Font Size & Notification Placement", description: "Configure translucent on-screen telemetry pills and toast alerts", keywords: "osd overlay pills font text volume timecode duration" },
     SearchEntry { category: "Playback", sub_category: "Time & Seeking", title: "Seek Step Durations", description: "Configure Left/Right arrow jump intervals in seconds", keywords: "seek skip arrows jump step interval seconds" },
     SearchEntry { category: "Playback", sub_category: "Speed & Pitch", title: "Playback Speed & Pitch Correction", description: "Maintain natural voice pitch when speeding up or slowing down", keywords: "speed pitch scaletempo fast slow rate audio" },
@@ -406,6 +407,7 @@ pub fn get_category_modified_count(category: &str, config: &AppConfig, def: &App
             if config.auto_resume != def.auto_resume { c += 1; }
             if config.auto_load_next_episode != def.auto_load_next_episode { c += 1; }
             if config.always_on_top != def.always_on_top { c += 1; }
+            if config.window_corner_style != def.window_corner_style { c += 1; }
             if (config.osd_font_size - def.osd_font_size).abs() > 0.5 { c += 1; }
             c
         }
@@ -464,6 +466,7 @@ pub struct PreferencesDialog {
     pub is_naming_preset: bool,
     pub save_feedback_time: f64,
     pub feedback_message: String,
+    pub backup_config: Option<AppConfig>,
 }
 
 impl Default for PreferencesDialog {
@@ -476,6 +479,7 @@ impl Default for PreferencesDialog {
             is_naming_preset: false,
             save_feedback_time: 0.0,
             feedback_message: String::new(),
+            backup_config: None,
         }
     }
 }
@@ -487,7 +491,12 @@ impl PreferencesDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, is_open: &mut bool, config: &mut AppConfig, player: Option<&crate::engine::Player>) {
         if !*is_open {
+            self.backup_config = None;
             return;
+        }
+
+        if self.backup_config.is_none() {
+            self.backup_config = Some(config.clone());
         }
 
         let mut should_close = false;
@@ -826,7 +835,8 @@ impl PreferencesDialog {
                                         ui.add_space(4.0);
                                     }
 
-                                match (self.active_category.as_str(), self.active_sub_category.as_str()) {
+                                if query.is_empty() {
+                                    match (self.active_category.as_str(), self.active_sub_category.as_str()) {
                                     // ──────────────────────────────────────────────
                                     // 1. GENERAL
                                     // ──────────────────────────────────────────────
@@ -938,6 +948,29 @@ impl PreferencesDialog {
                                             ui.separator();
                                             settings_row(ui, "Default Window Height", "Default height in pixels when opening without saved dimensions", |ui| {
                                                 ui.add(egui::DragValue::new(&mut config.window_height).range(400.0..=2160.0).suffix(" px"));
+                                            });
+                                            ui.separator();
+                                            settings_row(ui, "Window Corner Appearance", "Window corner styling in desktop and Windows tile / snap mode", |ui| {
+                                                egui::ComboBox::from_id_salt("corner_style_pref")
+                                                    .selected_text(match config.window_corner_style.as_str() {
+                                                        "square" | "rectangle" => "Always Square / Rectangle (No rounded corners)",
+                                                        "rounded" => "Always Rounded",
+                                                        _ => "Auto (Square when Tiled/Maximized, Rounded when Floating)",
+                                                    })
+                                                    .show_ui(ui, |ui| {
+                                                        if ui.selectable_label(config.window_corner_style == "auto", "Auto (Square when Tiled/Maximized, Rounded when Floating)").clicked() {
+                                                             config.window_corner_style = "auto".to_string();
+                                                             crate::platform::set_window_corner_style("auto");
+                                                        }
+                                                        if ui.selectable_label(config.window_corner_style == "square", "Always Square / Rectangle (No rounded corners)").clicked() {
+                                                             config.window_corner_style = "square".to_string();
+                                                             crate::platform::set_window_corner_style("square");
+                                                        }
+                                                        if ui.selectable_label(config.window_corner_style == "rounded", "Always Rounded").clicked() {
+                                                             config.window_corner_style = "rounded".to_string();
+                                                             crate::platform::set_window_corner_style("rounded");
+                                                        }
+                                                    });
                                             });
                                         });
                                     }
@@ -2481,9 +2514,13 @@ impl PreferencesDialog {
                                         });
                                     }
 
-                                    _ => {
-                                        ui.label("Select a category from the navigation tree.");
+                                        _ => {
+                                            ui.label("Select a category from the navigation tree.");
+                                        }
                                     }
+                                } else {
+                                    ui.add_space(8.0);
+                                    ui.label(RichText::new("💡 Click 'Jump to Setting →' on any search result above to navigate directly to its controls.").size(11.0).color(Color32::from_rgb(140, 146, 168)));
                                 }
                             });
                     });
@@ -2500,6 +2537,7 @@ impl PreferencesDialog {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let apply_to_player = |cfg: &AppConfig| {
+                            crate::platform::set_window_corner_style(&cfg.window_corner_style);
                             if let Some(p) = player {
                                 let ch_str = match cfg.audio_channels.as_str() {
                                     "auto" | "auto-safe" | "" => "auto",
@@ -2517,6 +2555,18 @@ impl PreferencesDialog {
                                 p.apply_all_subtitle_settings(cfg);
                                 p.set_property_string("video-sync", &cfg.video_sync_mode);
                                 p.set_property_string("framedrop", &cfg.framedrop_mode);
+                                p.set_property_string("deband", if cfg.video_deband { "yes" } else { "no" });
+                                p.set_speed(cfg.playback_speed);
+                                p.set_volume(cfg.volume);
+                                p.set_property_string("alang", &cfg.audio_languages);
+                                p.set_property_string("slang", &cfg.subtitle_languages);
+                                p.set_property_string("sub-auto", &cfg.sub_auto_mode);
+                                p.set_property_string("replaygain", &cfg.replaygain_mode);
+                                if cfg.resample_rate > 0 {
+                                    p.set_property_string("audio-resample-max-output-rate", &format!("{}", cfg.resample_rate));
+                                } else {
+                                    p.set_property_string("audio-resample-max-output-rate", "0");
+                                }
                                 p.set_property_double("demuxer-readahead-secs", cfg.cache_demuxer_sec);
                                 let cache_bytes = (cfg.cache_demuxer_mb as u64) * 1024 * 1024;
                                 p.set_property_string("demuxer-max-bytes", &format!("{}", cache_bytes));
@@ -2533,6 +2583,15 @@ impl PreferencesDialog {
                             }
                         };
 
+                        // Check Enter key shortcut
+                        let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if enter_pressed && !ui.memory(|m| m.focused().is_some()) {
+                            apply_to_player(config);
+                            let _ = config.save();
+                            self.backup_config = None;
+                            should_close = true;
+                        }
+
                         // Apply & Close: Primary Vortex Gold
                         let apply_close_btn = ui.add(
                             egui::Button::new(RichText::new("Apply & Close (Enter)").strong().color(Color32::from_rgb(18, 20, 26)))
@@ -2543,6 +2602,7 @@ impl PreferencesDialog {
                         if apply_close_btn.clicked() {
                             apply_to_player(config);
                             let _ = config.save();
+                            self.backup_config = None;
                             should_close = true;
                         }
 
@@ -2557,6 +2617,9 @@ impl PreferencesDialog {
                         if apply_btn.clicked() {
                             apply_to_player(config);
                             let _ = config.save();
+                            self.backup_config = Some(config.clone());
+                            self.feedback_message = "✓ Settings applied & saved".to_string();
+                            self.save_feedback_time = ui.ctx().input(|i| i.time);
                         }
 
                         // Cancel
@@ -2568,6 +2631,10 @@ impl PreferencesDialog {
                                 .min_size(Vec2::new(70.0, 28.0))
                         );
                         if cancel_btn.clicked() {
+                            if let Some(backup) = self.backup_config.take() {
+                                *config = backup;
+                                apply_to_player(config);
+                            }
                             should_close = true;
                         }
                     });
@@ -2576,6 +2643,10 @@ impl PreferencesDialog {
         });
 
         if should_close {
+            if self.backup_config.is_some() {
+                let _ = config.save();
+                self.backup_config = None;
+            }
             *is_open = false;
         }
     }

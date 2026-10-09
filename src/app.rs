@@ -296,6 +296,7 @@ impl VortexApp {
         crate::log_step("6a. entering VortexApp::new");
         let config = AppConfig::load();
         VortexTheme::apply(&cc.egui_ctx, config.theme_mode);
+        crate::platform::set_window_corner_style(&config.window_corner_style);
 
         let playlist = Arc::new(Mutex::new(Playlist::new()));
         let bookmark_mgr = BookmarkManager::new();

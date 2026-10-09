@@ -90,9 +90,49 @@ pub fn is_native_fullscreen() -> bool {
     IS_NATIVE_FULLSCREEN.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+static CORNER_STYLE_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static LAST_CORNER_PREF: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(999);
+
+pub fn set_window_corner_style(style: &str) {
+    let mode = match style {
+        "square" | "rectangle" => 1,
+        "rounded" => 2,
+        _ => 0,
+    };
+    CORNER_STYLE_MODE.store(mode, std::sync::atomic::Ordering::Relaxed);
+    LAST_CORNER_PREF.store(999, std::sync::atomic::Ordering::Relaxed);
+}
+
+type IsWindowArrangedFn = unsafe extern "system" fn(windows_sys::Win32::Foundation::HWND) -> windows_sys::Win32::Foundation::BOOL;
+static IS_WINDOW_ARRANGED_FN: std::sync::OnceLock<Option<IsWindowArrangedFn>> = std::sync::OnceLock::new();
+
 #[cfg(windows)]
 pub unsafe fn apply_border_suppression(hwnd: windows_sys::Win32::Foundation::HWND) {
-    let is_fullscreen_or_zoomed = is_native_fullscreen() || windows_sys::Win32::UI::WindowsAndMessaging::IsZoomed(hwnd) != 0 || {
+    let is_fullscreen_or_zoomed = is_native_fullscreen() || windows_sys::Win32::UI::WindowsAndMessaging::IsZoomed(hwnd) != 0;
+
+    let is_arranged = {
+        let func = *IS_WINDOW_ARRANGED_FN.get_or_init(|| {
+            use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
+            let user32 = GetModuleHandleA(b"user32.dll\0".as_ptr());
+            if !user32.is_null() {
+                let proc = GetProcAddress(user32, b"IsWindowArranged\0".as_ptr());
+                if let Some(p) = proc {
+                    Some(std::mem::transmute(p))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+        if let Some(f) = func {
+            f(hwnd) != 0
+        } else {
+            false
+        }
+    };
+
+    let is_geometrically_tiled_or_max = {
         use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
         use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
         use windows_sys::Win32::Foundation::RECT;
@@ -102,8 +142,26 @@ pub unsafe fn apply_border_suppression(hwnd: windows_sys::Win32::Foundation::HWN
             let mut mi: MONITORINFO = std::mem::zeroed();
             mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
             if GetMonitorInfoW(hmon, &mut mi) != 0 {
-                (wr.right - wr.left) >= (mi.rcMonitor.right - mi.rcMonitor.left)
-                    && (wr.bottom - wr.top) >= (mi.rcMonitor.bottom - mi.rcMonitor.top)
+                let is_full_monitor = (wr.right - wr.left) >= (mi.rcMonitor.right - mi.rcMonitor.left)
+                    && (wr.bottom - wr.top) >= (mi.rcMonitor.bottom - mi.rcMonitor.top);
+
+                let tol = 12; // tolerance for snap edges and invisible borders
+                let on_left = (wr.left - mi.rcWork.left).abs() <= tol;
+                let on_right = (wr.right - mi.rcWork.right).abs() <= tol;
+                let on_top = (wr.top - mi.rcWork.top).abs() <= tol;
+                let on_bottom = (wr.bottom - mi.rcWork.bottom).abs() <= tol;
+
+                let full_height = on_top && on_bottom;
+                let full_width = on_left && on_right;
+                let corner_snap = (on_left || on_right) && (on_top || on_bottom) && {
+                    let w = (wr.right - wr.left) as f32;
+                    let h = (wr.bottom - wr.top) as f32;
+                    let mon_w = (mi.rcWork.right - mi.rcWork.left) as f32;
+                    let mon_h = (mi.rcWork.bottom - mi.rcWork.top) as f32;
+                    w >= mon_w * 0.30 && h >= mon_h * 0.30
+                };
+
+                is_full_monitor || full_height || full_width || corner_snap
             } else {
                 false
             }
@@ -111,11 +169,23 @@ pub unsafe fn apply_border_suppression(hwnd: windows_sys::Win32::Foundation::HWN
             false
         }
     };
-    let corner = if is_fullscreen_or_zoomed {
-        1 /* DWMWCP_DONOTROUND - completely square, no rounded corners in fullscreen or maximized */
-    } else {
-        2 /* DWMWCP_ROUND - circular / rounded borders for normal windowed mode */
+
+    let is_tiled = is_fullscreen_or_zoomed || is_arranged || is_geometrically_tiled_or_max;
+
+    let mode = CORNER_STYLE_MODE.load(std::sync::atomic::Ordering::Relaxed);
+    let corner = match mode {
+        1 => 1, /* DWMWCP_DONOTROUND - always square / rectangle */
+        2 => if is_fullscreen_or_zoomed { 1 } else { 2 },
+        _ => {
+            // Auto (Square when tiled/maximized/fullscreen, Rounded when floating)
+            if is_tiled {
+                1 /* DWMWCP_DONOTROUND - pure sharp rectangle in tile/snap mode */
+            } else {
+                2 /* DWMWCP_ROUND - circular / rounded borders for normal floating window */
+            }
+        }
     };
+
     apply_border_suppression_internal(hwnd, corner);
 }
 
@@ -133,6 +203,8 @@ unsafe fn apply_border_suppression_internal(
         return;
     }
 
+    let prev = LAST_CORNER_PREF.swap(corner_pref, std::sync::atomic::Ordering::Relaxed);
+
     #[link(name = "dwmapi")]
     unsafe extern "system" {
         fn DwmSetWindowAttribute(
@@ -143,36 +215,35 @@ unsafe fn apply_border_suppression_internal(
         ) -> i32;
     }
 
-    // 1. DWMWA_USE_IMMERSIVE_DARK_MODE (20 in modern Win10/11, 19 in early Win10)
-    let dark_mode: u32 = 1;
-    let _ = DwmSetWindowAttribute(hwnd, 20, &dark_mode as *const _ as _, 4);
-    let _ = DwmSetWindowAttribute(hwnd, 19, &dark_mode as *const _ as _, 4);
-
-    // 2. DWMWA_WINDOW_CORNER_PREFERENCE (33)
-    // 2 = DWMWCP_ROUND (circular / rounded borders for modern Windows 11 windowed mode)
-    // 1 = DWMWCP_DONOTROUND (square for fullscreen mode)
-    let _ = DwmSetWindowAttribute(hwnd, 33, &corner_pref as *const _ as _, 4);
-
-    // 3. DWMWA_BORDER_COLOR (34)
-    // First try DWMWA_COLOR_NONE (0xFFFFFFFE) to suppress border completely in Windows 11 build 22621+
-    let border_none: u32 = 0xFFFFFFFE;
-    let hr = DwmSetWindowAttribute(hwnd, 34, &border_none as *const _ as _, 4);
-    if hr != 0 {
-        // If DWMWA_COLOR_NONE is not accepted, force dark border matching window dark theme
-        // (RGB 18, 19, 24 -> COLORREF 0x00181312), preventing Windows from ever using the blue accent color
-        let dark_border: u32 = 0x00181312;
-        let _ = DwmSetWindowAttribute(hwnd, 34, &dark_border as *const _ as _, 4);
+    if prev != corner_pref {
+        // 2. DWMWA_WINDOW_CORNER_PREFERENCE (33)
+        // 2 = DWMWCP_ROUND (circular / rounded borders for modern Windows 11 windowed mode)
+        // 1 = DWMWCP_DONOTROUND (square for fullscreen / tile mode)
+        let _ = DwmSetWindowAttribute(hwnd, 33, &corner_pref as *const _ as _, 4);
     }
 
-    // 4. DWMWA_CAPTION_COLOR (35) -> Dark color matching background (0x00181312)
-    // Prevents DWM from drawing any default accent/blue caption background or top line
-    let caption_color: u32 = 0x00181312;
-    let _ = DwmSetWindowAttribute(hwnd, 35, &caption_color as *const _ as _, 4);
+    if prev == 999 {
+        // 1. DWMWA_USE_IMMERSIVE_DARK_MODE (20 in modern Win10/11, 19 in early Win10)
+        let dark_mode: u32 = 1;
+        let _ = DwmSetWindowAttribute(hwnd, 20, &dark_mode as *const _ as _, 4);
+        let _ = DwmSetWindowAttribute(hwnd, 19, &dark_mode as *const _ as _, 4);
 
-    // 5. DWMWA_SYSTEMBACKDROP_TYPE (38) -> DWMSBT_NONE (1)
-    // Disables Mica/Acrylic material frame rendering
-    let backdrop: u32 = 1;
-    let _ = DwmSetWindowAttribute(hwnd, 38, &backdrop as *const _ as _, 4);
+        // 3. DWMWA_BORDER_COLOR (34)
+        let border_none: u32 = 0xFFFFFFFE;
+        let hr = DwmSetWindowAttribute(hwnd, 34, &border_none as *const _ as _, 4);
+        if hr != 0 {
+            let dark_border: u32 = 0x00181312;
+            let _ = DwmSetWindowAttribute(hwnd, 34, &dark_border as *const _ as _, 4);
+        }
+
+        // 4. DWMWA_CAPTION_COLOR (35) -> Dark color matching background (0x00181312)
+        let caption_color: u32 = 0x00181312;
+        let _ = DwmSetWindowAttribute(hwnd, 35, &caption_color as *const _ as _, 4);
+
+        // 5. DWMWA_SYSTEMBACKDROP_TYPE (38) -> DWMSBT_NONE (1)
+        let backdrop: u32 = 1;
+        let _ = DwmSetWindowAttribute(hwnd, 38, &backdrop as *const _ as _, 4);
+    }
 }
 
 #[cfg(not(windows))]
@@ -377,6 +448,8 @@ unsafe extern "system" fn thumbbar_subclass_proc(
     // synchronous cross-process DWM RPC calls and cause heavy window dragging lag.
     if msg == WM_ENTERSIZEMOVE
         || msg == WM_EXITSIZEMOVE
+        || msg == WM_WINDOWPOSCHANGED
+        || msg == WM_SIZE
         || msg == WM_ACTIVATE
         || msg == WM_ACTIVATEAPP
         || msg == WM_SETFOCUS

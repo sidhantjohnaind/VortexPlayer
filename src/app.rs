@@ -1128,6 +1128,11 @@ impl VortexApp {
                 if input.key_pressed(egui::Key::S) {
                     self.subtitle_explorer.is_open = !self.subtitle_explorer.is_open;
                 }
+                if input.key_pressed(egui::Key::L) {
+                    self.lyrics_overlay.toggle_enabled();
+                    let state = if self.lyrics_overlay.is_enabled { "ON" } else { "OFF" };
+                    self.osd.show(format!("Lyrics Overlay: {}", state), 1500);
+                }
                 if input.key_pressed(egui::Key::E) {
                     if let Some(ref path) = self.bookmark_mgr.current_video_path {
                         match crate::bookmark::PbfFile::save_for_video(path, &self.bookmark_mgr.bookmarks) {
@@ -1227,6 +1232,11 @@ impl VortexApp {
                     player.set_subtitle_font_size(self.config.subtitle_font_size);
                     self.osd.show(format!("Subtitle Size: {:.0}pt", self.config.subtitle_font_size), 1200);
                     let _ = self.config.save();
+                }
+                if input.key_pressed(egui::Key::L) {
+                    self.lyrics_overlay.toggle_expanded();
+                    let state = if self.lyrics_overlay.is_expanded { "Expanded" } else { "Mini" };
+                    self.osd.show(format!("Lyrics Studio: {}", state), 1500);
                 }
                 if input.key_pressed(egui::Key::ArrowUp) {
                     self.config.subtitle_vertical_pos = (self.config.subtitle_vertical_pos - 2.0).clamp(0.0, 115.0);
@@ -1834,6 +1844,10 @@ impl VortexApp {
                         player.load_external_subtitle(&path.to_string_lossy());
                     }
                     self.osd.show(format!("Loaded subtitle: {}", path.file_name().unwrap_or_default().to_string_lossy()), 2000);
+                }
+            } else if path.extension().and_then(|e| e.to_str()).map_or(false, |e| e.eq_ignore_ascii_case("lrc")) {
+                if self.lyrics_overlay.load_from_file(&path) {
+                    self.osd.show(format!("Loaded Lyrics: {}", path.file_name().unwrap_or_default().to_string_lossy()), 2000);
                 }
             } else if is_media_file(&path) {
                 self.open_media_file(path);
@@ -3832,6 +3846,16 @@ impl eframe::App for VortexApp {
                                 player.cycle_subtitle_track();
                             }
                         }
+                        if actions.toggle_lyrics {
+                            self.lyrics_overlay.toggle_enabled();
+                            let state = if self.lyrics_overlay.is_enabled { "ON" } else { "OFF" };
+                            self.osd.show(format!("Lyrics Overlay: {}", state), 1500);
+                        }
+                        if actions.toggle_lyrics_expanded {
+                            self.lyrics_overlay.toggle_expanded();
+                            let state = if self.lyrics_overlay.is_expanded { "Expanded" } else { "Mini" };
+                            self.osd.show(format!("Lyrics Studio: {}", state), 1500);
+                        }
                         if actions.cycle_repeat {
                             let mode = self.playlist.lock().unwrap().cycle_repeat_mode();
                             self.config.playlist_repeat_mode = match mode {
@@ -4491,7 +4515,23 @@ impl eframe::App for VortexApp {
                     self.visualizer.render(ui, rect, &stats);
 
                     // Synchronized Karaoke Lyrics Overlay
-                    self.lyrics_overlay.render(ui, rect, stats.time_pos);
+                    let mediainfo_cached = if self.lyrics_overlay.track.is_none() && !stats.file_path.is_empty() {
+                        crate::engine::mediainfo::get_mediainfo_text(&stats.file_path, &stats)
+                    } else {
+                        String::new()
+                    };
+                    self.lyrics_overlay.update_track(
+                        &stats.file_path,
+                        self.player.as_ref().ok().map(|p| p.as_ref()),
+                        if mediainfo_cached.is_empty() { None } else { Some(&mediainfo_cached) },
+                    );
+                    self.lyrics_overlay.render(
+                        ui,
+                        self.player.as_ref().ok().map(|p| p.as_ref()),
+                        rect,
+                        stats.time_pos,
+                        is_song_playback,
+                    );
 
                     // A-B Split-Screen Video Comparison
                     self.split_compare.render(ui, rect);
@@ -5259,6 +5299,29 @@ impl eframe::App for VortexApp {
                     if menu_actions.toggle_playlist {
                             self.show_main_menu = false;
                             menu_toggle_playlist = true;
+                        }
+                        if menu_actions.toggle_lyrics {
+                            self.show_main_menu = false;
+                            self.lyrics_overlay.toggle_enabled();
+                            let state = if self.lyrics_overlay.is_enabled { "ON" } else { "OFF" };
+                            self.osd.show(format!("Lyrics Overlay: {}", state), 1500);
+                        }
+                        if menu_actions.toggle_lyrics_expanded {
+                            self.show_main_menu = false;
+                            self.lyrics_overlay.toggle_expanded();
+                            let state = if self.lyrics_overlay.is_expanded { "Expanded" } else { "Mini" };
+                            self.osd.show(format!("Lyrics Studio: {}", state), 1500);
+                        }
+                        if menu_actions.load_lyrics_file {
+                            self.show_main_menu = false;
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Lyrics / Subtitles", &["lrc", "txt", "srt"])
+                                .pick_file()
+                            {
+                                if self.lyrics_overlay.load_from_file(&path) {
+                                    self.osd.show(format!("Loaded Lyrics: {}", path.file_name().unwrap_or_default().to_string_lossy()), 2000);
+                                }
+                            }
                         }
                         if menu_actions.toggle_control_panel {
                             self.show_main_menu = false;

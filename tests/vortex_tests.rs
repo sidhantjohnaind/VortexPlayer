@@ -371,6 +371,65 @@ fn test_lyrics_parser_and_nan_sorting() {
 }
 
 #[test]
+fn test_lyrics_slash_separated_user_format() {
+    let sample = "[0:00.54] 君が僕に見せてくれた / [0:05.80] 世界はとても綺麗だったな / [0:12.01] ... / [0:22.81] 君の瞳に住まう";
+    let track = vortex_player::engine::lyrics::LyricTrack::parse_lrc(sample);
+    assert!(track.is_some());
+    let t = track.unwrap();
+    assert_eq!(t.lines.len(), 4);
+    assert_eq!(t.lines[0].text, "君が僕に見せてくれた");
+    assert!((t.lines[0].timestamp_sec - 0.54).abs() < 0.001);
+    assert_eq!(t.lines[1].text, "世界はとても綺麗だったな");
+    assert!((t.lines[1].timestamp_sec - 5.80).abs() < 0.001);
+    assert_eq!(t.lines[2].text, "...");
+    assert!((t.lines[2].timestamp_sec - 12.01).abs() < 0.001);
+    assert_eq!(t.lines[3].text, "君の瞳に住まう");
+    assert!((t.lines[3].timestamp_sec - 22.81).abs() < 0.001);
+
+    // Lookups
+    assert_eq!(t.get_current_line(0.0), None);
+    assert_eq!(t.get_current_line(1.0).map(|(_, l)| l.text.as_str()), Some("君が僕に見せてくれた"));
+    assert_eq!(t.get_current_line(7.0).map(|(_, l)| l.text.as_str()), Some("世界はとても綺麗だったな"));
+}
+
+#[test]
+fn test_lyrics_mediainfo_text_extractor() {
+    let mi_text = r#"
+General
+Complete name : D:\Downloads\Music\Atarayo - I am....flac
+Format : FLAC
+Duration : 3 min 59 s
+Lyrics : [0:00.54] 君が僕に見せてくれた / [0:05.80] 世界はとても綺麗だったな
+Audio
+Format : FLAC
+"#;
+    let track = vortex_player::engine::lyrics::extract_from_mediainfo_text(mi_text);
+    assert!(track.is_some());
+    let t = track.unwrap();
+    assert_eq!(t.lines.len(), 2);
+    assert_eq!(t.lines[0].text, "君が僕に見せてくれた");
+    assert_eq!(t.lines[1].text, "世界はとても綺麗だったな");
+}
+
+#[test]
+fn test_lyrics_multi_timestamps_and_offset() {
+    let sample = r#"
+[offset:500]
+[00:01.00][00:05.00] Chorus line
+"#;
+    let track = vortex_player::engine::lyrics::LyricTrack::parse_lrc(sample);
+    assert!(track.is_some());
+    let t = track.unwrap();
+    assert_eq!(t.lines.len(), 2);
+    // 1.0s + 0.5s offset = 1.5s
+    assert!((t.lines[0].timestamp_sec - 1.5).abs() < 0.001);
+    assert_eq!(t.lines[0].text, "Chorus line");
+    // 5.0s + 0.5s offset = 5.5s
+    assert!((t.lines[1].timestamp_sec - 5.5).abs() < 0.001);
+    assert_eq!(t.lines[1].text, "Chorus line");
+}
+
+#[test]
 fn test_parametric_eq_filter_generation() {
     use vortex_player::engine::parametric_eq::{FilterType, ParametricEqConfig, ParametricNode};
 

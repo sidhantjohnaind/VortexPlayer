@@ -102,6 +102,9 @@ pub struct MenuActions {
     pub set_visualizer_mode: Option<crate::ui::visualizer::VisualizerMode>,
     pub check_updates: bool,
     pub toggle_surround_eq: bool,
+    pub toggle_lyrics: bool,
+    pub toggle_lyrics_expanded: bool,
+    pub load_lyrics_file: bool,
 }
 
 
@@ -666,6 +669,9 @@ impl VortexMenu {
             set_visualizer_mode: None,
             check_updates: false,
             toggle_surround_eq: false,
+            toggle_lyrics: false,
+            toggle_lyrics_expanded: false,
+            load_lyrics_file: false,
         };
 
 
@@ -1161,6 +1167,20 @@ impl VortexMenu {
             }
             if menu_item(ui, &skin, "🔍", "Online Subtitle Search & Download...", "Ctrl+Shift+O", false, false).clicked() {
                 actions.toggle_subtitle_lookup = true;
+                ui.close();
+            }
+            menu_separator(ui);
+
+            if menu_item(ui, &skin, "🎙", "Synchronized Lyrics / Karaoke", "Ctrl+Shift+L", false, false).clicked() {
+                actions.toggle_lyrics = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "↕", "Full Scrolling Lyrics Studio", "Alt+L", false, false).clicked() {
+                actions.toggle_lyrics_expanded = true;
+                ui.close();
+            }
+            if menu_item(ui, &skin, "📜", "Load External Lyrics (.lrc)...", "", false, false).clicked() {
+                actions.load_lyrics_file = true;
                 ui.close();
             }
             menu_separator(ui);

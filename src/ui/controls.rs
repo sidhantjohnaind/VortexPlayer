@@ -58,6 +58,8 @@ pub struct ControlBarActions {
     pub open_audio_tracks_popup: bool,
     pub open_subtitle_tracks_popup: bool,
     pub toggle_wasapi_exclusive: bool,
+    pub toggle_lyrics: bool,
+    pub toggle_lyrics_expanded: bool,
 }
 
 impl ControlBar {
@@ -123,6 +125,8 @@ impl ControlBar {
             open_audio_tracks_popup: false,
             open_subtitle_tracks_popup: false,
             toggle_wasapi_exclusive: false,
+            toggle_lyrics: false,
+            toggle_lyrics_expanded: false,
         };
 
         let mut hovered_tooltip: Option<(Rect, String)> = None;
@@ -243,7 +247,7 @@ impl ControlBar {
                 // action cluster is anchored to the right, so cap the title
                 // to the space that is actually available instead of letting
                 // it run underneath the A-B/repeat controls.
-                let reserved_right = 160.0 + 10.0;
+                let reserved_right = 176.0 + 10.0;
                 let title_width = (dash_rect.right() - reserved_right - cur_x - 12.0).max(84.0);
                 let title_chars = (title_width / 7.2).floor() as usize;
                 title_label = safe_truncate(&title_label, title_chars.max(8));
@@ -284,8 +288,8 @@ impl ControlBar {
                 );
             }
 
-            // D. Right Block: A-B Repeat Cluster + Blue Repeat & Shuffle Pills
-            let right_block_w = 160.0;
+            // D. Right Block: A-B Repeat Cluster + Blue Repeat & Shuffle Pills + Lyrics
+            let right_block_w = 176.0;
             let right_block_x = dash_rect.right() - right_block_w - 10.0;
             let ctrl_row_y = dash_rect.center().y - 12.0;
 
@@ -404,6 +408,29 @@ impl ControlBar {
             }
             if shuf_resp.clicked() {
                 playlist.toggle_shuffle();
+            }
+
+            // 5. Compact dark Lyrics button
+            let lyr_pill_rect = Rect::from_min_size(Pos2::new(right_block_x + 140.0, ctrl_row_y), Vec2::new(26.0, 24.0));
+            let lyr_resp = ui.interact(lyr_pill_rect, ui.id().with("dash_lyrics_btn"), Sense::click());
+            let lyr_bg = if lyr_resp.hovered() { skin.bg_btn_hover } else { skin.bg_btn };
+            painter.rect_filled(lyr_pill_rect, CornerRadius::same(3), lyr_bg);
+            painter.rect_stroke(lyr_pill_rect, CornerRadius::same(3), Stroke::new(1.0, skin.border_dark), StrokeKind::Inside);
+            painter.text(
+                lyr_pill_rect.center(),
+                Align2::CENTER_CENTER,
+                "🎙",
+                FontId::proportional(11.5),
+                if lyr_resp.hovered() { skin.accent_primary } else { Color32::from_rgb(150, 155, 170) },
+            );
+            if lyr_resp.hovered() {
+                hovered_tooltip = Some((lyr_pill_rect, "Synchronized Lyrics / Karaoke (Ctrl+Shift+L)\nRight-click: Full Lyrics Studio".to_string()));
+            }
+            if lyr_resp.clicked() {
+                actions.toggle_lyrics = true;
+            }
+            if lyr_resp.secondary_clicked() {
+                actions.toggle_lyrics_expanded = true;
             }
 
             current_y += dash_h;
@@ -1230,6 +1257,12 @@ impl ControlBar {
 
             if make_right_tile("tile_quick_search", 26.0, "Bookmarks & Scene Search (P / B)", &|p, r, c| Icons::draw_search_list(p, r, c)) {
                 actions.toggle_bookmark_overlay = true;
+            }
+
+            if make_right_tile("tile_lyrics", 26.0, "Synchronized Lyrics / Karaoke (Ctrl+Shift+L)", &|p, r, c| {
+                p.text(r.center(), Align2::CENTER_CENTER, "🎙", FontId::proportional(11.5), c);
+            }) {
+                actions.toggle_lyrics = true;
             }
         }
 

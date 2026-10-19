@@ -2803,7 +2803,10 @@ impl VortexApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(log_w, log_h)));
                 self.config.window_width = log_w;
                 self.config.window_height = log_h;
-                let _ = self.config.save();
+                let config_clone = self.config.clone();
+                std::thread::spawn(move || {
+                    let _ = config_clone.save();
+                });
                 self.osd.show(format!("Window Snapped to Aspect Ratio ({:.2}:1 - Zero Black Bars)", target_ar), 1500);
             }
         }
@@ -3152,7 +3155,9 @@ impl VortexApp {
         let is_max = is_window_maximized_or_workarea(self.parent_hwnd, ctx);
 
         if let Some(ref target_path) = self.pending_auto_fit_video {
-            if stats.file_path == *target_path && stats.video_width > 0 && stats.video_height > 0 && !stats.is_idle && !MusicBackgroundView::is_song(stats) {
+            let surface_ready = self.video_surface.lock().map(|s| s.has_rendered_any_frame).unwrap_or(true);
+            let time_elapsed = self.media_load_start.elapsed().as_millis() >= 400;
+            if (surface_ready || time_elapsed) && stats.file_path == *target_path && stats.video_width > 0 && stats.video_height > 0 && !stats.is_idle && !MusicBackgroundView::is_song(stats) {
                 if !self.is_fullscreen && !is_max && self.config.auto_fit_window_to_video {
                     self.snap_window_to_video_aspect_ratio(ctx);
                 }

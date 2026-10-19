@@ -634,10 +634,12 @@ impl ControlBar {
         // Click / Drag seeking
         if seek_resp.clicked() || seek_resp.dragged() {
             if let Some(mouse_pos) = ui.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos())) {
-                let frac = ((mouse_pos.x - track_rect.left()) / track_rect.width()).clamp(0.0, 1.0);
-                let target_time = frac as f64 * stats.duration;
-                if let Some(p) = player {
-                    p.seek_absolute(target_time);
+                if track_rect.width() > 0.0 {
+                    let frac = ((mouse_pos.x - track_rect.left()) / track_rect.width()).clamp(0.0, 1.0);
+                    let target_time = frac as f64 * stats.duration;
+                    if let Some(p) = player {
+                        p.seek_absolute(target_time);
+                    }
                 }
             }
         }
@@ -645,10 +647,11 @@ impl ControlBar {
         // Storyboard Video Scrubbing & Live Thumbnail Preview Card
         if seek_hovered {
             if let Some(mouse_pos) = ui.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos())) {
-                let frac = ((mouse_pos.x - track_rect.left()) / track_rect.width()).clamp(0.0, 1.0);
-                let hover_time = frac as f64 * stats.duration;
-                let time_str = format_time(hover_time);
-                let pct = (frac * 100.0) as u32;
+                if track_rect.width() > 0.0 {
+                    let frac = ((mouse_pos.x - track_rect.left()) / track_rect.width()).clamp(0.0, 1.0);
+                    let hover_time = frac as f64 * stats.duration;
+                    let time_str = format_time(hover_time);
+                    let pct = (frac * 100.0) as u32;
 
                 // Find chapter if any
                 let chapter_title = stats.chapters.iter().find(|c| {
@@ -705,7 +708,9 @@ impl ControlBar {
                 );
 
                 // Callout Caret / Pointer Arrow pointing down directly toward the scrub position
-                let caret_center_x = mouse_pos.x.clamp(card_rect.left() + 16.0, card_rect.right() - 16.0);
+                let caret_lo = card_rect.left() + 16.0;
+                let caret_hi = card_rect.right() - 16.0;
+                let caret_center_x = if caret_lo <= caret_hi { mouse_pos.x.clamp(caret_lo, caret_hi) } else { card_rect.center().x };
                 let caret_h = 7.0;
                 let caret_w = 12.0;
                 let caret_left = Pos2::new(caret_center_x - caret_w * 0.5, card_rect.bottom());
@@ -781,6 +786,7 @@ impl ControlBar {
                 }
             }
         }
+    }
 
         current_y = seekbar_y + seekbar_h + 2.0;
 

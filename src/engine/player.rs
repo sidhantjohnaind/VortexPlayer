@@ -347,6 +347,7 @@ pub struct Player {
     ffi: MpvFfi,
     ctx: *mut c_void,
     render_context: Arc<Mutex<Option<*mut c_void>>>,
+    update_callback_ctx: Mutex<Option<*mut c_void>>,
     pub stats: Arc<Mutex<MediaStats>>,
     is_running: Arc<AtomicBool>,
     pub audio_bus: crate::engine::AudioAnalysisBus,
@@ -581,11 +582,13 @@ impl Player {
         });
 
         let render_context = Arc::new(Mutex::new(None));
+        let update_callback_ctx = Mutex::new(None);
 
         Ok(Self {
             ffi,
             ctx,
             render_context,
+            update_callback_ctx,
             stats,
             is_running,
             audio_bus,
@@ -771,6 +774,15 @@ impl Player {
                 Some(on_mpv_update),
                 boxed_ctx as *mut c_void,
             );
+        }
+
+        if let Ok(mut cb_guard) = self.update_callback_ctx.lock() {
+            if let Some(old_ptr) = cb_guard.take() {
+                unsafe {
+                    drop(Box::from_raw(old_ptr as *mut eframe::egui::Context));
+                }
+            }
+            *cb_guard = Some(boxed_ctx as *mut c_void);
         }
 
         *guard = Some(render_ctx);
@@ -2908,6 +2920,13 @@ impl Drop for Player {
                 unsafe {
                     (self.ffi.mpv_render_context_set_update_callback)(render_ctx, None, std::ptr::null_mut());
                     (self.ffi.mpv_render_context_free)(render_ctx);
+                }
+            }
+        }
+        if let Ok(mut cb_guard) = self.update_callback_ctx.lock() {
+            if let Some(cb_ptr) = cb_guard.take() {
+                unsafe {
+                    drop(Box::from_raw(cb_ptr as *mut eframe::egui::Context));
                 }
             }
         }

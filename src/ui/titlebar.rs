@@ -124,31 +124,33 @@ impl TitleBar {
         let drag_right = rect.right() - right_controls_width;
 
         // Middle Drag Region: Only drags when clicking empty title area (never on buttons!)
-        let drag_rect = Rect::from_min_max(
-            Pos2::new(cursor_left, rect.top()),
-            Pos2::new(drag_right, rect.bottom()),
-        );
-        let drag_resp = ui.interact(drag_rect, ui.id().with("tb_drag_area"), Sense::click_and_drag());
-        let drag_id = ui.id().with("tb_drag_active");
-        let drag_active = ui.data(|d| d.get_temp::<bool>(drag_id).unwrap_or(false));
+        if cursor_left < drag_right {
+            let drag_rect = Rect::from_min_max(
+                Pos2::new(cursor_left, rect.top()),
+                Pos2::new(drag_right, rect.bottom()),
+            );
+            let drag_resp = ui.interact(drag_rect, ui.id().with("tb_drag_area"), Sense::click_and_drag());
+            let drag_id = ui.id().with("tb_drag_active");
+            let drag_active = ui.data(|d| d.get_temp::<bool>(drag_id).unwrap_or(false));
 
-        if drag_resp.double_clicked() {
-            double_clicked = true;
-            ui.data_mut(|d| d.insert_temp(drag_id, false));
-        } else if drag_resp.dragged() {
-            let exceeds_threshold = ui.input(|i| {
-                if let (Some(origin), Some(current)) = (i.pointer.press_origin(), i.pointer.interact_pos()) {
-                    (current - origin).length() >= 5.0
-                } else {
-                    false
+            if drag_resp.double_clicked() {
+                double_clicked = true;
+                ui.data_mut(|d| d.insert_temp(drag_id, false));
+            } else if drag_resp.dragged() {
+                let exceeds_threshold = ui.input(|i| {
+                    if let (Some(origin), Some(current)) = (i.pointer.press_origin(), i.pointer.interact_pos()) {
+                        (current - origin).length() >= 5.0
+                    } else {
+                        false
+                    }
+                });
+                if exceeds_threshold && !drag_active {
+                    drag_started = true;
+                    ui.data_mut(|d| d.insert_temp(drag_id, true));
                 }
-            });
-            if exceeds_threshold && !drag_active {
-                drag_started = true;
-                ui.data_mut(|d| d.insert_temp(drag_id, true));
+            } else if drag_active {
+                ui.data_mut(|d| d.insert_temp(drag_id, false));
             }
-        } else if drag_active {
-            ui.data_mut(|d| d.insert_temp(drag_id, false));
         }
 
         let is_idle_title = title.is_empty() || title == "VertexPlayer" || title == "Ready" || title == "VortexPlayer";

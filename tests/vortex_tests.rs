@@ -319,10 +319,19 @@ fn test_sequence_detector_handles_mixed_case_without_numeric_prefixes() {
     let _ = std::fs::write(&part11, b"");
     assert_eq!(SequenceDetector::detect_next_part(&part10), None);
 
+    // Test Unicode prefix and multi-part sequence progression (part2 -> part3)
+    let unicode_p2 = dir.join("劇場版_Part2.mkv");
+    let unicode_p3 = dir.join("劇場版_Part3.mkv");
+    let _ = std::fs::write(&unicode_p2, b"");
+    let _ = std::fs::write(&unicode_p3, b"");
+    assert_eq!(SequenceDetector::detect_next_part(&unicode_p2), Some(unicode_p3.clone()));
+
     let _ = std::fs::remove_file(current);
     let _ = std::fs::remove_file(next);
     let _ = std::fs::remove_file(part10);
     let _ = std::fs::remove_file(part11);
+    let _ = std::fs::remove_file(unicode_p2);
+    let _ = std::fs::remove_file(unicode_p3);
     let _ = std::fs::remove_dir(&dir);
 }
 

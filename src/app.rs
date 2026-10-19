@@ -227,6 +227,7 @@ pub struct VortexApp {
     pub debug_log_entries: std::collections::VecDeque<String>,
     pub show_debug_log_dialog: bool,
     pub stats_for_nerds: crate::ui::StatsForNerdsDialog,
+    pub has_handled_eof: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -570,6 +571,7 @@ impl VortexApp {
             debug_log_entries: std::collections::VecDeque::new(),
             show_debug_log_dialog: false,
             stats_for_nerds: crate::ui::StatsForNerdsDialog::new(),
+            has_handled_eof: false,
         };
 
         crate::ui::theme::VortexTheme::apply(&cc.egui_ctx, app.config.theme_mode);
@@ -2179,8 +2181,10 @@ impl VortexApp {
             if is_now_playing {
                 self.prev_was_playing = true;
                 self.is_loading_media = false;
+                self.has_handled_eof = false;
             } else if self.prev_was_playing && (stats.eof_reached || (stats.duration > 1.0 && stats.time_pos >= stats.duration - 0.35)) {
                 self.prev_was_playing = false;
+                self.has_handled_eof = true;
 
                 // Move to next track in playlist (handles RepeatTrack, RepeatAll, Shuffle, and sequential progression)
                 if let Some(next) = self.playlist.lock().unwrap().next() {
@@ -2225,7 +2229,8 @@ impl VortexApp {
                     }
                     PlaylistEndAction::ShowHomeScreen => {}
                 }
-            } else if !self.prev_was_playing && stats.eof_reached && !stats.file_path.is_empty() {
+            } else if !self.has_handled_eof && !self.prev_was_playing && stats.eof_reached && !stats.file_path.is_empty() {
+                self.has_handled_eof = true;
                 // If EOF was reached while minimized and prev_was_playing wasn't captured
                 let mut pl = self.playlist.lock().unwrap();
                 if !pl.is_empty() {
@@ -3023,6 +3028,10 @@ impl VortexApp {
             stats.video_width = 0;
             stats.video_height = 0;
             stats.chapters.clear();
+            stats.eof_reached = false;
+            self.has_handled_eof = true;
+            self.pending_auto_fit_video = None;
+            self.pending_resume = None;
             self.intro_segment_key = None;
             self.intro_btn_shown_at = None;
             self.intro_last_time_pos = 0.0;
@@ -3503,6 +3512,11 @@ impl eframe::App for VortexApp {
             }
         }
 
+        if ctx.input(|i| i.viewport().close_requested()) {
+            self.save_current_playback_state();
+            let _ = self.config.save();
+        }
+
         self.frame_counter = self.frame_counter.wrapping_add(1);
         self.active_popup_rects.clear();
         ctx.data_mut(|d| d.insert_temp(egui::Id::new("all_active_submenu_rects"), Vec::<Rect>::new()));
@@ -3709,6 +3723,9 @@ impl eframe::App for VortexApp {
         // Process seekbar hover preview frame textures, shortcuts, drag-and-drop, window resizing, A-B loop
         self.seek_preview.pump(&ctx);
         self.handle_shortcuts(&ctx, &mut stats);
+        if stats.is_idle && stats.file_path.is_empty() {
+            file_to_open = None;
+        }
         self.handle_drag_and_drop(&ctx);
         self.handle_window_resizing(&ctx, &stats);
         self.check_ab_loop_and_resume();
@@ -4131,6 +4148,7 @@ impl eframe::App for VortexApp {
                         }
                         if actions.close_file {
                             self.close_current_media(&mut stats, &ctx);
+                            file_to_open = None;
                         }
                         if actions.prev_track {
                             if let Some(p) = self.playlist.lock().unwrap().previous() {
@@ -6296,6 +6314,7 @@ impl eframe::App for VortexApp {
             if menu_close_file {
                 self.show_main_menu = false;
                 self.close_current_media(&mut stats, &ctx);
+                file_to_open = None;
             }
             if menu_toggle_pip {
                 self.show_main_menu = false;
@@ -7088,6 +7107,9 @@ impl eframe::App for VortexApp {
         // =========================================================================
         // 6. PROCESS FILE / FOLDER OPENS
         // =========================================================================
+        if stats.is_idle && stats.file_path.is_empty() {
+            file_to_open = None;
+        }
         if let Some(path) = file_to_open {
             self.open_media_file(path);
         }

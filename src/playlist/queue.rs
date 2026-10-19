@@ -33,23 +33,39 @@ impl SequenceDetector {
         let name = current_path.file_name()?.to_string_lossy();
         let parent = current_path.parent()?;
 
-        // Detect part1 -> part2 or CD1 -> CD2, independent of casing. Avoid
-        // treating names such as "part10" as "part1".
-        for marker in ["part1", "cd1"] {
-            let lower_name = name.to_lowercase();
-            let Some(start) = lower_name.find(marker) else { continue };
-            let end = start + marker.len();
-            if lower_name[end..].chars().next().is_some_and(|ch| ch.is_ascii_digit()) {
-                continue;
-            }
-
-            let mut next_name = name.to_string();
-            // Replace only the sequence digit so the original casing is kept
-            // (e.g. "Part1" becomes "Part2").
-            next_name.replace_range(end - 1..end, "2");
-            let next_path = parent.join(next_name);
-            if next_path.exists() {
-                return Some(next_path);
+        // Detect part1 -> part2 or CD1 -> CD2, independent of casing.
+        // Safe against multi-byte UTF-8 filenames by matching ASCII prefixes on char boundaries.
+        // Avoid treating numbers with subsequent digits (such as "part10") as part1.
+        for prefix in ["part", "cd"] {
+            for (idx, _) in name.char_indices() {
+                let tail = &name[idx..];
+                let mut chars = tail.chars();
+                let mut matches = true;
+                for p_ch in prefix.chars() {
+                    if chars.next().map(|c| c.to_ascii_lowercase()) != Some(p_ch) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if !matches {
+                    continue;
+                }
+                if let Some(ch) = chars.next() {
+                    if ch.is_ascii_digit() && ch != '0' {
+                        if chars.next().is_some_and(|c| c.is_ascii_digit()) {
+                            continue;
+                        }
+                        let current_digit = (ch as u8 - b'0') as u32;
+                        let next_digit = (current_digit + 1).to_string();
+                        let digit_idx = idx + prefix.len();
+                        let mut next_name = name.to_string();
+                        next_name.replace_range(digit_idx..digit_idx + 1, &next_digit);
+                        let next_path = parent.join(next_name);
+                        if next_path.exists() {
+                            return Some(next_path);
+                        }
+                    }
+                }
             }
         }
         None

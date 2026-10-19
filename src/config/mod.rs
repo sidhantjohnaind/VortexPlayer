@@ -773,6 +773,13 @@ impl AppConfig {
         let _ = self.save();
     }
 
+    /// Record the resume position for `path`.
+    ///
+    /// This only mutates the in-memory config: persisting is the caller's job
+    /// (`Config::save`). Writing the file from here used to overwrite the
+    /// user's whole config with whatever copy of it the caller held - a test
+    /// that touched an `AppConfig::default()` wiped the real recent-files
+    /// list and resume positions on disk.
     pub fn save_resume_time(&mut self, path: &str, time: f64) {
         let win_key = path.replace('/', "\\");
         let unix_key = path.replace('\\', "/");
@@ -786,9 +793,12 @@ impl AppConfig {
             self.resume_timestamps.insert(unix_key, time);
             self.resume_timestamps.insert(win_key, time);
         }
-        let _ = self.save();
     }
 
+    /// Same as [`AppConfig::save_resume_time`] but also drops the position when
+    /// the playhead is inside the credits tail of the file.
+    ///
+    /// Like `save_resume_time` this does not touch the disk.
     pub fn save_smart_resume_time(&mut self, path: &str, time: f64, duration: f64) {
         let win_key = path.replace('/', "\\");
         let unix_key = path.replace('\\', "/");
@@ -803,7 +813,6 @@ impl AppConfig {
             self.resume_timestamps.insert(unix_key, time);
             self.resume_timestamps.insert(win_key, time);
         }
-        let _ = self.save();
     }
 
     pub fn get_resume_time(&self, path: &str) -> Option<f64> {
@@ -819,9 +828,11 @@ impl AppConfig {
             .or_else(|| self.resume_timestamps.get(&win_key).copied())
     }
 
+    /// Store per-file overrides (track ids, delays, aspect ratio).
+    ///
+    /// In-memory only - the caller persists the config.
     pub fn save_per_file(&mut self, path: &str, pfc: PerFileConfig) {
         self.per_file_settings.insert(path.to_string(), pfc);
-        let _ = self.save();
     }
 
     pub fn get_per_file(&self, path: &str) -> Option<&PerFileConfig> {

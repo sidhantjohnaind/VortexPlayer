@@ -187,6 +187,13 @@ pub struct VortexApp {
     last_opened_time: std::time::Instant,
     load_generation: Arc<std::sync::atomic::AtomicU64>,
     pending_resume: Option<(String, f64)>,
+    /// Recent/history entry waiting for the load to prove successful.
+    ///
+    /// Opening a file is not proof that it can be played. Recording it eagerly
+    /// listed corrupt or missing files in "Recently Played" and inflated their
+    /// watch count on every failed attempt. Commit on first successful playback
+    /// instead (see `commit_pending_history`).
+    pending_history_record: Option<(String, f64)>,
     pending_audio_track: Option<(String, i64)>,
     pending_subtitle_track: Option<(String, i64)>,
     last_mouse_activity: std::time::Instant,
@@ -533,6 +540,7 @@ impl VortexApp {
             last_opened_time: std::time::Instant::now() - std::time::Duration::from_secs(10),
             load_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             pending_resume: None,
+            pending_history_record: None,
             pending_audio_track: None,
             pending_subtitle_track: None,
             last_video_rect: Rect::ZERO,
@@ -788,10 +796,11 @@ impl VortexApp {
             let idx = self.playlist.lock().unwrap().add_item(path.clone());
             self.playlist.lock().unwrap().current_index = Some(idx);
             self.prev_was_playing = false;
-            self.config.last_played_file = Some(path_str.clone());
             self.config.last_playlist = self.playlist.lock().unwrap().items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
-            self.config.add_recent_file(&path_str);
-            self.playback_history.add_entry(&path_str, resume_pos.unwrap_or(0.0), 0.0);
+            // Do not touch last_played_file / recent_files / history yet: only a
+            // file that actually starts playing belongs there. A failed load is
+            // reported via `report_load_failure`, which drops this record.
+            self.pending_history_record = Some((path_str.clone(), resume_pos.unwrap_or(0.0)));
             self.pending_auto_fit_video = Some(path_str.clone());
 
             // Restore last used soundtrack (audio track) and subtitle track for this file
@@ -2185,11 +2194,17 @@ impl VortexApp {
     /// auto-advance and the playlist for the rest of the session while the UI
     /// keeps showing the file as loaded.
     pub fn check_load_errors(&mut self) {
+        // Drain every frame: an END_FILE(ERROR) from media that is already
+        // playing must not be mistaken for a failure of the *next* load.
         let reported = if let Ok(ref player) = self.player {
             player.take_load_error()
         } else {
             None
         };
+
+        if !self.is_loading_media {
+            return;
+        }
 
         if let Some(message) = reported {
             let name = self.last_opened_name();
@@ -2197,10 +2212,37 @@ impl VortexApp {
             return;
         }
 
+        // Success: libmpv is decoding the file we asked for, so it is safe to
+        // record it as recently played. The path match rejects stale stats from
+        // the previous file; requiring actual progress (duration or position)
+        // rejects a file libmpv opened but failed to decode before its
+        // END_FILE(ERROR) event reached us.
+        let started = if let (Ok(player), Some((expected, _))) =
+            (&self.player, self.pending_history_record.as_ref())
+        {
+            let s = player.stats();
+            load_has_started(
+                &s.file_path,
+                expected,
+                s.is_idle,
+                s.eof_reached,
+                s.duration,
+                s.time_pos,
+            )
+        } else {
+            false
+        };
+
+        if started {
+            self.is_loading_media = false;
+            self.commit_pending_history();
+            return;
+        }
+
         // Fallback for a load that silently never starts: libmpv returned to
         // idle without ever exposing a file. Generous headroom so buffering a
         // slow but valid source is not misreported as a failure.
-        if self.is_loading_media && self.media_load_start.elapsed().as_secs_f64() >= 8.0 {
+        if self.media_load_start.elapsed().as_secs_f64() >= 8.0 {
             let stalled = if let Ok(ref player) = self.player {
                 let s = player.stats();
                 s.file_path.is_empty() && s.is_idle
@@ -2214,10 +2256,24 @@ impl VortexApp {
         }
     }
 
+    /// Persist the current media as recently played/watch history.
+    ///
+    /// Called only once playback of the requested file is confirmed, so failed
+    /// opens never pollute the recent list or inflate the watch count.
+    fn commit_pending_history(&mut self) {
+        let Some((path, position)) = self.pending_history_record.take() else {
+            return;
+        };
+        self.config.last_played_file = Some(path.clone());
+        self.config.add_recent_file(&path);
+        self.playback_history.add_entry(&path, position, 0.0);
+    }
+
     /// Clear the stuck "loading" state and surface a failed load to the user.
     fn report_load_failure(&mut self, message: String) {
         self.is_loading_media = false;
         self.pending_resume = None;
+        self.pending_history_record = None;
         self.prev_was_playing = false;
 
         let line = format!("[LOAD ERROR] {}", message);
@@ -3109,6 +3165,7 @@ impl VortexApp {
             }
             self.prev_was_playing = false;
             self.is_loading_media = false;
+            self.pending_history_record = None;
             player.close_media();
             self.bookmark_mgr.set_video(None);
             self.playlist.lock().unwrap().current_index = None;
@@ -8217,4 +8274,48 @@ fn create_native_hicon() -> Option<windows_sys::Win32::UI::WindowsAndMessaging::
         }
     }
     None
+}
+
+/// Whether the requested media has demonstrably started playing.
+///
+/// A load only counts as real once libmpv is decoding the file we asked for:
+/// the reported path has to match, playback must not be idle or already
+/// finished, and the file has to show progress. Everything else - a corrupt
+/// file, a missing file, a stalled load - must never be recorded as recently
+/// played.
+fn load_has_started(
+    file_path: &str,
+    expected: &str,
+    is_idle: bool,
+    eof_reached: bool,
+    duration: f64,
+    time_pos: f64,
+) -> bool {
+    !is_idle
+        && !file_path.is_empty()
+        && file_path == expected
+        && !eof_reached
+        && (duration > 0.0 || time_pos > 0.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_has_started;
+
+    #[test]
+    fn load_counts_as_started_only_for_the_requested_file_with_progress() {
+        // Playing the requested file: duration known, or position advanced.
+        assert!(load_has_started("a.mp4", "a.mp4", false, false, 10.0, 0.0));
+        assert!(load_has_started("a.mp4", "a.mp4", false, false, 0.0, 1.5));
+
+        // Stale stats from the previously playing file.
+        assert!(!load_has_started("b.mp4", "a.mp4", false, false, 10.0, 1.0));
+        // Idle (libmpv gave up) or already at EOF.
+        assert!(!load_has_started("a.mp4", "a.mp4", true, false, 10.0, 1.0));
+        assert!(!load_has_started("a.mp4", "a.mp4", false, true, 10.0, 1.0));
+        // Opened but not decoding yet: no duration and no progress.
+        assert!(!load_has_started("a.mp4", "a.mp4", false, false, 0.0, 0.0));
+        // Nothing loaded at all.
+        assert!(!load_has_started("", "a.mp4", false, false, 10.0, 1.0));
+    }
 }

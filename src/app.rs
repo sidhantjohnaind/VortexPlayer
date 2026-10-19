@@ -12,7 +12,6 @@ use eframe::egui::{
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub struct VortexApp {
@@ -87,6 +86,7 @@ pub struct VortexApp {
     pub pitch_formant: PitchFormantDialog,
 
     player: Result<Arc<Player>, String>,
+    pub video_surface: Arc<Mutex<crate::engine::VideoSurface>>,
 
 
 
@@ -173,6 +173,7 @@ pub struct VortexApp {
     #[cfg(windows)]
     pre_fullscreen_win32_rect: Option<windows_sys::Win32::Foundation::RECT>,
     pre_fullscreen_maximized: bool,
+    pre_fullscreen_was_workarea: bool,
     last_windowed_rect: Option<egui::Rect>,
     restore_frames_pending: u8,
     attached_hwnd: bool,
@@ -180,9 +181,14 @@ pub struct VortexApp {
     child_hwnd: isize,
     last_saved_time_pos: f64,
     prev_was_playing: bool,
+    is_loading_media: bool,
+    media_load_start: std::time::Instant,
+    last_opened_path: Option<PathBuf>,
+    last_opened_time: std::time::Instant,
+    load_generation: Arc<std::sync::atomic::AtomicU64>,
     pending_resume: Option<(String, f64)>,
-    pending_audio_track: Option<i64>,
-    pending_subtitle_track: Option<i64>,
+    pending_audio_track: Option<(String, i64)>,
+    pending_subtitle_track: Option<(String, i64)>,
     last_mouse_activity: std::time::Instant,
     last_maximize_time: std::time::Instant,
     last_fullscreen_change: std::time::Instant,
@@ -200,7 +206,6 @@ pub struct VortexApp {
     last_viewport_size: Option<Vec2>,
     is_resizing_window: bool,
     seek_preview: crate::ui::SeekPreviewEngine,
-    queue_repaint_active: Arc<AtomicBool>,
     pub drawer_tab: crate::ui::playlist_panel::DrawerTab,
     pub drawer_browser_dir: PathBuf,
     pub drawer_browser_search: String,
@@ -210,6 +215,25 @@ pub struct VortexApp {
     intro_last_time_pos: f64,
     last_skipped_chapter_index: Option<i64>,
     has_initial_centered: bool,
+    pub pending_auto_fit_video: Option<String>,
+    // Modern UX: Hold-to-2x Speed & Ripple Seek
+    pub speed_hold_active: bool,
+    pub speed_hold_original: f64,
+    pub space_press_start: Option<std::time::Instant>,
+    pub ripple_seek: Option<RippleSeekState>,
+    // Frame drop telemetry and debug logging
+    pub last_logged_dropped_frames: i64,
+    pub last_heartbeat_log_time: std::time::Instant,
+    pub debug_log_entries: std::collections::VecDeque<String>,
+    pub show_debug_log_dialog: bool,
+    pub stats_for_nerds: crate::ui::StatsForNerdsDialog,
+}
+
+#[derive(Clone, Debug)]
+pub struct RippleSeekState {
+    pub is_forward: bool,
+    pub start_time: std::time::Instant,
+    pub accumulated_seconds: f64,
 }
 
 
@@ -317,6 +341,7 @@ impl VortexApp {
                 p.set_hdr_colorspace_hint(config.hdr_target_colorspace_hint);
                 p.set_gamut_mapping(&config.gamut_mapping_mode);
                 p.set_speed(config.playback_speed);
+                p.set_framedrop(&config.framedrop_mode);
                 p.set_equalizer(config.eq_enabled, &config.eq_bands);
                 let _ = p.ensure_render_context(&cc.egui_ctx);
                 Ok(p)
@@ -492,6 +517,7 @@ impl VortexApp {
             #[cfg(windows)]
             pre_fullscreen_win32_rect: None,
             pre_fullscreen_maximized: false,
+            pre_fullscreen_was_workarea: false,
             last_windowed_rect: None,
             restore_frames_pending: 0,
             attached_hwnd: false,
@@ -499,10 +525,16 @@ impl VortexApp {
             child_hwnd: 0,
             last_saved_time_pos: 0.0,
             prev_was_playing: false,
+            is_loading_media: false,
+            media_load_start: std::time::Instant::now(),
+            last_opened_path: None,
+            last_opened_time: std::time::Instant::now() - std::time::Duration::from_secs(10),
+            load_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             pending_resume: None,
             pending_audio_track: None,
             pending_subtitle_track: None,
             last_video_rect: Rect::ZERO,
+            video_surface: Arc::new(Mutex::new(crate::engine::VideoSurface::new())),
             active_popup_rects: Vec::new(),
             last_mouse_activity: std::time::Instant::now(),
             last_maximize_time: std::time::Instant::now() - std::time::Duration::from_secs(10),
@@ -528,22 +560,16 @@ impl VortexApp {
             intro_last_time_pos: 0.0,
             last_skipped_chapter_index: None,
             has_initial_centered: false,
-            queue_repaint_active: {
-                let active = Arc::new(AtomicBool::new(false));
-                let repaint_ctx = cc.egui_ctx.clone();
-                let repaint_active = Arc::clone(&active);
-                std::thread::spawn(move || {
-                    loop {
-                        if repaint_active.load(Ordering::Relaxed) {
-                            repaint_ctx.request_repaint();
-                            std::thread::sleep(std::time::Duration::from_millis(250));
-                        } else {
-                            std::thread::sleep(std::time::Duration::from_secs(1));
-                        }
-                    }
-                });
-                active
-            },
+            pending_auto_fit_video: None,
+            speed_hold_active: false,
+            speed_hold_original: 1.0,
+            space_press_start: None,
+            ripple_seek: None,
+            last_logged_dropped_frames: 0,
+            last_heartbeat_log_time: std::time::Instant::now() - std::time::Duration::from_secs(10),
+            debug_log_entries: std::collections::VecDeque::new(),
+            show_debug_log_dialog: false,
+            stats_for_nerds: crate::ui::StatsForNerdsDialog::new(),
         };
 
         crate::ui::theme::VortexTheme::apply(&cc.egui_ctx, app.config.theme_mode);
@@ -570,7 +596,11 @@ impl VortexApp {
             if !paths.is_empty() {
                 let mut pl = app.playlist.lock().unwrap();
                 pl.add_items(paths);
-                pl.probe_all_durations();
+                let pl_clone = Arc::clone(&app.playlist);
+                std::thread::spawn(move || {
+                    let mut pl = pl_clone.lock().unwrap();
+                    pl.probe_all_durations();
+                });
             }
 
             // 2. Restore active playlist item index
@@ -587,6 +617,11 @@ impl VortexApp {
                     let last_path = std::path::PathBuf::from(last_file);
                     app.pending_initial_file = Some(last_path);
                 }
+            }
+        } else if app.config.auto_resume {
+            if let Some(ref last_file) = app.config.last_played_file {
+                let last_path = std::path::PathBuf::from(last_file);
+                app.pending_initial_file = Some(last_path);
             }
         }
 
@@ -612,46 +647,13 @@ impl VortexApp {
             }
         }
 
-        // 4. Autonomous Background Track Advancement (Even when window is minimized)
+        // Wake the UI when mpv reaches EOF, including while the window is minimized.
+        // The UI's check_auto_advance path is the sole owner of playlist progression;
+        // loading files from this callback races that path and can skip items.
         if let Ok(ref player) = app.player {
-            let bg_player = Arc::clone(player);
-            let bg_pl = Arc::clone(&app.playlist);
             let bg_ctx = cc.egui_ctx.clone();
-
             player.set_on_eof(move || {
-                let next_opt = {
-                    if let Ok(mut pl) = bg_pl.lock() {
-                        pl.next()
-                    } else {
-                        None
-                    }
-                };
-                if let Some(next_path) = next_opt {
-                    let path_str = next_path.to_string_lossy().to_string();
-                    let is_audio = if let Some(ext) = next_path.extension().and_then(|e| e.to_str()) {
-                        matches!(
-                            ext.to_lowercase().as_str(),
-                            "flac" | "mp3" | "wav" | "m4a" | "aac" | "ogg" | "opus" | "wma" | "alac" | "aiff" | "ape" | "ac3" | "dts"
-                        )
-                    } else {
-                        false
-                    };
-
-                    if is_audio {
-                        bg_player.set_property_string("vid", "no");
-                        bg_player.set_property_string("audio-display", "no");
-                        bg_player.set_property_string("video", "no");
-                    } else {
-                        bg_player.set_property_string("vid", "auto");
-                        bg_player.set_property_string("audio-display", "no");
-                        bg_player.set_property_string("video", "auto");
-                        bg_player.set_property_string("vo", "libmpv");
-                    }
-
-                    bg_player.load_file(&path_str);
-                    bg_player.play();
-                    bg_ctx.request_repaint();
-                }
+                bg_ctx.request_repaint();
             });
         }
 
@@ -663,6 +665,21 @@ impl VortexApp {
     #[inline]
     pub fn playlist_lock(&self) -> std::sync::MutexGuard<'_, crate::playlist::Playlist> {
         self.playlist.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn trigger_ripple_seek(&mut self, is_forward: bool, step: f64) {
+        if let Some(ref mut rip) = self.ripple_seek {
+            if rip.is_forward == is_forward && rip.start_time.elapsed().as_secs_f32() < 0.75 {
+                rip.accumulated_seconds += step;
+                rip.start_time = std::time::Instant::now();
+                return;
+            }
+        }
+        self.ripple_seek = Some(RippleSeekState {
+            is_forward,
+            start_time: std::time::Instant::now(),
+            accumulated_seconds: step,
+        });
     }
 
     pub fn save_current_playback_state(&mut self) {
@@ -699,13 +716,35 @@ impl VortexApp {
                 self.config.save_per_file(&stats.file_path, pfc);
             }
         }
-        let _ = self.config.save();
+        let config_clone = self.config.clone();
+        std::thread::spawn(move || {
+            let _ = config_clone.save();
+        });
     }
 
     pub fn open_media_file(&mut self, path: PathBuf) {
+        if let Some(ref last_p) = self.last_opened_path {
+            if last_p == &path && self.last_opened_time.elapsed().as_millis() < 200 {
+                return;
+            }
+        }
+        self.last_opened_path = Some(path.clone());
+        self.last_opened_time = std::time::Instant::now();
+        self.is_loading_media = true;
+        self.media_load_start = std::time::Instant::now();
+        self.prev_was_playing = false;
+
         crate::log_step(&format!("20. open_media_file entered for {:?}", path));
         self.save_current_playback_state();
         crate::log_step("21. save_current_playback_state done");
+
+        self.last_logged_dropped_frames = 0;
+        let open_log = format!("[MEDIA OPENED] Loading \"{}\"", path.display());
+        crate::log_playback_debug(&open_log);
+        if self.debug_log_entries.len() >= 500 {
+            self.debug_log_entries.pop_front();
+        }
+        self.debug_log_entries.push_back(open_log);
         if let Ok(ref player) = self.player {
             let path_str = path.to_string_lossy().to_string();
             
@@ -726,97 +765,100 @@ impl VortexApp {
             };
 
 
-            if is_audio {
-                player.set_property_string("vid", "no");
-                player.set_property_string("audio-display", "no");
-                player.set_property_string("video", "no");
-            } else {
-                player.set_property_string("vid", "auto");
-                player.set_property_string("audio-display", "no");
-                player.set_property_string("video", "auto");
-                player.set_property_string("vo", "libmpv");
-            }
-
-            player.set_property_string("alang", &self.config.audio_languages);
-            player.set_property_string("slang", &self.config.subtitle_languages);
-
             if let Some(pos) = resume_pos {
-                player.set_property_string("start", &format!("{:.2}", pos));
-                player.load_file(&path_str);
-                player.set_property_string("start", "none");
-                player.play();
                 self.pending_resume = Some((path_str.clone(), pos));
                 let msg = format!("Resumed at {}", format_time(pos));
                 self.osd.show(msg, 2000);
             } else {
-                crate::log_step(&format!("23. calling player.load_file for {}", path_str));
-                player.load_file(&path_str);
-                crate::log_step("24. calling player.play");
-                player.play();
                 self.pending_resume = None;
+                let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                self.osd.show(format!("Playing: {}", filename), 2000);
             }
-            crate::log_step("25. load_file and play returned");
             self.last_saved_time_pos = resume_pos.unwrap_or(0.0);
-
 
             let idx = self.playlist.lock().unwrap().add_item(path.clone());
             self.playlist.lock().unwrap().current_index = Some(idx);
-            self.prev_was_playing = true;
+            self.prev_was_playing = false;
             self.config.last_played_file = Some(path_str.clone());
             self.config.last_playlist = self.playlist.lock().unwrap().items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
             self.config.add_recent_file(&path_str);
             self.playback_history.add_entry(&path_str, resume_pos.unwrap_or(0.0), 0.0);
-
-            // Apply configured audio device, channel layout & normalization
-            player.set_audio_device(&self.config.audio_device);
-            player.set_audio_channels(&self.config.audio_channels);
-            player.set_audio_normalize(self.config.audio_normalize);
-            player.set_aspect_ratio(&self.config.aspect_ratio);
-            let align = if self.is_fullscreen { "center" } else { &self.config.video_align_y };
-            player.set_video_align_y(align);
-            player.set_video_brightness(self.config.video_brightness - 100.0);
-            player.set_video_contrast(self.config.video_contrast - 100.0);
-            player.set_video_saturation(self.config.video_saturation - 100.0);
-            player.set_video_hue(self.config.video_hue);
-            if self.config.eq_enabled {
-                player.set_equalizer(true, &self.config.eq_bands);
-            }
-            player.apply_all_subtitle_settings(&self.config);
+            self.pending_auto_fit_video = Some(path_str.clone());
 
             // Restore last used soundtrack (audio track) and subtitle track for this file
-            if let Some(pfc) = self.config.get_per_file(&path_str).cloned() {
-                if let Some(aid) = pfc.audio_track_id {
-                    player.set_audio_track(aid);
-                    self.pending_audio_track = Some(aid);
-                }
-                if let Some(sid) = pfc.subtitle_track_id {
-                    player.set_subtitle_track(sid);
-                    self.pending_subtitle_track = Some(sid);
-                }
-                if let Some(adelay) = pfc.audio_delay {
-                    player.set_property_string("audio-delay", &adelay.to_string());
-                }
-                if let Some(sdelay) = pfc.subtitle_delay {
-                    player.set_property_string("sub-delay", &sdelay.to_string());
-                }
+            let pfc = self.config.get_per_file(&path_str).cloned();
+            if let Some(ref p) = pfc {
+                self.pending_audio_track = p.audio_track_id.map(|id| (path_str.clone(), id));
+                self.pending_subtitle_track = p.subtitle_track_id.map(|id| (path_str.clone(), id));
             } else {
-                // Apply intelligent Track Priority engine rules
-                self.track_priority = crate::engine::TrackPriorityConfig::from_config(&self.config);
-                let stats = player.stats();
-                if let Some(best_aid) = self.track_priority.select_best_audio_track(&stats.audio_tracks) {
-                    player.set_audio_track(best_aid);
-                    self.pending_audio_track = Some(best_aid);
-                }
-                if let Some(best_sid) = self.track_priority.select_best_subtitle_track(&stats.subtitle_tracks) {
-                    player.set_subtitle_track(best_sid);
-                    self.pending_subtitle_track = Some(best_sid);
-                }
+                self.pending_audio_track = None;
+                self.pending_subtitle_track = None;
             }
 
-            let _ = self.config.save();
+            if let Ok(mut surface) = self.video_surface.lock() {
+                surface.has_rendered_any_frame = false;
+            }
 
-            let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-            self.osd.show(format!("Playing: {}", filename), 2000);
+            // Asynchronously dispatch blocking mpv file loading to a background worker
+            // so the main UI thread never hitches, freezes or stutters
+            let player_clone = Arc::clone(player);
+            let path_str_clone = path_str.clone();
+            let config_clone = self.config.clone();
+            let resume_pos_val = resume_pos;
+            let is_audio_val = is_audio;
+            let pfc_clone = pfc;
+            let current_gen = self.load_generation.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            let load_gen_clone = Arc::clone(&self.load_generation);
+
+            std::thread::spawn(move || {
+                if load_gen_clone.load(std::sync::atomic::Ordering::SeqCst) != current_gen {
+                    return;
+                }
+                if is_audio_val {
+                    player_clone.set_property_string("vid", "no");
+                    player_clone.set_property_string("audio-display", "no");
+                    player_clone.set_property_string("video", "no");
+                } else {
+                    player_clone.set_property_string("vid", "auto");
+                    player_clone.set_property_string("audio-display", "no");
+                    player_clone.set_property_string("video", "auto");
+                    player_clone.set_property_string("vo", "libmpv");
+                }
+
+                player_clone.set_property_string("alang", &config_clone.audio_languages);
+                player_clone.set_property_string("slang", &config_clone.subtitle_languages);
+
+                if load_gen_clone.load(std::sync::atomic::Ordering::SeqCst) != current_gen {
+                    return;
+                }
+
+                if let Some(pos) = resume_pos_val {
+                    player_clone.load_file_with_start(&path_str_clone, Some(pos));
+                } else {
+                    player_clone.load_file(&path_str_clone);
+                }
+
+                if load_gen_clone.load(std::sync::atomic::Ordering::SeqCst) != current_gen {
+                    return;
+                }
+
+                player_clone.play();
+
+                // Apply per-file delay overrides if previously saved for this media file
+                if let Some(ref p) = pfc_clone {
+                    if let Some(adelay) = p.audio_delay {
+                        player_clone.set_property_string("audio-delay", &adelay.to_string());
+                    }
+                    if let Some(sdelay) = p.subtitle_delay {
+                        player_clone.set_property_string("sub-delay", &sdelay.to_string());
+                    }
+                }
+            });
+
+            let cfg_save = self.config.clone();
+            std::thread::spawn(move || {
+                let _ = cfg_save.save();
+            });
 
             if self.config.auto_load_next_episode && self.playlist.lock().unwrap().len() <= 1 {
                 let scan_path = path.clone();
@@ -828,20 +870,33 @@ impl VortexApp {
                 });
             }
 
-
             self.bookmark_mgr.set_video(Some(&path));
 
-            let subs = scanner::find_associated_subtitles(&path);
-            for s in subs {
-                if s.to_string_lossy().ends_with(".smi") {
-                    if let Ok(srt) = SamiParser::load_sami_file_as_srt(&s) {
-                        let temp_srt = std::env::temp_dir().join("vortex_auto_smi.srt");
-                        let _ = std::fs::write(&temp_srt, srt);
-                        player.load_external_subtitle(&temp_srt.to_string_lossy());
+            // Load SAMI (.smi) external subtitles that require internal conversion to SRT
+            // (standard .srt, .ass, .vtt are already automatically discovered and loaded natively by libmpv)
+            let path_clone = path.clone();
+            let player_clone = Arc::clone(player);
+            std::thread::spawn(move || {
+                let subs = scanner::find_associated_subtitles(&path_clone);
+                for s in subs {
+                    if s.to_string_lossy().to_lowercase().ends_with(".smi") {
+                        if let Ok(srt) = SamiParser::load_sami_file_as_srt(&s) {
+                            let temp_srt = std::env::temp_dir().join(format!("vortex_auto_smi_{}.srt", std::process::id()));
+                            let _ = std::fs::write(&temp_srt, srt);
+                            player_clone.load_external_subtitle(&temp_srt.to_string_lossy());
+                        }
                     }
-                } else {
-                    player.load_external_subtitle(&s.to_string_lossy());
                 }
+            });
+
+            self.last_logged_dropped_frames = 0;
+            self.last_heartbeat_log_time = std::time::Instant::now();
+            let start_msg = format!("Started playback: {}", path_str);
+            crate::log_playback_debug(&start_msg);
+            let time_str = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+            self.debug_log_entries.push_back(format!("[{}] {}", time_str, start_msg));
+            if self.debug_log_entries.len() > 600 {
+                self.debug_log_entries.pop_front();
             }
         }
     }
@@ -865,9 +920,11 @@ impl VortexApp {
         let mut toggle_pip_requested = false;
         let mut window_resize_preset: Option<f32> = None;
         let mut center_window_requested = false;
+        let mut snap_aspect_ratio_requested = false;
         let mut do_skip_intro_key = false;
         let mut toggle_playlist_unified_requested = false;
         let mut do_close_file = false;
+        let mut ripple_seek_trigger: Option<(bool, f64)> = None;
 
         let wants_kb = ctx.egui_wants_keyboard_input();
 
@@ -945,6 +1002,10 @@ impl VortexApp {
                 self.video_puzzle.is_open = false;
                 self.vr_360_studio.is_open = false;
                 self.damaged_file_repair.is_open = false;
+                self.show_debug_log_dialog = false;
+                if !self.stats_for_nerds.is_pinned {
+                    self.stats_for_nerds.is_open = false;
+                }
 
                 if self.is_fullscreen && !had_dialog {
                     exit_fullscreen_requested = true;
@@ -979,13 +1040,15 @@ impl VortexApp {
             if input.key_pressed(egui::Key::F10) {
                 self.settings_inspector.is_open = !self.settings_inspector.is_open;
             }
-            if input.key_pressed(egui::Key::F11) {
+            let is_fullscreen_key = !wants_kb && (
+                input.key_pressed(egui::Key::F11)
+                    || (input.key_pressed(egui::Key::Enter) && !input.modifiers.ctrl && !input.modifiers.alt && !input.modifiers.command)
+                    || (input.key_pressed(egui::Key::F) && !input.modifiers.ctrl && !input.modifiers.alt && !input.modifiers.command)
+            );
+            if is_fullscreen_key {
                 toggle_fullscreen_requested = true;
             }
-            if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::Enter) {
-                if !self.is_fullscreen {
-                    toggle_fullscreen_requested = true;
-                }
+            if !wants_kb && (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::Enter) {
                 if let Ok(ref player) = self.player {
                     let next_ar = player.cycle_aspect_ratio();
                     self.osd.show(format!("Aspect Ratio: {}", next_ar.to_uppercase()), 1200);
@@ -1033,6 +1096,12 @@ impl VortexApp {
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::T) && !input.modifiers.shift && !input.modifiers.alt {
                 self.show_telemetry_hud = !self.show_telemetry_hud;
             }
+            if (input.modifiers.ctrl || input.modifiers.command) && input.modifiers.shift && input.key_pressed(egui::Key::D) {
+                self.show_debug_log_dialog = !self.show_debug_log_dialog;
+            }
+            if (input.modifiers.ctrl || input.modifiers.command) && input.modifiers.shift && input.key_pressed(egui::Key::N) {
+                self.stats_for_nerds.toggle();
+            }
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::R) && !input.modifiers.shift && !input.modifiers.alt {
                 let mode = self.playlist.lock().unwrap().cycle_repeat_mode();
                 let msg = match mode {
@@ -1055,8 +1124,11 @@ impl VortexApp {
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::G) && !input.modifiers.shift && !input.modifiers.alt {
                 self.gif_maker.is_open = !self.gif_maker.is_open;
             }
+            if input.modifiers.alt && input.key_pressed(egui::Key::F4) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             let is_close_file_key = ((input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::W) && !input.modifiers.shift && !input.modifiers.alt)
-                || input.key_pressed(egui::Key::F4);
+                || (input.key_pressed(egui::Key::F4) && !input.modifiers.alt);
             if is_close_file_key && !self.show_main_menu {
                 do_close_file = true;
             }
@@ -1218,8 +1290,17 @@ impl VortexApp {
                 if input.key_pressed(egui::Key::Num4) {
                     window_resize_preset = Some(2.0);
                 }
-                if input.key_pressed(egui::Key::Num5) || input.key_pressed(egui::Key::Num0) {
-                    center_window_requested = true;
+                if input.key_pressed(egui::Key::Num5) || input.key_pressed(egui::Key::Num0) || input.key_pressed(egui::Key::A) {
+                    snap_aspect_ratio_requested = true;
+                }
+                if input.key_pressed(egui::Key::C) {
+                    if let Ok(ref p) = self.player {
+                        let is_crop = p.toggle_crop_fill();
+                        self.config.aspect_ratio = if is_crop { "crop_fill".to_string() } else { "auto".to_string() };
+                        let _ = self.config.save();
+                        let msg = if is_crop { "Crop to Fill: ON (Zero Black Bars)" } else { "Aspect Ratio: Auto (Fit to Screen)" };
+                        self.osd.show(msg.to_string(), 1500);
+                    }
                 }
                 if input.key_pressed(egui::Key::PageUp) {
                     self.config.subtitle_font_size = (self.config.subtitle_font_size + 2.0).clamp(10.0, 80.0);
@@ -1316,6 +1397,9 @@ impl VortexApp {
                     // otherwise carry into every later playlist item.
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                     self.toast.info("Boss Key: Minimized");
+                }
+                if input.key_pressed(egui::Key::C) {
+                    center_window_requested = true;
                 }
                 if input.key_pressed(egui::Key::Num1) {
                     self.vr_360_studio.is_open = !self.vr_360_studio.is_open;
@@ -1425,17 +1509,15 @@ impl VortexApp {
                     let state = if self.config.video_deband { "ON" } else { "OFF" };
                     self.osd.show(format!("Deband Filter: {}", state), 1200);
                 }
+                if input.key_pressed(egui::Key::A) {
+                    snap_aspect_ratio_requested = true;
+                }
                 if input.key_pressed(egui::Key::C) {
-                    self.config.auto_crop_black_bars = !self.config.auto_crop_black_bars;
-                    let mut fx = crate::engine::VideoEffectsConfig::default();
-                    fx.auto_crop_black_bars = self.config.auto_crop_black_bars;
-                    fx.deband = self.config.video_deband;
-                    fx.flip_horizontal = self.config.video_flip_horizontal;
-                    fx.flip_vertical = self.config.video_flip_vertical;
-                    fx.lut_file = self.config.lut_file.clone();
-                    player.set_video_filter(&fx.build_video_filter_string());
-                    let state = if self.config.auto_crop_black_bars { "ON" } else { "OFF" };
-                    self.osd.show(format!("Auto-Crop Black Bars: {}", state), 1200);
+                    let is_crop = player.toggle_crop_fill();
+                    self.config.aspect_ratio = if is_crop { "crop_fill".to_string() } else { "auto".to_string() };
+                    let _ = self.config.save();
+                    let msg = if is_crop { "Crop to Fill: ON (Zero Black Bars)" } else { "Aspect Ratio: Auto (Fit to Screen)" };
+                    self.osd.show(msg.to_string(), 1500);
                 }
                 if input.key_pressed(egui::Key::OpenBracket) {
                     player.adjust_audio_delay(-0.05);
@@ -1491,21 +1573,46 @@ impl VortexApp {
 
             // ── Guarded Playback / Navigation Shortcuts (Ignored when typing in text fields) ──
             if !wants_kb && !input.modifiers.ctrl && !input.modifiers.alt && !input.modifiers.command {
-                // Space: Play / Pause with unified OSD
-                if input.key_pressed(egui::Key::Space) {
-                    if stats.is_idle {
-                        if let Some(item) = self.playlist.lock().unwrap().current_item() {
-                            open_file_path = Some(item.path.clone());
-                        } else if let Some(recent) = self.config.recent_files.first() {
-                            let p = PathBuf::from(recent);
-                            if p.exists() {
-                                open_file_path = Some(p);
-                            }
+                // Space: Hold-to-2x Fast Forward & Tap to Play/Pause
+                if input.key_down(egui::Key::Space) {
+                    if self.space_press_start.is_none() {
+                        self.space_press_start = Some(std::time::Instant::now());
+                    }
+                    if let Some(press_start) = self.space_press_start {
+                        if press_start.elapsed().as_secs_f32() >= 0.30
+                            && !self.speed_hold_active
+                            && !stats.is_paused
+                            && !stats.is_idle
+                        {
+                            self.speed_hold_active = true;
+                            self.speed_hold_original = stats.speed;
+                            player.set_speed(2.0);
+                            ctx.request_repaint();
                         }
-                    } else {
-                        player.toggle_pause();
-                        let is_paused = !stats.is_paused;
-                        self.osd.show_play_pause(is_paused);
+                    }
+                }
+                if input.key_released(egui::Key::Space) {
+                    if self.speed_hold_active {
+                        self.speed_hold_active = false;
+                        player.set_speed(self.speed_hold_original);
+                        self.space_press_start = None;
+                        ctx.request_repaint();
+                    } else if self.space_press_start.is_some() {
+                        self.space_press_start = None;
+                        if stats.is_idle {
+                            if let Some(item) = self.playlist.lock().unwrap().current_item() {
+                                open_file_path = Some(item.path.clone());
+                            } else if let Some(recent) = self.config.recent_files.first() {
+                                let p = PathBuf::from(recent);
+                                if p.exists() {
+                                    open_file_path = Some(p);
+                                }
+                            }
+                        } else {
+                            player.toggle_pause();
+                            let is_paused = !stats.is_paused;
+                            self.osd.show_play_pause(is_paused);
+                        }
                     }
                 }
 
@@ -1514,17 +1621,21 @@ impl VortexApp {
                     toggle_fullscreen_requested = true;
                 }
 
-                // Navigation: Left / Right (Seek)
+                // Navigation: Left / Right (Seek with Ripple Animation)
                 if !input.modifiers.shift {
                     if input.key_pressed(egui::Key::ArrowLeft) {
                         let step = if self.config.adaptive_seek { (stats.duration * 0.01).clamp(2.0, 10.0) } else { self.config.seek_step_short };
                         player.seek_relative(-step);
                         self.osd.show_seek(stats.time_pos - step, stats.duration, Some(-step));
+                        ripple_seek_trigger = Some((false, step));
+                        ctx.request_repaint();
                     }
                     if input.key_pressed(egui::Key::ArrowRight) {
                         let step = if self.config.adaptive_seek { (stats.duration * 0.01).clamp(2.0, 10.0) } else { self.config.seek_step_short };
                         player.seek_relative(step);
                         self.osd.show_seek(stats.time_pos + step, stats.duration, Some(step));
+                        ripple_seek_trigger = Some((true, step));
+                        ctx.request_repaint();
                     }
                 }
 
@@ -1786,6 +1897,10 @@ impl VortexApp {
         }
 
 
+        if let Some((is_fwd, step)) = ripple_seek_trigger {
+            self.trigger_ripple_seek(is_fwd, step);
+        }
+
         if toggle_fullscreen_requested {
             self.toggle_fullscreen(ctx);
         }
@@ -1806,6 +1921,9 @@ impl VortexApp {
         }
         if center_window_requested {
             self.center_window_with_monitor_aspect_ratio(ctx);
+        }
+        if snap_aspect_ratio_requested {
+            self.snap_window_to_video_aspect_ratio(ctx);
         }
 
         if let Some(path) = open_file_path {
@@ -1867,10 +1985,16 @@ impl VortexApp {
                     let norm_cur = stats.file_path.replace('/', "\\");
                     let norm_pen = pending_path.replace('/', "\\");
                     if norm_cur == norm_pen && stats.duration > 0.0 {
-                        if (stats.time_pos - pending_pos).abs() > 2.5 && stats.time_pos < pending_pos {
-                            player.seek_absolute(pending_pos);
+                        if (stats.time_pos - pending_pos).abs() <= 2.0 || stats.time_pos >= pending_pos - 0.5 {
+                            // File already opened directly at the resume position via start=pos, no secondary seek needed!
+                            self.pending_resume = None;
+                        } else if self.media_load_start.elapsed().as_secs_f64() >= 4.0 {
+                            // Only fallback seek if playback genuinely started from 00:00 and has rolled past 2.0s
+                            if stats.time_pos >= 2.0 && stats.time_pos < pending_pos - 2.0 {
+                                player.seek_absolute(pending_pos);
+                            }
+                            self.pending_resume = None;
                         }
-                        self.pending_resume = None;
                     }
                 }
             } else {
@@ -2039,6 +2163,11 @@ impl VortexApp {
     }
 
     pub fn check_auto_advance(&mut self) -> Option<PathBuf> {
+        // Never auto-advance if an initial file or media is currently loading
+        if self.pending_initial_file.is_some() || self.is_loading_media {
+            return None;
+        }
+
         if let Ok(ref player) = self.player {
             if player.is_manually_stopped() {
                 self.prev_was_playing = false;
@@ -2049,7 +2178,8 @@ impl VortexApp {
 
             if is_now_playing {
                 self.prev_was_playing = true;
-            } else if self.prev_was_playing && (stats.is_idle || stats.eof_reached || (stats.duration > 1.0 && stats.time_pos >= stats.duration - 0.35)) {
+                self.is_loading_media = false;
+            } else if self.prev_was_playing && (stats.eof_reached || (stats.duration > 1.0 && stats.time_pos >= stats.duration - 0.35)) {
                 self.prev_was_playing = false;
 
                 // Move to next track in playlist (handles RepeatTrack, RepeatAll, Shuffle, and sequential progression)
@@ -2095,16 +2225,11 @@ impl VortexApp {
                     }
                     PlaylistEndAction::ShowHomeScreen => {}
                 }
-            } else if !self.prev_was_playing && (stats.is_idle || stats.eof_reached) {
-                // If playback became idle while minimized, advance if there is a next pending item
+            } else if !self.prev_was_playing && stats.eof_reached && !stats.file_path.is_empty() {
+                // If EOF was reached while minimized and prev_was_playing wasn't captured
                 let mut pl = self.playlist.lock().unwrap();
                 if !pl.is_empty() {
-                    if let Some(cur_idx) = pl.current_index {
-                        if cur_idx + 1 < pl.items.len() && stats.file_path.is_empty() {
-                            self.prev_was_playing = false;
-                            return pl.next();
-                        }
-                    }
+                    return pl.next();
                 }
             }
         }
@@ -2167,6 +2292,8 @@ impl VortexApp {
             || self.playback_history.is_open
             || self.media_tag_editor.is_open
             || self.auto_skip_dialog.is_open
+            || self.show_debug_log_dialog
+            || (self.stats_for_nerds.is_open && !self.stats_for_nerds.is_pinned)
     }
 
     #[allow(dead_code)]
@@ -2186,47 +2313,227 @@ impl VortexApp {
             || self.damaged_file_repair.is_open
             || self.boss_key_dialog.is_open
             || self.broadcast_dialog.is_open
+            || self.show_debug_log_dialog
+    }
+
+    pub fn render_debug_log_dialog(&mut self, ctx: &egui::Context, stats: &MediaStats) {
+        if !self.show_debug_log_dialog {
+            return;
+        }
+
+        let mut is_open = self.show_debug_log_dialog;
+        let skin = crate::ui::theme::VortexTheme::get_skin(self.config.theme_mode);
+
+        let mut close_requested = false;
+
+        egui::Window::new("📋 Playback & Frame Drop Diagnostics Log")
+            .open(&mut is_open)
+            .resizable(true)
+            .default_size([760.0, 520.0])
+            .min_size([540.0, 360.0])
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(ctx.content_rect().center())
+            .show(ctx, |ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
+
+                // Top Diagnostic Cards Header
+                ui.horizontal(|ui| {
+                    // Card 1: Dropped Frames
+                    let drop_color = if stats.dropped_frames > 0 {
+                        egui::Color32::from_rgb(255, 75, 75)
+                    } else {
+                        egui::Color32::from_rgb(50, 220, 100)
+                    };
+                    egui::Frame::group(ui.style())
+                        .fill(egui::Color32::from_black_alpha(80))
+                        .stroke(egui::Stroke::new(1.0, drop_color.linear_multiply(0.5)))
+                        .corner_radius(4.0)
+                        .inner_margin(egui::Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.colored_label(skin.text_muted, "TOTAL DROPPED");
+                                ui.horizontal(|ui| {
+                                    ui.colored_label(drop_color, egui::RichText::new(format!("{}", stats.dropped_frames)).strong().size(18.0));
+                                    if stats.dropped_frames > 0 {
+                                        ui.colored_label(drop_color, "⚠");
+                                    } else {
+                                        ui.colored_label(drop_color, "✓");
+                                    }
+                                });
+                            });
+                        });
+
+                    // Card 2: VO vs Decoder vs Mistimed breakdown
+                    egui::Frame::group(ui.style())
+                        .fill(egui::Color32::from_black_alpha(80))
+                        .stroke(egui::Stroke::new(1.0, skin.border_light))
+                        .corner_radius(4.0)
+                        .inner_margin(egui::Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.colored_label(skin.text_muted, "DROPS BREAKDOWN");
+                                ui.label(egui::RichText::new(format!("VO: {}  |  Dec: {}  |  Mist: {}",
+                                    stats.vo_drop_frame_count,
+                                    stats.decoder_frame_drop_count,
+                                    stats.mistimed_frame_count
+                                )).size(13.0));
+                            });
+                        });
+
+                    // Card 3: A/V Sync Drift & Jitter
+                    let drift_ms = stats.avsync_drift * 1000.0;
+                    let drift_color = if drift_ms.abs() > 40.0 {
+                        egui::Color32::from_rgb(255, 120, 50)
+                    } else {
+                        skin.text_primary
+                    };
+                    egui::Frame::group(ui.style())
+                        .fill(egui::Color32::from_black_alpha(80))
+                        .stroke(egui::Stroke::new(1.0, skin.border_light))
+                        .corner_radius(4.0)
+                        .inner_margin(egui::Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.colored_label(skin.text_muted, "A/V SYNC DRIFT");
+                                ui.colored_label(drift_color, egui::RichText::new(format!("{:+.2} ms", drift_ms)).strong().size(16.0));
+                            });
+                        });
+
+                    // Card 4: Video Pipeline & HW Decoder
+                    egui::Frame::group(ui.style())
+                        .fill(egui::Color32::from_black_alpha(80))
+                        .stroke(egui::Stroke::new(1.0, skin.border_light))
+                        .corner_radius(4.0)
+                        .inner_margin(egui::Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.colored_label(skin.text_muted, "HARDWARE & CODEC");
+                                let is_hw = !stats.hwdec_current.is_empty() && stats.hwdec_current != "no";
+                                let hw_text = if is_hw { "HW-Accel (Active)" } else { "SW-Decoding" };
+                                let hw_color = if is_hw { egui::Color32::from_rgb(80, 210, 255) } else { skin.text_muted };
+                                ui.colored_label(hw_color, egui::RichText::new(format!("{} | {}", hw_text, if stats.video_codec.is_empty() { "N/A" } else { &stats.video_codec })).size(13.0));
+                            });
+                        });
+                });
+
+                ui.separator();
+
+                // Toolbar Controls
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(format!("Logged Events: {}", self.debug_log_entries.len())).size(12.0).color(skin.text_muted));
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("✕ Close").clicked() {
+                            close_requested = true;
+                        }
+
+                        if ui.button("📂 Open Log File").on_hover_text("Open %APPDATA%\\VortexPlayer\\playback_debug.log").clicked() {
+                            let debug_path = dirs::data_local_dir()
+                                .unwrap_or_else(|| std::env::temp_dir())
+                                .join("VortexPlayer")
+                                .join("playback_debug.log");
+                            #[cfg(windows)]
+                            {
+                                let _ = crate::platform::silent_command("notepad.exe").arg(&debug_path).spawn();
+                            }
+                            #[cfg(not(windows))]
+                            {
+                                let _ = std::process::Command::new("xdg-open").arg(&debug_path).spawn();
+                            }
+                        }
+
+                        if ui.button("📋 Copy All").on_hover_text("Copy all log entries to clipboard").clicked() {
+                            let all_text = self.debug_log_entries.iter().cloned().collect::<Vec<_>>().join("\n");
+                            ui.ctx().copy_text(all_text);
+                            self.osd.show("📋 Debug log copied to clipboard".to_string(), 1500);
+                        }
+
+                        if ui.button("🗑 Clear").on_hover_text("Clear in-memory log entries").clicked() {
+                            self.debug_log_entries.clear();
+                        }
+                    });
+                });
+
+                ui.separator();
+
+                // Scrollable log area with Monospace font and event color coding
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        if self.debug_log_entries.is_empty() {
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(40.0);
+                                ui.colored_label(skin.text_muted, "No playback events or frame drops recorded yet.");
+                                ui.colored_label(skin.text_muted, "Events and frame drops will appear here in real-time as media plays.");
+                            });
+                        } else {
+                            for entry in &self.debug_log_entries {
+                                let (color, bold) = if entry.contains("[FRAME DROP DETECTED]") {
+                                    (egui::Color32::from_rgb(255, 90, 90), true)
+                                } else if entry.contains("[PLAYBACK METRIC]") {
+                                    (egui::Color32::from_rgb(110, 200, 255), false)
+                                } else if entry.contains("Started playback") {
+                                    (egui::Color32::from_rgb(80, 230, 140), true)
+                                } else {
+                                    (skin.text_primary, false)
+                                };
+
+                                let mut text = egui::RichText::new(entry).monospace().size(12.0).color(color);
+                                if bold {
+                                    text = text.strong();
+                                }
+                                ui.label(text);
+                            }
+                        }
+                    });
+            });
+
+        if close_requested {
+            is_open = false;
+        }
+        self.show_debug_log_dialog = is_open;
     }
 }
 
 #[cfg(windows)]
 fn is_window_maximized_or_workarea(hwnd: isize, ctx: &egui::Context) -> bool {
-    if ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
-        return true;
-    }
-    if hwnd == 0 {
-        return false;
-    }
-    use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsZoomed};
-
-    unsafe {
-        if IsZoomed(hwnd as _) != 0 {
-            return true;
+    if hwnd != 0 {
+        if crate::platform::windows::taskbar::is_in_modal_size() {
+            return false;
         }
-        let mut w_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        if GetWindowRect(hwnd as _, &mut w_rect) != 0 {
-            let hmon = MonitorFromWindow(hwnd as _, MONITOR_DEFAULTTONEAREST);
-            if !hmon.is_null() {
-                let mut mi: MONITORINFO = std::mem::zeroed();
-                mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-                if GetMonitorInfoW(hmon, &mut mi) != 0 {
-                    let w_width = w_rect.right - w_rect.left;
-                    let w_height = w_rect.bottom - w_rect.top;
-                    let work_width = mi.rcWork.right - mi.rcWork.left;
-                    let work_height = mi.rcWork.bottom - mi.rcWork.top;
-                    // Require BOTH origin and size to align with monitor work area within 12px
-                    let pos_matches = (w_rect.left - mi.rcWork.left).abs() <= 12 && (w_rect.top - mi.rcWork.top).abs() <= 12;
-                    let size_matches = (w_width - work_width).abs() <= 12 && (w_height - work_height).abs() <= 12;
-                    if pos_matches && size_matches {
-                        return true;
+        use windows_sys::Win32::Foundation::RECT;
+        use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsZoomed};
+
+        unsafe {
+            if IsZoomed(hwnd as _) != 0 {
+                return true;
+            }
+            let mut w_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if GetWindowRect(hwnd as _, &mut w_rect) != 0 {
+                let hmon = MonitorFromWindow(hwnd as _, MONITOR_DEFAULTTONEAREST);
+                if !hmon.is_null() {
+                    let mut mi: MONITORINFO = std::mem::zeroed();
+                    mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                    if GetMonitorInfoW(hmon, &mut mi) != 0 {
+                        let w_width = w_rect.right - w_rect.left;
+                        let w_height = w_rect.bottom - w_rect.top;
+                        let work_width = mi.rcWork.right - mi.rcWork.left;
+                        let work_height = mi.rcWork.bottom - mi.rcWork.top;
+                        // Require BOTH origin and size to align with monitor work area within 12px
+                        let pos_matches = (w_rect.left - mi.rcWork.left).abs() <= 12 && (w_rect.top - mi.rcWork.top).abs() <= 12;
+                        let size_matches = (w_width - work_width).abs() <= 12 && (w_height - work_height).abs() <= 12;
+                        if pos_matches && size_matches {
+                            return true;
+                        }
                     }
                 }
             }
+            return false;
         }
-        false
     }
+    ctx.input(|i| i.viewport().maximized.unwrap_or(false))
 }
 #[cfg(not(windows))]
 fn is_window_maximized_or_workarea(_hwnd: isize, ctx: &egui::Context) -> bool {
@@ -2313,10 +2620,16 @@ impl VortexApp {
         }
         let vw = if stats.video_width > 0 { stats.video_width as f32 } else { 1280.0 };
         let vh = if stats.video_height > 0 { stats.video_height as f32 } else { 720.0 };
+        let video_ar = vw / vh;
         let is_docked_pl = self.show_playlist && !self.config.playlist_detached;
-        let extra_w = if is_docked_pl { 330.0 } else { 0.0 };
-        let target_w = (vw * factor + extra_w).max(480.0);
-        let target_h = (vh * factor).max(270.0);
+        let extra_w_logical = if is_docked_pl { 330.0 } else { 0.0 };
+        let ppp = ctx.pixels_per_point().max(0.1);
+        let extra_w_px = (extra_w_logical * ppp).round();
+        let extra_h_px = 0.0;
+
+        // Target video dimensions in physical pixels
+        let mut target_vid_w_px = (vw * factor).round();
+        let mut target_vid_h_px = (target_vid_w_px / video_ar).round();
 
         #[cfg(windows)]
         if self.parent_hwnd != 0 {
@@ -2327,30 +2640,30 @@ impl VortexApp {
             mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
             let hmon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
             if !hmon.is_null() && unsafe { GetMonitorInfoW(hmon, &mut mi) } != 0 {
-                let work_w = (mi.rcWork.right - mi.rcWork.left).max(400) as f32;
-                let work_h = (mi.rcWork.bottom - mi.rcWork.top).max(300) as f32;
+                let max_w = ((mi.rcWork.right - mi.rcWork.left).max(400) - 20) as f32;
+                let max_h = ((mi.rcWork.bottom - mi.rcWork.top).max(300) - 20) as f32;
 
-                let ppp = ctx.pixels_per_point().max(0.1);
-                let mut pw = (target_w * ppp).round();
-                let mut ph = (target_h * ppp).round();
-
-                // Clamp to monitor work area so it NEVER overflows the monitor!
-                if pw > work_w - 40.0 || ph > work_h - 40.0 {
-                    let scale = ((work_w - 40.0) / pw).min((work_h - 40.0) / ph);
-                    pw = (pw * scale).round();
-                    ph = (ph * scale).round();
+                // Clamp video area so total window fits comfortably on screen
+                if target_vid_w_px + extra_w_px > max_w || target_vid_h_px + extra_h_px > max_h {
+                    let scale = ((max_w - extra_w_px) / target_vid_w_px).min((max_h - extra_h_px) / target_vid_h_px);
+                    target_vid_w_px = (target_vid_w_px * scale).round();
+                    target_vid_h_px = (target_vid_w_px / video_ar).round();
                 }
 
-                // Center in monitor work area
-                let left = mi.rcWork.left + ((work_w - pw) / 2.0).round() as i32;
-                let top = mi.rcWork.top + ((work_h - ph) / 2.0).round() as i32;
+                let total_pw = target_vid_w_px + extra_w_px;
+                let total_ph = target_vid_h_px + extra_h_px;
+
+                let work_w = (mi.rcWork.right - mi.rcWork.left) as f32;
+                let work_h = (mi.rcWork.bottom - mi.rcWork.top) as f32;
+                let left = mi.rcWork.left + ((work_w - total_pw) / 2.0).round() as i32;
+                let top = mi.rcWork.top + ((work_h - total_ph) / 2.0).round() as i32;
 
                 unsafe {
-                    SetWindowPos(self.parent_hwnd as _, 0 as _, left, top, pw as i32, ph as i32, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+                    SetWindowPos(self.parent_hwnd as _, 0 as _, left, top, total_pw as i32, total_ph as i32, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
                 }
 
-                let log_w = pw / ppp;
-                let log_h = ph / ppp;
+                let log_w = total_pw / ppp;
+                let log_h = total_ph / ppp;
                 let log_left = left as f32 / ppp;
                 let log_top = top as f32 / ppp;
 
@@ -2367,10 +2680,105 @@ impl VortexApp {
             }
         }
         #[cfg(not(windows))]
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(target_w, target_h)));
+        {
+            let total_w = target_vid_w_px / ppp + extra_w_logical;
+            let total_h = target_vid_h_px / ppp + extra_h_logical;
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(total_w, total_h)));
+        }
 
         let pct = (factor * 100.0).round() as i32;
-        self.osd.show(format!("Window Size: {}% ({:.0}×{:.0})", pct, target_w - extra_w, target_h), 1500);
+        self.osd.show(format!("Window Size: {}% ({:.0}×{:.0} - Zero Black Bars)", pct, target_vid_w_px, target_vid_h_px), 1500);
+    }
+
+    /// Snap window geometry to match the exact video aspect ratio, eliminating all letterbox/pillarbox bars.
+    pub fn snap_window_to_video_aspect_ratio(&mut self, ctx: &egui::Context) {
+        if self.is_fullscreen {
+            return;
+        }
+        let stats = if let Ok(ref p) = self.player { p.stats() } else { return; };
+        if stats.video_width == 0 || stats.video_height == 0 {
+            return;
+        }
+        let target_ar = stats.video_width as f32 / stats.video_height as f32;
+        let is_docked_pl = self.show_playlist && !self.config.playlist_detached;
+        let extra_w_logical = if is_docked_pl { 330.0 } else { 0.0 };
+        let ppp = ctx.pixels_per_point().max(0.1);
+        let extra_w_px = (extra_w_logical * ppp).round();
+        let extra_h_px = 0.0;
+
+        #[cfg(windows)]
+        if self.parent_hwnd != 0 {
+            use windows_sys::Win32::Foundation::RECT;
+            use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, SWP_NOZORDER, IsZoomed};
+            use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+
+            if unsafe { IsZoomed(self.parent_hwnd as _) } != 0 {
+                return;
+            }
+
+            let mut wr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if unsafe { GetWindowRect(self.parent_hwnd as _, &mut wr) } != 0 {
+                let cur_w = (wr.right - wr.left).max(100) as f32;
+
+                // Keep current width and adjust height so video matches exact aspect ratio
+                let mut video_w_px = (cur_w - extra_w_px).max(200.0);
+                let mut video_h_px = (video_w_px / target_ar).round();
+                let mut new_h_px = video_h_px + extra_h_px;
+                let mut new_w_px = cur_w;
+
+                let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
+                mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                let hmon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
+                if !hmon.is_null() && unsafe { GetMonitorInfoW(hmon, &mut mi) } != 0 {
+                    let max_h = ((mi.rcWork.bottom - mi.rcWork.top).max(300) - 20) as f32;
+                    let max_w = ((mi.rcWork.right - mi.rcWork.left).max(400) - 20) as f32;
+                    if new_h_px > max_h {
+                        new_h_px = max_h;
+                        video_h_px = (new_h_px - extra_h_px).max(100.0);
+                        video_w_px = (video_h_px * target_ar).round();
+                        new_w_px = video_w_px + extra_w_px;
+                    }
+                    if new_w_px > max_w {
+                        new_w_px = max_w;
+                        video_w_px = (new_w_px - extra_w_px).max(200.0);
+                        video_h_px = (video_w_px / target_ar).round();
+                        new_h_px = video_h_px + extra_h_px;
+                    }
+                }
+
+                let cur_h = (wr.bottom - wr.top).max(100) as f32;
+                if (cur_w - new_w_px).abs() < 2.0 && (cur_h - new_h_px).abs() < 2.0 {
+                    return;
+                }
+
+                unsafe {
+                    SetWindowPos(
+                        self.parent_hwnd as _,
+                        0 as _,
+                        wr.left,
+                        wr.top,
+                        new_w_px as i32,
+                        new_h_px as i32,
+                        SWP_NOZORDER | windows_sys::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE,
+                    );
+                }
+
+                let log_w = new_w_px / ppp;
+                let log_h = new_h_px / ppp;
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(log_w, log_h)));
+                self.config.window_width = log_w;
+                self.config.window_height = log_h;
+                let _ = self.config.save();
+                self.osd.show(format!("Window Snapped to Aspect Ratio ({:.2}:1 - Zero Black Bars)", target_ar), 1500);
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let log_w = (self.config.window_width - extra_w_logical).max(200.0);
+            let log_h = (log_w / target_ar).round() + extra_h_logical;
+            let total_w = log_w + extra_w_logical;
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(total_w, log_h)));
+        }
     }
 
     /// Toggle the playlist panel, and if in docked (non-detached) mode and the window is not
@@ -2399,15 +2807,18 @@ impl VortexApp {
                 use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_RESTORE};
                 unsafe {
                     ShowWindow(self.parent_hwnd as _, SW_RESTORE);
-                    crate::platform::apply_border_suppression(self.parent_hwnd as _);
+                }
+            }
+            if let Ok(ref player) = self.player {
+                if self.config.aspect_ratio != "crop_fill" {
+                    player.set_property_double("panscan", 0.0);
                 }
             }
         } else {
             #[cfg(windows)]
             if self.parent_hwnd != 0 {
                 use windows_sys::Win32::Foundation::RECT;
-                use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-                use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, SetWindowPos, ShowWindow, SW_MAXIMIZE, SWP_FRAMECHANGED, SWP_NOZORDER, SWP_SHOWWINDOW};
+                use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, ShowWindow, SW_MAXIMIZE};
 
                 let mut cur_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
                 if unsafe { GetWindowRect(self.parent_hwnd as _, &mut cur_rc) } != 0 && (cur_rc.right - cur_rc.left) >= 200 && (cur_rc.bottom - cur_rc.top) >= 100 {
@@ -2418,35 +2829,19 @@ impl VortexApp {
                     ));
                 }
 
-                let h_mon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
-                let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
-                mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-                let has_mon = unsafe { GetMonitorInfoW(h_mon, &mut mi) } != 0;
-
-                if crate::platform::is_taskbar_autohide() && has_mon {
-                    let full_w = mi.rcMonitor.right - mi.rcMonitor.left;
-                    let full_h = mi.rcMonitor.bottom - mi.rcMonitor.top;
-                    unsafe {
-                        SetWindowPos(
-                            self.parent_hwnd as _,
-                            0 as _,
-                            mi.rcMonitor.left,
-                            mi.rcMonitor.top,
-                            full_w,
-                            full_h - 1,
-                            SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                        );
-                    }
-                } else {
-                    unsafe {
-                        ShowWindow(self.parent_hwnd as _, SW_MAXIMIZE);
-                    }
-                }
                 unsafe {
+                    ShowWindow(self.parent_hwnd as _, SW_MAXIMIZE);
                     crate::platform::apply_border_suppression(self.parent_hwnd as _);
                 }
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            if let Ok(ref player) = self.player {
+                if self.config.aspect_ratio == "crop_fill" {
+                    player.set_property_double("panscan", 1.0);
+                } else {
+                    player.set_property_double("panscan", 0.0);
+                }
+            }
         }
         ctx.request_repaint();
     }
@@ -2475,23 +2870,46 @@ impl VortexApp {
                 self.pre_fullscreen_maximized = is_max;
 
                 #[cfg(windows)]
-                if self.parent_hwnd != 0 && !is_max {
+                let mut was_workarea = false;
+                #[cfg(windows)]
+                if self.parent_hwnd != 0 {
                     use windows_sys::Win32::Foundation::RECT;
                     use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
+                    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
                     let mut rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                    if unsafe { GetWindowRect(self.parent_hwnd as _, &mut rc) } != 0 && (rc.right - rc.left) >= 200 && (rc.bottom - rc.top) >= 100 {
-                        self.pre_fullscreen_win32_rect = Some(rc);
-                        let ppp = ctx.pixels_per_point().max(0.1);
-                        let r = Rect::from_min_size(
-                            Pos2::new(rc.left as f32 / ppp, rc.top as f32 / ppp),
-                            Vec2::new((rc.right - rc.left) as f32 / ppp, (rc.bottom - rc.top) as f32 / ppp),
-                        );
-                        self.pre_fullscreen_rect = Some(r);
-                        self.last_windowed_rect = Some(r);
+                    if unsafe { GetWindowRect(self.parent_hwnd as _, &mut rc) } != 0 {
+                        let rw = rc.right - rc.left;
+                        let rh = rc.bottom - rc.top;
+                        let h_mon = unsafe { MonitorFromWindow(self.parent_hwnd as _, MONITOR_DEFAULTTONEAREST) };
+                        let mut mi: MONITORINFO = unsafe { std::mem::zeroed() };
+                        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                        let is_near_workarea = if unsafe { GetMonitorInfoW(h_mon, &mut mi) } != 0 {
+                            let work_w = mi.rcWork.right - mi.rcWork.left;
+                            let work_h = mi.rcWork.bottom - mi.rcWork.top;
+                            (rw >= work_w - 24) && (rh >= work_h - 24)
+                        } else {
+                            false
+                        };
+                        was_workarea = is_max || is_near_workarea;
+                        if rw >= 200 && rh >= 100 {
+                            self.pre_fullscreen_win32_rect = Some(rc);
+                            let ppp = ctx.pixels_per_point().max(0.1);
+                            let r = Rect::from_min_size(
+                                Pos2::new(rc.left as f32 / ppp, rc.top as f32 / ppp),
+                                Vec2::new(rw as f32 / ppp, rh as f32 / ppp),
+                            );
+                            self.pre_fullscreen_rect = Some(r);
+                            self.last_windowed_rect = Some(r);
+                        }
                     }
                 }
+                #[cfg(windows)]
+                {
+                    self.pre_fullscreen_was_workarea = was_workarea;
+                }
                 #[cfg(not(windows))]
-                if !is_max {
+                {
+                    self.pre_fullscreen_was_workarea = is_max;
                     if let Some(r) = ctx.input(|i| i.viewport().outer_rect.or(i.viewport().inner_rect).or(i.raw.screen_rect)) {
                         self.pre_fullscreen_rect = Some(r);
                         self.last_windowed_rect = Some(r);
@@ -2503,45 +2921,46 @@ impl VortexApp {
                 self.is_bottom_hovered = false;
                 self.last_fullscreen_change = std::time::Instant::now();
                 self.last_mouse_activity = std::time::Instant::now() - std::time::Duration::from_secs(10);
-                #[cfg(not(windows))]
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
                 #[cfg(windows)]
                 if self.parent_hwnd != 0 {
-                    reset_child_geom_cache();
-                    set_native_fullscreen(self.parent_hwnd, self.child_hwnd, true, false, self.pre_fullscreen_win32_rect, self.config.always_on_top);
+                    set_native_fullscreen(
+                        self.parent_hwnd,
+                        0,
+                        true,
+                        self.pre_fullscreen_was_workarea || self.pre_fullscreen_maximized,
+                        self.pre_fullscreen_win32_rect,
+                        self.config.always_on_top,
+                    );
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
                 }
+                #[cfg(not(windows))]
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
             } else {
                 // Leaving fullscreen
                 self.is_fullscreen = false;
                 self.is_top_hovered = false;
                 self.is_bottom_hovered = false;
                 self.last_fullscreen_change = std::time::Instant::now();
-                #[cfg(not(windows))]
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+                self.restore_frames_pending = 0;
+                let was_workarea = self.pre_fullscreen_was_workarea || self.pre_fullscreen_maximized;
                 #[cfg(windows)]
                 if self.parent_hwnd != 0 {
-                    reset_child_geom_cache();
-                    set_native_fullscreen(self.parent_hwnd, self.child_hwnd, false, self.pre_fullscreen_maximized, self.pre_fullscreen_win32_rect, self.config.always_on_top);
+                    set_native_fullscreen(
+                        self.parent_hwnd,
+                        0,
+                        false,
+                        was_workarea,
+                        self.pre_fullscreen_win32_rect,
+                        self.config.always_on_top,
+                    );
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+                if self.pre_fullscreen_maximized {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
                 } else {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
-                }
-                self.restore_frames_pending = 0;
-                #[cfg(not(windows))]
-                {
-                    if self.pre_fullscreen_maximized {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-                    } else if let Some(target) = self.pre_fullscreen_rect.or(self.last_windowed_rect) {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target.min.into()));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target.size()));
-                    }
-                }
-                #[cfg(windows)]
-                if self.parent_hwnd == 0 {
-                    if self.pre_fullscreen_maximized {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-                    } else if let Some(target) = self.pre_fullscreen_rect.or(self.last_windowed_rect) {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
+                    if let Some(target) = self.pre_fullscreen_rect.or(self.last_windowed_rect) {
                         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target.min.into()));
                         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target.size()));
                     }
@@ -2549,8 +2968,12 @@ impl VortexApp {
             }
 
             if let Ok(ref player) = self.player {
-                let align = if self.is_fullscreen { "center" } else { &self.config.video_align_y };
-                player.set_video_align_y(align);
+                player.set_video_align_y("center");
+                if self.config.aspect_ratio == "crop_fill" {
+                    player.set_property_double("panscan", 1.0);
+                } else {
+                    player.set_property_double("panscan", 0.0);
+                }
             }
             ctx.request_repaint();
             self.osd.show(if self.is_fullscreen { "Fullscreen".to_string() } else { "Windowed".to_string() }, 1200);
@@ -2585,6 +3008,7 @@ impl VortexApp {
             self.bookmark_mgr.set_video(None);
             self.playlist.lock().unwrap().current_index = None;
             self.taskbar.clear_progress(self.parent_hwnd);
+            self.music_view.clear();
             self.osd.show("✕ Closed Media (Home Screen)".to_string(), 1200);
 
             // Immediately reset local stats so current frame renders home screen & hides child video window
@@ -2686,6 +3110,39 @@ impl VortexApp {
         #[cfg(not(windows))]
         let is_max = is_window_maximized_or_workarea(self.parent_hwnd, ctx);
 
+        if let Some(ref target_path) = self.pending_auto_fit_video {
+            if stats.file_path == *target_path && stats.video_width > 0 && stats.video_height > 0 && !stats.is_idle && !MusicBackgroundView::is_song(stats) {
+                if !self.is_fullscreen && !is_max && self.config.auto_fit_window_to_video {
+                    self.snap_window_to_video_aspect_ratio(ctx);
+                }
+                if self.config.aspect_ratio == "crop_fill" {
+                    if let Ok(ref p) = self.player {
+                        p.set_property_double("panscan", 1.0);
+                    }
+                } else {
+                    if let Ok(ref p) = self.player {
+                        p.set_property_double("panscan", 0.0);
+                    }
+                }
+                self.pending_auto_fit_video = None;
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if stats.video_width > 0 && stats.video_height > 0 && !stats.is_idle && !MusicBackgroundView::is_song(stats) {
+                let target_ar = stats.video_width as f32 / stats.video_height as f32;
+                let is_docked_pl = self.show_playlist && !self.config.playlist_detached;
+                let ppp = ctx.pixels_per_point().max(0.1);
+                let extra_w_px = if is_docked_pl { (330.0 * ppp).round() as u32 } else { 0 };
+                let extra_h_px = 0;
+                crate::platform::windows::taskbar::set_active_aspect_ratio(target_ar, extra_w_px, extra_h_px);
+                crate::platform::windows::taskbar::set_lock_aspect_ratio(self.config.lock_aspect_ratio);
+            } else {
+                crate::platform::windows::taskbar::set_active_aspect_ratio(0.0, 0, 0);
+            }
+        }
+
         if !self.is_fullscreen && !self.pip_mode.is_pip && !is_max && self.restore_frames_pending == 0 {
             #[cfg(windows)]
             let cur_rect = if self.parent_hwnd != 0 {
@@ -2748,10 +3205,18 @@ impl VortexApp {
         let cur_size = Vec2::new(phys_w as f32, phys_h as f32);
 
         if let Some(last_size) = self.last_viewport_size {
-            if (cur_size.x - last_size.x).abs() >= 1.0 || (cur_size.y - last_size.y).abs() >= 1.0 {
-                if !self.is_fullscreen && !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
-                    self.osd.show_resize(phys_w, phys_h, stats.video_width, stats.video_height);
-                    ctx.request_repaint();
+            if (cur_size.x - last_size.x).abs() >= 8.0 || (cur_size.y - last_size.y).abs() >= 8.0 {
+                if !self.is_fullscreen && !is_max {
+                    static LAST_RESIZE_OSD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                    #[cfg(windows)]
+                    let now_ms = unsafe { windows_sys::Win32::System::SystemInformation::GetTickCount64() };
+                    #[cfg(not(windows))]
+                    let now_ms = 0;
+                    let prev_ms = LAST_RESIZE_OSD.load(std::sync::atomic::Ordering::Relaxed);
+                    if now_ms.saturating_sub(prev_ms) >= 120 {
+                        LAST_RESIZE_OSD.store(now_ms, std::sync::atomic::Ordering::Relaxed);
+                        self.osd.show_resize(phys_w, phys_h, stats.video_width, stats.video_height);
+                    }
                 }
                 self.last_viewport_size = Some(cur_size);
             }
@@ -3044,7 +3509,7 @@ impl eframe::App for VortexApp {
 
         // Single frame stats already computed above
 
-        let mut file_to_open: Option<PathBuf> = self.check_auto_advance().or_else(|| self.pending_initial_file.take());
+        let mut file_to_open: Option<PathBuf> = self.pending_initial_file.take().or_else(|| self.check_auto_advance());
 
         // Process completed asynchronous background folder scanning
         if let Some(ref rx) = self.folder_scan_receiver {
@@ -3085,7 +3550,8 @@ impl eframe::App for VortexApp {
                 Ok(media_files) => {
                     if !media_files.is_empty() {
                         let mut pl = self.playlist.lock().unwrap();
-                        let current_path = pl.current_item().map(|it| it.path.clone());
+                        let current_path = pl.current_item().map(|it| it.path.clone())
+                            .or_else(|| self.config.last_played_file.as_ref().map(PathBuf::from));
                         for f in media_files {
                             if !pl.items.iter().any(|i| i.path == f) {
                                 pl.items.push(crate::playlist::PlaylistItem::from_path(f));
@@ -3097,7 +3563,10 @@ impl eframe::App for VortexApp {
                         }
                         self.config.last_playlist = pl.items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
                         self.config.last_playlist_index = pl.current_index;
-                        let _ = self.config.save();
+                        let config_clone = self.config.clone();
+                        std::thread::spawn(move || {
+                            let _ = config_clone.save();
+                        });
                     }
                     self.neighbor_scan_receiver = None;
                 }
@@ -3112,6 +3581,73 @@ impl eframe::App for VortexApp {
             Ok(ref p) => p.stats(),
             Err(_) => MediaStats::default(),
         };
+
+        // ── Frame Drop Detection & Diagnostics Forensics Logger ───────────────
+        if !stats.file_path.is_empty() && !stats.is_paused {
+            let current_drops = stats.dropped_frames;
+            if current_drops > self.last_logged_dropped_frames {
+                let delta = current_drops - self.last_logged_dropped_frames;
+                self.last_logged_dropped_frames = current_drops;
+                let drop_rate = if stats.total_frames_estimated > 0 {
+                    (current_drops as f64 / stats.total_frames_estimated as f64) * 100.0
+                } else {
+                    0.0
+                };
+                let is_hw = !stats.hwdec_current.is_empty() && stats.hwdec_current != "no";
+                let log_msg = format!(
+                    "[FRAME DROP DETECTED] +{} dropped! Total: {} (VO presentation: {}, Decoder pipeline: {}, Mistimed: {}). TimePos: {:.3}s, A/V Drift: {:+.2}ms, DropRate: {:.2}%, HW: {}, Codec: {}, Res: {}x{} @ {:.2}fps",
+                    delta,
+                    current_drops,
+                    stats.vo_drop_frame_count,
+                    stats.decoder_frame_drop_count,
+                    stats.mistimed_frame_count,
+                    stats.time_pos,
+                    stats.avsync_drift * 1000.0,
+                    drop_rate,
+                    if is_hw { "Active (HW)" } else { "Inactive (SW)" },
+                    stats.video_codec,
+                    stats.video_width,
+                    stats.video_height,
+                    stats.video_fps
+                );
+                crate::log_playback_debug(&log_msg);
+                let time_str = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+                self.debug_log_entries.push_back(format!("[{}] {}", time_str, log_msg));
+                if self.debug_log_entries.len() > 600 {
+                    self.debug_log_entries.pop_front();
+                }
+            } else if current_drops < self.last_logged_dropped_frames {
+                // Media changed or seek reset
+                self.last_logged_dropped_frames = current_drops;
+            }
+
+            // Periodic heartbeat diagnostic metric (every 8 seconds during active playback)
+            if self.last_heartbeat_log_time.elapsed() >= std::time::Duration::from_secs(8) {
+                self.last_heartbeat_log_time = std::time::Instant::now();
+                let is_hw = !stats.hwdec_current.is_empty() && stats.hwdec_current != "no";
+                let metric_msg = format!(
+                    "[PLAYBACK METRIC] Drops: {} (VO: {}, Dec: {}, Mist: {}), Time: {:.1}s/{:.1}s, A/V: {:+.2}ms, HW: {}, Res: {}x{} @ {:.2}fps, V-Bitrate: {} kbps",
+                    stats.dropped_frames,
+                    stats.vo_drop_frame_count,
+                    stats.decoder_frame_drop_count,
+                    stats.mistimed_frame_count,
+                    stats.time_pos,
+                    stats.duration,
+                    stats.avsync_drift * 1000.0,
+                    if is_hw { "HW" } else { "SW" },
+                    stats.video_width,
+                    stats.video_height,
+                    stats.video_fps,
+                    stats.video_bitrate
+                );
+                crate::log_playback_debug(&metric_msg);
+                let time_str = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+                self.debug_log_entries.push_back(format!("[{}] {}", time_str, metric_msg));
+                if self.debug_log_entries.len() > 600 {
+                    self.debug_log_entries.pop_front();
+                }
+            }
+        }
 
         self.handle_ipc_commands(&ctx, &mut file_to_open, &stats);
 
@@ -3176,6 +3712,7 @@ impl eframe::App for VortexApp {
         self.handle_drag_and_drop(&ctx);
         self.handle_window_resizing(&ctx, &stats);
         self.check_ab_loop_and_resume();
+        self.bookmark_mgr.poll_async_load();
 
         // ── Windows Taskbar Navigation Hover Thumbnail Controls (7 Buttons) ──
         #[cfg(windows)]
@@ -3239,12 +3776,6 @@ impl eframe::App for VortexApp {
                 }
             }
         }
-
-        let queue_has_next = self.playlist.lock().unwrap().items.len() > 1;
-        self.queue_repaint_active.store(
-            queue_has_next && !stats.is_idle && !stats.is_paused,
-            Ordering::Relaxed,
-        );
 
         let mut folder_to_open: Option<PathBuf> = None;
         let mut toggle_pip_requested = false;
@@ -3403,8 +3934,14 @@ impl eframe::App for VortexApp {
                 ctx.set_cursor_icon(egui::CursorIcon::None);
             }
 
-            // Always request periodic repaint in fullscreen to keep polling cursor position and handle autohide
-            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+            // Keep visible fullscreen controls at interaction rate. The child video surface
+            // sits below egui, so a slow egui tick makes only the controls look choppy.
+            let fullscreen_tick = if show_top || show_bottom || pointer_down || popups_open {
+                std::time::Duration::from_secs_f32(1.0 / self.config.fps_interaction.max(1) as f32)
+            } else {
+                std::time::Duration::from_millis(50)
+            };
+            ctx.request_repaint_after(fullscreen_tick);
 
             self.is_top_hovered = show_top;
             self.is_bottom_hovered = show_bottom;
@@ -3480,140 +4017,16 @@ impl eframe::App for VortexApp {
                         self.menu_opened_frame = self.frame_counter;
                     }
 
-                    if tb_resp.double_clicked || tb_resp.toggle_maximize {
+                    if tb_resp.close_clicked {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    } else if tb_resp.double_clicked || tb_resp.toggle_maximize {
                         self.toggle_maximize_window(&ctx);
-                    } else if tb_resp.drag_started && self.last_maximize_time.elapsed().as_millis() > 350 {
+                    } else if tb_resp.drag_started {
                         if self.is_fullscreen {
-                            // Moving/dragging using top bar in fullscreen:
-                            // Exit fullscreen and transition to windowed UI mode, smoothly dragging window!
                             self.set_fullscreen(&ctx, false);
                             self.pre_fullscreen_maximized = false;
-
-                            #[cfg(windows)]
-                            if self.parent_hwnd != 0 {
-                                use windows_sys::Win32::Foundation::{POINT, RECT};
-                                use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
-                                use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                    GetCursorPos, GetWindowRect, PostMessageW, SetWindowPos,
-                                    HTCAPTION, SWP_FRAMECHANGED, SWP_NOZORDER, SWP_SHOWWINDOW, WM_NCLBUTTONDOWN,
-                                };
-                                let mut pt = POINT { x: 0, y: 0 };
-                                unsafe {
-                                    let mut fs_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                                    GetWindowRect(self.parent_hwnd as _, &mut fs_rc);
-                                    let fs_w = (fs_rc.right - fs_rc.left).max(1);
-
-                                    if GetCursorPos(&mut pt) != 0 {
-                                        let ratio = ((pt.x - fs_rc.left) as f32 / fs_w as f32).clamp(0.05, 0.95);
-                                        let target = self.last_windowed_rect
-                                            .unwrap_or_else(|| Rect::from_min_size(
-                                                Pos2::new(100.0, 80.0),
-                                                Vec2::new(self.config.window_width.max(640.0), self.config.window_height.max(400.0)),
-                                            ));
-                                        let ppp = ctx.pixels_per_point().max(0.1);
-                                        let win_w = (target.width() * ppp).round() as i32;
-                                        let win_h = (target.height() * ppp).round() as i32;
-                                        let new_left = pt.x - (win_w as f32 * ratio).round() as i32;
-                                        let new_top = (pt.y - 15).max(0);
-
-                                        SetWindowPos(
-                                            self.parent_hwnd as _,
-                                            0 as _,
-                                            new_left,
-                                            new_top,
-                                            win_w,
-                                            win_h,
-                                            SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                        );
-                                        self.last_windowed_rect = Some(Rect::from_min_size(
-                                            Pos2::new(new_left as f32 / ppp, new_top as f32 / ppp),
-                                            Vec2::new(win_w as f32 / ppp, win_h as f32 / ppp),
-                                        ));
-
-                                        let lparam = (((pt.y as i16) as u32) << 16) | (((pt.x as i16) as u32) & 0xffff);
-                                        ReleaseCapture();
-                                        PostMessageW(self.parent_hwnd as _, WM_NCLBUTTONDOWN, HTCAPTION as _, lparam as isize);
-                                    }
-                                }
-                            }
-                            #[cfg(not(windows))]
-                            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                        } else {
-                            let is_max = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
-                            if is_max {
-                                #[cfg(windows)]
-                                if self.parent_hwnd != 0 {
-                                    use windows_sys::Win32::Foundation::{POINT, RECT};
-                                    use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
-                                    use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                        GetCursorPos, GetWindowRect, PostMessageW, SetWindowPos, ShowWindow,
-                                        HTCAPTION, SWP_FRAMECHANGED, SWP_NOZORDER, SWP_SHOWWINDOW, SW_RESTORE, WM_NCLBUTTONDOWN,
-                                    };
-                                    let mut pt = POINT { x: 0, y: 0 };
-                                    unsafe {
-                                        let mut max_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                                        GetWindowRect(self.parent_hwnd as _, &mut max_rc);
-                                        let max_w = (max_rc.right - max_rc.left).max(1);
-
-                                        ShowWindow(self.parent_hwnd as _, SW_RESTORE);
-                                        if GetCursorPos(&mut pt) != 0 {
-                                            let ratio = ((pt.x - max_rc.left) as f32 / max_w as f32).clamp(0.05, 0.95);
-                                            let target = self.last_windowed_rect
-                                                .unwrap_or_else(|| Rect::from_min_size(
-                                                    Pos2::new(100.0, 80.0),
-                                                    Vec2::new(self.config.window_width.max(640.0), self.config.window_height.max(400.0)),
-                                                ));
-                                            let ppp = ctx.pixels_per_point().max(0.1);
-                                            let win_w = (target.width() * ppp).round() as i32;
-                                            let win_h = (target.height() * ppp).round() as i32;
-                                            let new_left = pt.x - (win_w as f32 * ratio).round() as i32;
-                                            let new_top = (pt.y - 15).max(0);
-
-                                            SetWindowPos(
-                                                self.parent_hwnd as _,
-                                                0 as _,
-                                                new_left,
-                                                new_top,
-                                                win_w,
-                                                win_h,
-                                                SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED,
-                                            );
-                                            self.last_windowed_rect = Some(Rect::from_min_size(
-                                                Pos2::new(new_left as f32 / ppp, new_top as f32 / ppp),
-                                                Vec2::new(win_w as f32 / ppp, win_h as f32 / ppp),
-                                            ));
-
-                                            let lparam = (((pt.y as i16) as u32) << 16) | (((pt.x as i16) as u32) & 0xffff);
-                                            ReleaseCapture();
-                                            PostMessageW(self.parent_hwnd as _, WM_NCLBUTTONDOWN, HTCAPTION as _, lparam as isize);
-                                        }
-                                    }
-                                }
-                                #[cfg(not(windows))]
-                                {
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                                }
-                            } else {
-                                #[cfg(windows)]
-                                if self.parent_hwnd != 0 {
-                                    use windows_sys::Win32::Foundation::POINT;
-                                    use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
-                                    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, PostMessageW, WM_NCLBUTTONDOWN, HTCAPTION};
-                                    let mut pt = POINT { x: 0, y: 0 };
-                                    unsafe {
-                                        GetCursorPos(&mut pt);
-                                        let lparam = (((pt.y as i16) as u32) << 16) | (((pt.x as i16) as u32) & 0xffff);
-                                        ReleaseCapture();
-                                        PostMessageW(self.parent_hwnd as _, WM_NCLBUTTONDOWN, HTCAPTION as _, lparam as isize);
-                                    }
-                                } else {
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                                }
-                                #[cfg(not(windows))]
-                                ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
-                            }
                         }
+                        ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     }
                 });
         }
@@ -3943,7 +4356,7 @@ impl eframe::App for VortexApp {
                 0.0
             };
             static LAST_MARGIN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(99999);
-            let margin_bits = (target_margin * 10000.0) as u32;
+            let margin_bits = (target_margin * 200.0) as u32;
             if LAST_MARGIN.swap(margin_bits, std::sync::atomic::Ordering::Relaxed) != margin_bits {
                 player.set_property_string("video-margin-ratio-right", &format!("{:.4}", target_margin));
             }
@@ -3974,38 +4387,18 @@ impl eframe::App for VortexApp {
 
                 // Render video into OpenGL framebuffer via mpv_render_context
                 // Panels use Order::Foreground so they paint ON TOP of this
-                if is_active_video {
+                if !is_song_playback {
                     if let Ok(ref player) = self.player {
-
                         let player_clone = Arc::clone(player);
+                        let surface_clone = Arc::clone(&self.video_surface);
                         let egui_ctx = ui.ctx().clone();
-                        let callback = egui_glow::CallbackFn::new(move |info, _painter| {
-                            #[cfg(windows)]
-                            {
-                                static VSYNC_INITIALIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-                                if !VSYNC_INITIALIZED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                                    type WglGetProcAddressFn = unsafe extern "system" fn(*const u8) -> *const std::ffi::c_void;
-                                    type WglSwapIntervalEXTFn = unsafe extern "system" fn(i32) -> i32;
-                                    unsafe {
-                                        use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
-                                        let opengl32 = GetModuleHandleA(b"opengl32.dll\0".as_ptr());
-                                        if opengl32 != std::ptr::null_mut() {
-                                            if let Some(wgl_gpa) = GetProcAddress(opengl32, b"wglGetProcAddress\0".as_ptr()) {
-                                                let wglGetProcAddress: WglGetProcAddressFn = std::mem::transmute(wgl_gpa);
-                                                let ext_proc = wglGetProcAddress(b"wglSwapIntervalEXT\0".as_ptr());
-                                                if !ext_proc.is_null() {
-                                                    let swap_interval: WglSwapIntervalEXTFn = std::mem::transmute(ext_proc);
-                                                    swap_interval(1);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        let callback = egui_glow::CallbackFn::new(move |info, painter| {
                             let _ = player_clone.ensure_render_context(&egui_ctx);
                             let [w, h] = info.screen_size_px;
-                            player_clone.render_frame(0, w as i32, h as i32);
-                            player_clone.report_swap();
+                            let gl = painter.gl();
+                            if let Ok(mut surface) = surface_clone.lock() {
+                                surface.render_video(gl.as_ref(), &player_clone, w as i32, h as i32);
+                            }
                         });
                         ui.painter().add(egui::PaintCallback {
                             rect: effective_rect,
@@ -4055,6 +4448,20 @@ impl eframe::App for VortexApp {
                                 file_to_open = Some(item.path.clone());
                             }
                         }
+                    }
+
+                    // Window dragging by dragging video canvas (smooth moving in borderless windowed mode)
+                    if !in_ui_overlay && !self.is_fullscreen && !self.is_vr_360 && !is_window_maximized_or_workarea(self.parent_hwnd, ui.ctx()) && response.drag_started() {
+                        #[cfg(windows)]
+                        if self.parent_hwnd != 0 {
+                            use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+                            use windows_sys::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_SYSCOMMAND};
+                            unsafe {
+                                ReleaseCapture();
+                                SendMessageW(self.parent_hwnd as _, WM_SYSCOMMAND, 0xF012 as _, 0);
+                            }
+                        }
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     }
 
                     // 360 VR Drag Navigation
@@ -4536,65 +4943,225 @@ impl eframe::App for VortexApp {
                     // A-B Split-Screen Video Comparison
                     self.split_compare.render(ui, rect);
 
-                    // Floating PiP Mode Controls Overlay (Shown on hover)
-                    if self.pip_mode.is_pip && response.hovered() {
+                    // Modern UX 1: Hold-to-2x Speed Floating HUD Pill
+                    if self.speed_hold_active {
+                        ui.ctx().request_repaint();
                         let painter = ui.painter();
-                        let pip_top_rect = Rect::from_min_size(rect.left_top(), Vec2::new(rect.width(), 32.0));
-                        painter.rect_filled(
-                            pip_top_rect,
-                            CornerRadius::ZERO,
-                            Color32::from_rgba_unmultiplied(12, 14, 20, 210),
-                        );
+                        let hud_w = 175.0;
+                        let hud_h = 36.0;
+                        let hud_center = Pos2::new(rect.center().x, rect.top() + 65.0);
+                        let hud_rect = Rect::from_center_size(hud_center, Vec2::new(hud_w, hud_h));
+
+                        let time = ui.input(|i| i.time);
+                        let pulse = 0.5 + 0.5 * (time * 8.0).sin() as f32;
+                        let glow_color = Color32::from_rgba_premultiplied(60, 160, 240, (18.0 + 22.0 * pulse) as u8);
+                        painter.rect_filled(hud_rect.expand(3.0 * pulse), CornerRadius::same(18), glow_color);
+
+                        painter.rect_filled(hud_rect, CornerRadius::same(18), Color32::from_rgba_premultiplied(14, 16, 22, 235));
+                        painter.rect_stroke(hud_rect, CornerRadius::same(18), Stroke::new(1.2, Color32::from_rgba_premultiplied(255, 255, 255, 45)), eframe::egui::StrokeKind::Inside);
 
                         painter.text(
-                            pip_top_rect.left_center() + Vec2::new(10.0, 0.0),
-                            Align2::LEFT_CENTER,
-                            "Floating Player",
-                            FontId::proportional(11.5),
-                            Color32::from_rgb(180, 140, 255),
-                        );
-
-                        // Buttons: Exit PiP & Close
-                        let btn_restore = Rect::from_min_size(
-                            Pos2::new(rect.right() - 65.0, rect.top() + 4.0),
-                            Vec2::new(26.0, 24.0),
-                        );
-                        let restore_resp = ui.interact(btn_restore, ui.id().with("pip_restore_btn"), Sense::click());
-                        painter.rect_filled(
-                            btn_restore,
-                            CornerRadius::same(3),
-                            if restore_resp.hovered() { Color32::from_rgb(80, 50, 150) } else { Color32::from_rgb(45, 35, 75) },
-                        );
-                        painter.text(
-                            btn_restore.center(),
+                            hud_center,
                             Align2::CENTER_CENTER,
-                            "⛶",
-                            FontId::proportional(12.0),
-                            Color32::WHITE,
+                            "▶▶  2.0× Speed",
+                            FontId::proportional(14.0),
+                            Color32::from_rgb(240, 245, 255),
                         );
-                        if restore_resp.clicked() {
-                            toggle_pip_requested = true;
+                    }
+
+                    // Modern UX 2: Double-Tap / Arrow Seek Feedback (No garish yellow circles)
+                    if let Some(ref rip) = self.ripple_seek {
+                        let elapsed = rip.start_time.elapsed().as_secs_f32();
+                        let duration = 0.50;
+                        if elapsed < duration {
+                            ui.ctx().request_repaint();
+                            let painter = ui.painter();
+                            let progress = (elapsed / duration).clamp(0.0, 1.0);
+                            let alpha = ((1.0 - progress) * 255.0) as u8;
+
+                            let (center_badge_x, icon_str) = if rip.is_forward {
+                                (rect.right() - 110.0, format!("⏩ +{:.0}s", rip.accumulated_seconds))
+                            } else {
+                                (rect.left() + 110.0, format!("⏪ -{:.0}s", rip.accumulated_seconds))
+                            };
+
+                            let badge_center = Pos2::new(center_badge_x, rect.center().y);
+
+                            // Clean, sleek frosted-glass pill badge (YouTube / Apple TV style, zero yellow circles)
+                            let badge_rect = Rect::from_center_size(badge_center, Vec2::new(115.0, 42.0));
+                            let badge_bg = Color32::from_rgba_premultiplied(14, 16, 22, (alpha as f32 * 0.90) as u8);
+                            let badge_border = Color32::from_rgba_premultiplied(255, 255, 255, (alpha as f32 * 0.22) as u8);
+                            painter.rect_filled(badge_rect, CornerRadius::same(21), badge_bg);
+                            painter.rect_stroke(badge_rect, CornerRadius::same(21), Stroke::new(1.2, badge_border), eframe::egui::StrokeKind::Inside);
+
+                            let bounce = (elapsed * 18.0).sin() * 3.5;
+                            let text_pos = badge_center + Vec2::new(if rip.is_forward { bounce } else { -bounce }, 0.0);
+                            let text_color = Color32::from_rgba_premultiplied(240, 245, 255, alpha);
+                            painter.text(
+                                text_pos,
+                                Align2::CENTER_CENTER,
+                                &icon_str,
+                                FontId::proportional(15.0),
+                                text_color,
+                            );
+                        }
+                    }
+                    if let Some(ref rip) = self.ripple_seek {
+                        if rip.start_time.elapsed().as_secs_f32() >= 0.50 {
+                            self.ripple_seek = None;
+                        }
+                    }
+
+                    // Modern UX 3: Floating PiP Mini-Player UI
+                    if self.pip_mode.is_pip {
+                        let painter = ui.painter();
+                        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.5, Color32::from_rgb(60, 160, 240)), eframe::egui::StrokeKind::Inside);
+
+                        if response.drag_started() {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
 
-                        let btn_close = Rect::from_min_size(
-                            Pos2::new(rect.right() - 32.0, rect.top() + 4.0),
-                            Vec2::new(26.0, 24.0),
-                        );
-                        let close_resp = ui.interact(btn_close, ui.id().with("pip_close_btn"), Sense::click());
-                        painter.rect_filled(
-                            btn_close,
-                            CornerRadius::same(3),
-                            if close_resp.hovered() { Color32::from_rgb(200, 40, 40) } else { Color32::from_rgb(65, 25, 25) },
-                        );
-                        painter.text(
-                            btn_close.center(),
-                            Align2::CENTER_CENTER,
-                            "✕",
-                            FontId::proportional(11.0),
-                            Color32::WHITE,
-                        );
-                        if close_resp.clicked() {
-                            toggle_pip_requested = true;
+                        if response.hovered() {
+                            // 1. Top Glass Header
+                            let pip_top_rect = Rect::from_min_size(rect.left_top(), Vec2::new(rect.width(), 32.0));
+                            painter.rect_filled(
+                                pip_top_rect,
+                                CornerRadius::ZERO,
+                                Color32::from_rgba_unmultiplied(12, 14, 20, 215),
+                            );
+
+                            let display_title = if !stats.title.is_empty() {
+                                stats.title.clone()
+                            } else {
+                                std::path::Path::new(&stats.file_path)
+                                    .file_name()
+                                    .map(|f| f.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| "Floating Player".to_string())
+                            };
+
+                            let title_rect = Rect::from_min_size(pip_top_rect.left_top() + Vec2::new(10.0, 0.0), Vec2::new(pip_top_rect.width() - 75.0, pip_top_rect.height()));
+                            let title_galley = painter.layout_no_wrap(display_title, FontId::proportional(11.0), Color32::from_rgb(220, 225, 240));
+                            painter.galley(Pos2::new(title_rect.left(), title_rect.center().y - title_galley.size().y * 0.5), title_galley, Color32::from_rgb(220, 225, 240));
+
+                            // Restore Button
+                            let btn_restore = Rect::from_min_size(
+                                Pos2::new(rect.right() - 60.0, rect.top() + 4.0),
+                                Vec2::new(26.0, 24.0),
+                            );
+                            let restore_resp = ui.interact(btn_restore, ui.id().with("pip_restore_btn"), Sense::click());
+                            painter.rect_filled(
+                                btn_restore,
+                                CornerRadius::same(4),
+                                if restore_resp.hovered() { Color32::from_rgb(80, 50, 150) } else { Color32::from_rgb(45, 35, 75) },
+                            );
+                            painter.text(
+                                btn_restore.center(),
+                                Align2::CENTER_CENTER,
+                                "⤢",
+                                FontId::proportional(13.0),
+                                Color32::WHITE,
+                            );
+                            if restore_resp.clicked() {
+                                toggle_pip_requested = true;
+                            }
+
+                            // Close Button
+                            let btn_close = Rect::from_min_size(
+                                Pos2::new(rect.right() - 30.0, rect.top() + 4.0),
+                                Vec2::new(26.0, 24.0),
+                            );
+                            let close_resp = ui.interact(btn_close, ui.id().with("pip_close_btn"), Sense::click());
+                            painter.rect_filled(
+                                btn_close,
+                                CornerRadius::same(4),
+                                if close_resp.hovered() { Color32::from_rgb(200, 40, 40) } else { Color32::from_rgb(65, 25, 25) },
+                            );
+                            painter.text(
+                                btn_close.center(),
+                                Align2::CENTER_CENTER,
+                                "✕",
+                                FontId::proportional(11.0),
+                                Color32::WHITE,
+                            );
+                            if close_resp.clicked() {
+                                toggle_pip_requested = true;
+                            }
+
+                            // 2. Central Quick Transport Controls (⏪ 5s, ▶ / ⏸, ⏩ 5s)
+                            let cy = rect.center().y;
+                            let btn_pip_rew = Rect::from_center_size(Pos2::new(rect.center().x - 48.0, cy), Vec2::new(32.0, 32.0));
+                            let rew_resp = ui.interact(btn_pip_rew, ui.id().with("pip_rew_btn"), Sense::click());
+                            painter.rect_filled(
+                                btn_pip_rew,
+                                CornerRadius::same(16),
+                                if rew_resp.hovered() { Color32::from_rgba_unmultiplied(40, 45, 65, 230) } else { Color32::from_rgba_unmultiplied(20, 24, 35, 200) },
+                            );
+                            painter.text(btn_pip_rew.center(), Align2::CENTER_CENTER, "⏪", FontId::proportional(11.0), Color32::WHITE);
+                            if rew_resp.clicked() {
+                                if let Ok(ref player) = self.player {
+                                    player.seek_relative(-5.0);
+                                    self.trigger_ripple_seek(false, 5.0);
+                                }
+                            }
+
+                            let btn_pip_play = Rect::from_center_size(Pos2::new(rect.center().x, cy), Vec2::new(38.0, 38.0));
+                            let play_resp = ui.interact(btn_pip_play, ui.id().with("pip_play_btn"), Sense::click());
+                            painter.rect_filled(
+                                btn_pip_play,
+                                CornerRadius::same(19),
+                                if play_resp.hovered() { Color32::from_rgb(255, 210, 60) } else { Color32::from_rgb(240, 185, 40) },
+                            );
+                            painter.text(
+                                btn_pip_play.center(),
+                                Align2::CENTER_CENTER,
+                                if stats.is_paused { "▶" } else { "⏸" },
+                                FontId::proportional(14.0),
+                                Color32::BLACK,
+                            );
+                            if play_resp.clicked() {
+                                if let Ok(ref player) = self.player {
+                                    player.toggle_pause();
+                                    self.osd.show_play_pause(!stats.is_paused);
+                                }
+                            }
+
+                            let btn_pip_fwd = Rect::from_center_size(Pos2::new(rect.center().x + 48.0, cy), Vec2::new(32.0, 32.0));
+                            let fwd_resp = ui.interact(btn_pip_fwd, ui.id().with("pip_fwd_btn"), Sense::click());
+                            painter.rect_filled(
+                                btn_pip_fwd,
+                                CornerRadius::same(16),
+                                if fwd_resp.hovered() { Color32::from_rgba_unmultiplied(40, 45, 65, 230) } else { Color32::from_rgba_unmultiplied(20, 24, 35, 200) },
+                            );
+                            painter.text(btn_pip_fwd.center(), Align2::CENTER_CENTER, "⏩", FontId::proportional(11.0), Color32::WHITE);
+                            if fwd_resp.clicked() {
+                                if let Ok(ref player) = self.player {
+                                    player.seek_relative(5.0);
+                                    self.trigger_ripple_seek(true, 5.0);
+                                }
+                            }
+
+                            // 3. Bottom Mini Seekbar Groove
+                            let seek_h = 5.0;
+                            let seek_margin = 10.0;
+                            let seek_y = rect.bottom() - 12.0;
+                            let seek_track = Rect::from_min_size(Pos2::new(rect.left() + seek_margin, seek_y), Vec2::new(rect.width() - seek_margin * 2.0, seek_h));
+
+                            let seek_resp = ui.interact(seek_track.expand2(Vec2::new(0.0, 4.0)), ui.id().with("pip_mini_seek"), Sense::click_and_drag());
+                            if let Some(pos) = seek_resp.interact_pointer_pos() {
+                                if (seek_resp.clicked() || seek_resp.dragged()) && stats.duration > 0.0 {
+                                    let frac = ((pos.x - seek_track.left()) / seek_track.width()).clamp(0.0, 1.0);
+                                    if let Ok(ref player) = self.player {
+                                        player.seek_percent(frac as f64);
+                                    }
+                                }
+                            }
+
+                            painter.rect_filled(seek_track, CornerRadius::same(2), Color32::from_rgba_unmultiplied(40, 45, 60, 200));
+                            if stats.duration > 0.0 {
+                                let played_w = seek_track.width() * (stats.percent_pos as f32 / 100.0).clamp(0.0, 1.0);
+                                let played_rect = Rect::from_min_size(seek_track.min, Vec2::new(played_w, seek_h));
+                                painter.rect_filled(played_rect, CornerRadius::same(2), Color32::from_rgb(255, 198, 45));
+                            }
                         }
                     }
 
@@ -4919,6 +5486,16 @@ impl eframe::App for VortexApp {
             TelemetryHudView::render(&ctx, self.show_telemetry_hud, &stats);
         }
 
+        if self.show_debug_log_dialog {
+            self.render_debug_log_dialog(&ctx, &stats);
+        }
+
+        if self.stats_for_nerds.is_open {
+            let v_size = ctx.content_rect().size();
+            let ppp = ctx.pixels_per_point();
+            self.stats_for_nerds.render(&ctx, &stats, v_size.x, v_size.y, ppp);
+        }
+
         if let Some(st) = seek_target {
             if let Ok(ref player) = self.player {
                 player.seek_absolute(st);
@@ -5189,6 +5766,7 @@ impl eframe::App for VortexApp {
             let mut menu_exit_fullscreen = false;
             let mut menu_resize_window_factor: Option<f32> = None;
             let mut menu_center_window = false;
+            let mut menu_snap_aspect_ratio = false;
             let mut menu_skip_intro = false;
             let mut menu_toggle_playlist = false;
             let mut menu_close_file = false;
@@ -5262,6 +5840,9 @@ impl eframe::App for VortexApp {
                     }
                     if menu_actions.center_window {
                         menu_center_window = true;
+                    }
+                    if menu_actions.snap_aspect_ratio {
+                        menu_snap_aspect_ratio = true;
                     }
 
                     if menu_actions.open_file {
@@ -5660,6 +6241,18 @@ impl eframe::App for VortexApp {
                             self.show_main_menu = false;
                             self.show_surround_eq_dialog = !self.show_surround_eq_dialog;
                         }
+                        if menu_actions.toggle_telemetry_hud {
+                            self.show_main_menu = false;
+                            self.show_telemetry_hud = !self.show_telemetry_hud;
+                        }
+                        if menu_actions.toggle_debug_log {
+                            self.show_main_menu = false;
+                            self.show_debug_log_dialog = !self.show_debug_log_dialog;
+                        }
+                        if menu_actions.toggle_stats_for_nerds {
+                            self.show_main_menu = false;
+                            self.stats_for_nerds.toggle();
+                        }
 
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                         self.show_main_menu = false;
@@ -5688,6 +6281,10 @@ impl eframe::App for VortexApp {
             if menu_center_window {
                 self.show_main_menu = false;
                 self.center_window_with_monitor_aspect_ratio(&ctx);
+            }
+            if menu_snap_aspect_ratio {
+                self.show_main_menu = false;
+                self.snap_window_to_video_aspect_ratio(&ctx);
             }
             if menu_toggle_playlist {
                 self.toggle_playlist_unified(&ctx);
@@ -6468,18 +7065,18 @@ impl eframe::App for VortexApp {
             }
         }
 
-        // Apply any pending restored audio / subtitle tracks once demuxer populates tracks
+        // Apply any pending restored audio / subtitle tracks once demuxer populates tracks for the target file
         if let Ok(ref player) = self.player {
-            if let Some(aid) = self.pending_audio_track {
-                if !stats.audio_tracks.is_empty() {
+            if let Some((ref target_path, aid)) = self.pending_audio_track {
+                if stats.file_path == *target_path && !stats.audio_tracks.is_empty() {
                     if stats.selected_audio_track != aid {
                         player.set_audio_track(aid);
                     }
                     self.pending_audio_track = None;
                 }
             }
-            if let Some(sid) = self.pending_subtitle_track {
-                if !stats.subtitle_tracks.is_empty() {
+            if let Some((ref target_path, sid)) = self.pending_subtitle_track {
+                if stats.file_path == *target_path && !stats.subtitle_tracks.is_empty() {
                     if stats.selected_subtitle_track != sid {
                         player.set_subtitle_track(sid);
                     }
@@ -6641,25 +7238,31 @@ impl eframe::App for VortexApp {
 
         if is_minimized {
             if !stats.is_paused && !stats.is_idle {
-                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                // Playback completion wakes us immediately through the mpv EOF callback.
+                // Do not continuously render a minimized viewport just to poll the queue.
+                ctx.request_repaint_after(std::time::Duration::from_millis(500));
             } else {
-                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                ctx.request_repaint_after(std::time::Duration::from_secs(1));
             }
         } else if is_active_ui {
             // Full interaction budget for silky-smooth responsive controls
             ctx.request_repaint_after(repaint_for_fps(self.config.fps_interaction));
         } else if !stats.is_paused && !stats.is_idle {
-            if is_foreground {
-                // Display-synced playback rate matching monitor refresh rate (60Hz / 120Hz / 144Hz)
-                let display_hz = if stats.display_fps >= 50.0 { stats.display_fps.round() as u32 } else { 60 };
-                let target_fps = self.config.fps_playback.max(display_hz);
-                ctx.request_repaint_after(repaint_for_fps(target_fps));
-            } else {
-                ctx.request_repaint_after(repaint_for_fps(self.config.fps_background));
-            }
+            // Display-synced playback rate matching monitor refresh rate (60Hz / 120Hz / 144Hz).
+            // Never throttle active video playback when unfocused/backgrounded:
+            // Throttling to fps_background (20 FPS) forces video presentation behind audio clock,
+            // resulting in A/V desync and rubber-banding acceleration/deceleration.
+            let display_hz = if stats.display_fps >= 50.0 { stats.display_fps.round() as u32 } else { 60 };
+            let target_fps = self.config.fps_playback.max(display_hz);
+            ctx.request_repaint_after(repaint_for_fps(target_fps));
         } else {
-            // Stationary mouse when paused / idle: smooth 100ms idle tick (never a 1-sec freeze)
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            // Keep paused controls, hover states, and window interactions responsive.
+            let idle_delay = if is_foreground {
+                std::time::Duration::from_millis(100)
+            } else {
+                repaint_for_fps(self.config.fps_background)
+            };
+            ctx.request_repaint_after(idle_delay);
         }
 
         #[cfg(windows)]
@@ -6680,14 +7283,31 @@ impl eframe::App for VortexApp {
             };
             self.taskbar.set_thumbnail_clip(self.parent_hwnd, clip);
         }
+
+        let is_max_state = is_window_maximized_or_workarea(self.parent_hwnd, &ctx);
+        if !self.is_fullscreen && !is_max_state {
+            let client_r = get_window_client_rect(&ctx);
+            let border_painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("window_outer_border")));
+            border_painter.rect_stroke(
+                client_r,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 32)),
+                egui::StrokeKind::Inside,
+            );
+        }
         static LAST_FRAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
         if LAST_FRAME.swap(false, std::sync::atomic::Ordering::Relaxed) {
             crate::log_step("34. VortexApp::ui frame 1 finished successfully!");
         }
     }
 
-    fn on_exit(&mut self, _gl: std::option::Option<&eframe::glow::Context>) {
+    fn on_exit(&mut self, gl: std::option::Option<&eframe::glow::Context>) {
         crate::log_step("35. VortexApp on_exit called!");
+        if let Some(gl) = gl {
+            if let Ok(mut surface) = self.video_surface.lock() {
+                surface.destroy(gl);
+            }
+        }
         self.save_current_playback_state();
         let _ = self.config.save();
     }
@@ -7187,13 +7807,16 @@ static IS_NATIVE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::
 #[cfg(windows)]
 static PRE_FULLSCREEN_RECT: std::sync::Mutex<windows_sys::Win32::Foundation::RECT> =
     std::sync::Mutex::new(windows_sys::Win32::Foundation::RECT { left: 100, top: 80, right: 1100, bottom: 700 });
+#[cfg(windows)]
+static PRE_FULLSCREEN_WAS_WORKAREA: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(windows)]
 pub fn set_native_fullscreen(
     hwnd: isize,
     _child_hwnd: isize,
     fullscreen: bool,
-    is_maximized: bool,
+    was_maximized_or_workarea: bool,
     saved_rect: Option<windows_sys::Win32::Foundation::RECT>,
     always_on_top: bool,
 ) {
@@ -7206,122 +7829,126 @@ pub fn set_native_fullscreen(
         crate::platform::set_native_fullscreen_state(fullscreen);
         IS_NATIVE_FULLSCREEN.store(fullscreen, std::sync::atomic::Ordering::Relaxed);
 
+        let h_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        let mut monitor_info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+            rcWork: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+            dwFlags: 0,
+        };
+        GetMonitorInfoW(h_monitor, &mut monitor_info);
+
+        let rc_mon = monitor_info.rcMonitor;
+        let mon_w = rc_mon.right - rc_mon.left;
+        let mon_h = rc_mon.bottom - rc_mon.top;
+
+        let rc_work = monitor_info.rcWork;
+        let work_w = rc_work.right - rc_work.left;
+        let work_h = rc_work.bottom - rc_work.top;
+
         if fullscreen {
+            let mut cur_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            let mut is_workarea = was_maximized_or_workarea;
+            if GetWindowRect(hwnd, &mut cur_rc) != 0 {
+                let cw = cur_rc.right - cur_rc.left;
+                let ch = cur_rc.bottom - cur_rc.top;
+                if cw >= work_w - 24 && ch >= work_h - 24 {
+                    is_workarea = true;
+                }
+                if cw >= 200 && ch >= 100 {
+                    if let Ok(mut lock) = PRE_FULLSCREEN_RECT.lock() {
+                        *lock = cur_rc;
+                    }
+                }
+            }
             if let Some(r) = saved_rect {
-                if (r.right - r.left) >= 200 && (r.bottom - r.top) >= 100 {
+                let rw = r.right - r.left;
+                let rh = r.bottom - r.top;
+                if rw >= work_w - 24 && rh >= work_h - 24 {
+                    is_workarea = true;
+                }
+                if rw >= 200 && rh >= 100 {
                     if let Ok(mut lock) = PRE_FULLSCREEN_RECT.lock() {
                         *lock = r;
                     }
                 }
-            } else {
-                let mut cur_rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                if GetWindowRect(hwnd, &mut cur_rc) != 0 && (cur_rc.right - cur_rc.left) >= 200 && (cur_rc.bottom - cur_rc.top) >= 100 {
-                    let h_mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-                    let mut mi = MONITORINFO {
-                        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                        rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                        rcWork: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                        dwFlags: 0,
-                    };
-                    GetMonitorInfoW(h_mon, &mut mi);
-                    let is_already_mon = (cur_rc.right - cur_rc.left) >= (mi.rcMonitor.right - mi.rcMonitor.left)
-                        && (cur_rc.bottom - cur_rc.top) >= (mi.rcMonitor.bottom - mi.rcMonitor.top);
-                    if !is_already_mon {
-                        if let Ok(mut lock) = PRE_FULLSCREEN_RECT.lock() {
-                            *lock = cur_rc;
-                        }
-                    }
-                }
+            }
+            PRE_FULLSCREEN_WAS_WORKAREA.store(is_workarea, std::sync::atomic::Ordering::SeqCst);
+
+            // If window was maximized, restore first so Windows doesn't apply WS_MAXIMIZE taskbar constraints
+            if IsZoomed(hwnd) != 0 {
+                ShowWindow(hwnd, SW_RESTORE);
             }
 
-            let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                rcWork: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                dwFlags: 0,
-            };
-            let h_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            GetMonitorInfoW(h_monitor, &mut monitor_info);
+            // Strip frame & borders, add WS_POPUP
+            let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+            let fs_style = (style & !(WS_THICKFRAME | WS_CAPTION | WS_BORDER | WS_MAXIMIZE)) | WS_POPUP;
+            SetWindowLongW(hwnd, GWL_STYLE, fs_style as i32);
 
-            let rc = monitor_info.rcMonitor;
-            let mon_w = rc.right - rc.left;
-            let mon_h = rc.bottom - rc.top;
+            // Synchronously inform Windows Explorer taskbar
+            crate::platform::mark_fullscreen_window(hwnd as isize, true);
+            crate::platform::apply_fullscreen_border_suppression(hwnd as _);
+
+            // Fullscreen MUST use HWND_TOPMOST (-1) so it covers the taskbar completely
+            SetWindowPos(
+                hwnd,
+                -1 as isize as HWND, // HWND_TOPMOST
+                rc_mon.left,
+                rc_mon.top,
+                mon_w,
+                mon_h,
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOCOPYBITS,
+            );
+            SetForegroundWindow(hwnd);
+            BringWindowToTop(hwnd);
+            crate::platform::apply_fullscreen_border_suppression(hwnd as _);
+        } else {
+            // Leaving fullscreen: synchronously notify Windows Explorer taskbar
+            crate::platform::mark_fullscreen_window(hwnd as isize, false);
 
             let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-            let fs_style = (style & !WS_THICKFRAME) | WS_POPUP;
-            if fs_style != style {
-                SetWindowLongW(hwnd, GWL_STYLE, fs_style as i32);
-            }
+            let win_style = (style & !(WS_POPUP | WS_MAXIMIZE)) | WS_THICKFRAME;
+            SetWindowLongW(hwnd, GWL_STYLE, win_style as i32);
 
-            let hwnd_isize = hwnd as isize;
-            std::thread::spawn(move || {
-                crate::platform::mark_fullscreen_window(hwnd_isize, true);
-            });
+            crate::platform::apply_border_suppression(hwnd as _);
 
-            crate::platform::apply_fullscreen_border_suppression(hwnd as _);
-            let z_order = if always_on_top { -1 as isize as HWND } else { 0 as isize as HWND };
-            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | SWP_FRAMECHANGED | (if always_on_top { 0 } else { SWP_NOZORDER });
+            // Return to normal desktop Z-order (HWND_NOTOPMOST) unless user enabled always_on_top
+            let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
+
+            let was_workarea = was_maximized_or_workarea || PRE_FULLSCREEN_WAS_WORKAREA.load(std::sync::atomic::Ordering::SeqCst);
+            let fallback_lock = PRE_FULLSCREEN_RECT.lock().map(|l| *l).unwrap_or(RECT { left: 0, top: 0, right: 0, bottom: 0 });
+            let cand = saved_rect.unwrap_or(fallback_lock);
+            let cand_w = cand.right - cand.left;
+            let cand_h = cand.bottom - cand.top;
+
+            let (target_left, target_top, target_w, target_h) = if was_workarea || (cand_w >= work_w - 24 && cand_h >= work_h - 24) {
+                // Exact windowed full screen (work area, with taskbar 100% visible and interactive)
+                (rc_work.left, rc_work.top, work_w, work_h)
+            } else if cand_w >= 320 && cand_h >= 200 {
+                // Restore previous floating window position and size
+                let left = cand.left.clamp(rc_work.left - 50, rc_work.right - 100);
+                let top = cand.top.clamp(rc_work.top, rc_work.bottom - 100);
+                let w = cand_w.min(work_w);
+                let h = cand_h.min(work_h);
+                (left, top, w, h)
+            } else {
+                // Sane, clean 75% work area window centered on monitor
+                let def_w = (work_w as f32 * 0.75).round().min(1280.0) as i32;
+                let def_h = (def_w as f32 * (9.0 / 16.0)).round().min((work_h as f32 * 0.85).round()) as i32;
+                let l = rc_work.left + (work_w - def_w) / 2;
+                let t = rc_work.top + (work_h - def_h) / 2;
+                (l, t, def_w, def_h)
+            };
+
             SetWindowPos(
                 hwnd,
                 z_order,
-                rc.left,
-                rc.top,
-                mon_w,
-                mon_h,
-                flags,
+                target_left,
+                target_top,
+                target_w,
+                target_h,
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOCOPYBITS,
             );
-            crate::platform::apply_fullscreen_border_suppression(hwnd as _);
-        } else {
-            let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-            let win_style = style | WS_THICKFRAME;
-            if win_style != style {
-                SetWindowLongW(hwnd, GWL_STYLE, win_style as i32);
-            }
-
-            let hwnd_isize = hwnd as isize;
-            std::thread::spawn(move || {
-                crate::platform::mark_fullscreen_window(hwnd_isize, false);
-            });
-
-            crate::platform::apply_border_suppression(hwnd as _);
-            let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
-            let flags = SWP_NOCOPYBITS | SWP_NOACTIVATE | SWP_FRAMECHANGED | (if always_on_top { 0 } else { SWP_NOZORDER });
-            if is_maximized {
-                let h_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-                let mut monitor_info = MONITORINFO {
-                    cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                    rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                    rcWork: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                    dwFlags: 0,
-                };
-                GetMonitorInfoW(h_monitor, &mut monitor_info);
-                let rw = monitor_info.rcWork;
-                let w = rw.right - rw.left;
-                let h = rw.bottom - rw.top;
-                SetWindowPos(
-                    hwnd,
-                    z_order,
-                    rw.left,
-                    rw.top,
-                    w,
-                    h,
-                    flags,
-                );
-            } else {
-                let fallback = PRE_FULLSCREEN_RECT.lock().map(|l| *l).unwrap_or(windows_sys::Win32::Foundation::RECT { left: 100, top: 80, right: 1100, bottom: 700 });
-                let rc = saved_rect.unwrap_or(fallback);
-                let w = (rc.right - rc.left).max(320);
-                let h = (rc.bottom - rc.top).max(200);
-                SetWindowPos(
-                    hwnd,
-                    z_order,
-                    rc.left,
-                    rc.top,
-                    w,
-                    h,
-                    flags,
-                );
-            }
             crate::platform::apply_border_suppression(hwnd as _);
         }
     }

@@ -26,6 +26,7 @@ pub struct BookmarkManager {
     pub auto_skip_bookmarks: bool,
     pub skip_intervals: Vec<SkipInterval>,
     pub last_skipped_time: f64,
+    pub pending_loaded_bookmarks: Option<std::sync::Arc<std::sync::Mutex<Option<Option<Vec<BookmarkItem>>>>>>,
 }
 
 impl Default for BookmarkManager {
@@ -37,6 +38,7 @@ impl Default for BookmarkManager {
             auto_skip_bookmarks: true,
             skip_intervals: Vec::new(),
             last_skipped_time: -100.0,
+            pending_loaded_bookmarks: None,
         }
     }
 }
@@ -49,7 +51,11 @@ impl BookmarkManager {
     pub fn set_video(&mut self, video_path: Option<&Path>) {
         // Save current video bookmarks before switching
         if let Some(ref current_path) = self.current_video_path {
-            let _ = PbfFile::save_for_video(current_path, &self.bookmarks);
+            let cp = current_path.clone();
+            let bm = self.bookmarks.clone();
+            std::thread::spawn(move || {
+                let _ = PbfFile::save_for_video(&cp, &bm);
+            });
         }
 
         self.current_video_path = video_path.map(|p| p.to_path_buf());
@@ -57,12 +63,38 @@ impl BookmarkManager {
         self.bookmarks.clear();
         self.skip_intervals.clear();
         self.last_skipped_time = -100.0;
+        self.pending_loaded_bookmarks = None;
 
         if let Some(path) = video_path {
-            if let Some(loaded) = PbfFile::load_for_video(path) {
+            let path_buf = path.to_path_buf();
+            let shared = std::sync::Arc::new(std::sync::Mutex::new(None));
+            self.pending_loaded_bookmarks = Some(std::sync::Arc::clone(&shared));
+            std::thread::spawn(move || {
+                let loaded = PbfFile::load_for_video(&path_buf);
+                if let Ok(mut lock) = shared.lock() {
+                    *lock = Some(loaded);
+                }
+            });
+        }
+    }
+
+    pub fn poll_async_load(&mut self) {
+        let loaded_res = if let Some(ref shared) = self.pending_loaded_bookmarks {
+            match shared.try_lock() {
+                Ok(mut lock) => lock.take(),
+                Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner().take(),
+                Err(std::sync::TryLockError::WouldBlock) => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(loaded_opt) = loaded_res {
+            if let Some(loaded) = loaded_opt {
                 self.bookmarks = loaded;
                 self.load_skip_intervals_from_bookmarks();
             }
+            self.pending_loaded_bookmarks = None;
         }
     }
 

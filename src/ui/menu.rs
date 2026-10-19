@@ -6,7 +6,7 @@ use crate::engine::{MediaStats, Player, VideoEffectsConfig};
 use crate::playlist::Playlist;
 use eframe::egui::{
     self, epaint::PathShape, Align2, Color32, CornerRadius, FontId, InnerResponse, Margin, Pos2,
-    Rect, Response, RichText, Sense, Stroke, Vec2,
+    Rect, Response, RichText, Sense, Stroke, StrokeKind, Vec2,
 };
 use std::path::PathBuf;
 
@@ -78,6 +78,9 @@ pub struct MenuActions {
     pub toggle_auto_skip_dialog: bool,
     pub skip_intro: bool,
     pub show_about: bool,
+    pub toggle_telemetry_hud: bool,
+    pub toggle_debug_log: bool,
+    pub toggle_stats_for_nerds: bool,
     pub toggle_record_dialog: bool,
     pub toggle_gif_maker: bool,
     pub toggle_device_capture: bool,
@@ -95,6 +98,7 @@ pub struct MenuActions {
     pub sub_sync_changed: bool,
     pub resize_window_factor: Option<f32>,
     pub center_window: bool,
+    pub snap_aspect_ratio: bool,
     pub open_subtitle_preferences: bool,
     pub toggle_sleep_timer: bool,
     pub toggle_visualizer: bool,
@@ -237,21 +241,34 @@ fn menu_item(
     let label_pos = Pos2::new(rect.left() + 22.0, cy - display_galley.size().y * 0.5);
     painter.galley(label_pos, display_galley, label_col);
 
-    // 4. Shortcut Text (Right-aligned before right edge)
+    // 4. Shortcut Pill Badge (Modern macOS/Fluent keyboard pill)
     if !shortcut.is_empty() {
         let sc_col = if is_disabled {
-            Color32::from_rgb(80, 85, 95)
+            Color32::from_rgb(90, 95, 105)
         } else if is_hovered {
-            Color32::from_rgb(200, 215, 245)
+            Color32::from_rgb(230, 235, 255)
         } else {
             skin.text_secondary
         };
 
-        painter.text(
-            Pos2::new(rect.right() - 6.0, cy),
-            Align2::RIGHT_CENTER,
-            shortcut,
-            FontId::proportional(10.5),
+        let sc_galley = painter.layout_no_wrap(shortcut.to_string(), FontId::proportional(10.0), sc_col);
+        let sc_w = sc_galley.size().x + 10.0;
+        let sc_rect = Rect::from_center_size(
+            Pos2::new(rect.right() - 8.0 - sc_w * 0.5, cy),
+            Vec2::new(sc_w, 15.0),
+        );
+        let pill_bg = if is_hovered {
+            Color32::from_rgba_unmultiplied(255, 255, 255, 22)
+        } else {
+            Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+        };
+        let pill_stroke = Color32::from_rgba_unmultiplied(255, 255, 255, if is_hovered { 38 } else { 18 });
+        painter.rect_filled(sc_rect, CornerRadius::same(3), pill_bg);
+        painter.rect_stroke(sc_rect, CornerRadius::same(3), Stroke::new(1.0, pill_stroke), StrokeKind::Inside);
+
+        painter.galley(
+            Pos2::new(sc_rect.left() + 5.0, cy - sc_galley.size().y * 0.5),
+            sc_galley,
             sc_col,
         );
     }
@@ -570,6 +587,26 @@ fn menu_separator(ui: &mut egui::Ui) {
     );
 }
 
+/// Reusable Context Menu Section Header with Label and Trailing Line
+fn menu_section_header(ui: &mut egui::Ui, title: &str) {
+    let w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 18.0), Sense::hover());
+    let cy = rect.center().y;
+    let painter = ui.painter();
+
+    let galley = painter.layout_no_wrap(title.to_string(), FontId::proportional(9.0), Color32::from_rgb(130, 140, 165));
+    let text_x = rect.left() + 10.0;
+    painter.galley(Pos2::new(text_x, cy - galley.size().y * 0.5), galley.clone(), Color32::from_rgb(130, 140, 165));
+
+    let line_start_x = text_x + galley.size().x + 8.0;
+    if line_start_x < rect.right() - 8.0 {
+        painter.line_segment(
+            [Pos2::new(line_start_x, cy), Pos2::new(rect.right() - 8.0, cy)],
+            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 16)),
+        );
+    }
+}
+
 impl VortexMenu {
     pub fn render(
         ui: &mut egui::Ui,
@@ -645,6 +682,9 @@ impl VortexMenu {
             toggle_auto_skip_dialog: false,
             skip_intro: false,
             show_about: false,
+            toggle_telemetry_hud: false,
+            toggle_debug_log: false,
+            toggle_stats_for_nerds: false,
             toggle_record_dialog: false,
             toggle_gif_maker: false,
             toggle_device_capture: false,
@@ -662,6 +702,7 @@ impl VortexMenu {
             sub_sync_changed: false,
             resize_window_factor: None,
             center_window: false,
+            snap_aspect_ratio: false,
             open_subtitle_preferences: false,
             toggle_sleep_timer: false,
             toggle_visualizer: false,
@@ -710,6 +751,7 @@ impl VortexMenu {
         // =====================================================================
         // 1. FILE OPERATIONS (Open File, Open Folder, Stream, Recent, Favorites)
         // =====================================================================
+        menu_section_header(ui, "MEDIA & PLAYLIST");
         if menu_item(ui, &skin, "▶", "Open File...", "F3", false, false).clicked() {
             actions.open_file = true;
             ui.close();
@@ -840,10 +882,8 @@ impl VortexMenu {
             }
         });
 
-        if menu_item(ui, &skin, "⏹", "Close", "F4", false, false).clicked() {
-            if let Some(p) = player {
-                p.stop();
-            }
+        if menu_item(ui, &skin, "✕", "Close", "Ctrl+W / F4", false, stats.file_path.is_empty()).clicked() {
+            actions.close_file = true;
             ui.close();
         }
 
@@ -852,6 +892,7 @@ impl VortexMenu {
         // =====================================================================
         // 2. PLAYBACK & NAVIGATION
         // =====================================================================
+        menu_section_header(ui, "PLAYBACK & NAVIGATION");
         submenu_item(ui, &skin, "▷", "Playback", |ui| {
             ui.set_min_width(280.0);
             if menu_item(ui, &skin, if stats.is_paused { "▶" } else { "⏸" }, if stats.is_paused { "Play" } else { "Pause" }, "Space", false, false).clicked() {
@@ -1648,18 +1689,46 @@ impl VortexMenu {
                         }
                     }
                 });
+                ui.separator();
+                let is_locked = config.lock_aspect_ratio;
+                if menu_item(ui, &skin, if is_locked { "✓" } else { " " }, "Lock Aspect Ratio on Resize", "Shift to unlock", is_locked, false).clicked() {
+                    config.lock_aspect_ratio = !config.lock_aspect_ratio;
+                    crate::platform::windows::taskbar::set_lock_aspect_ratio(config.lock_aspect_ratio);
+                    let _ = config.save();
+                    ui.close();
+                }
+                let is_autofit = config.auto_fit_window_to_video;
+                if menu_item(ui, &skin, if is_autofit { "✓" } else { " " }, "Auto-Fit Window on Video Open", "", is_autofit, false).clicked() {
+                    config.auto_fit_window_to_video = !config.auto_fit_window_to_video;
+                    let _ = config.save();
+                    ui.close();
+                }
+                let is_autocrop = config.auto_crop_fill_black_bars;
+                if menu_item(ui, &skin, if is_autocrop { "✓" } else { " " }, "Auto-Crop Black Bars in Fullscreen/Maximized", "Shift+C", is_autocrop, false).clicked() {
+                    config.auto_crop_fill_black_bars = !config.auto_crop_fill_black_bars;
+                    if let Some(p) = player {
+                        if config.auto_crop_fill_black_bars {
+                            p.set_property_double("panscan", 1.0);
+                        } else if config.aspect_ratio != "crop_fill" {
+                            p.set_property_double("panscan", 0.0);
+                        }
+                    }
+                    let _ = config.save();
+                    ui.close();
+                }
             });
 
             submenu_item(ui, &skin, "⚡", "Hardware Acceleration", |ui| {
                 ui.set_min_width(240.0);
-                for &hw in &["auto-safe", "d3d11va", "dxva2", "nvdec", "no"] {
+                for &hw in &["auto-copy", "nvdec-copy", "d3d11va-copy", "nvdec", "d3d11va", "no"] {
                     let is_sel = config.hardware_decoding == hw;
                     let label = match hw {
-                        "auto-safe" => "auto-safe (Auto)",
-                        "d3d11va" => "d3d11va (D3D11)",
-                        "dxva2" => "dxva2 (DXVA)",
-                        "nvdec" => "nvdec (NVIDIA)",
-                        "no" => "no (Software)",
+                        "auto-copy" => "Auto (GPU Copy • Anti-Freeze)",
+                        "nvdec-copy" => "NVIDIA NVDEC Copy",
+                        "d3d11va-copy" => "Direct3D 11 Copy",
+                        "nvdec" => "NVIDIA NVDEC Direct",
+                        "d3d11va" => "Direct3D 11 Direct",
+                        "no" => "Software (CPU)",
                         _ => hw,
                     };
                     if menu_item(ui, &skin, if is_sel { "✓" } else { " " }, label, "", is_sel, false).clicked() {
@@ -1818,9 +1887,9 @@ impl VortexMenu {
         });
 
         // =====================================================================
+        // 5. AUDIO & VIDEO PROCESSING
         // =====================================================================
-        // 5. AUDIO
-        // =====================================================================
+        menu_section_header(ui, "AUDIO & VIDEO PROCESSING");
         submenu_item(ui, &skin, "🔊", "Audio", |ui| {
             ui.set_min_width(380.0);
             if menu_item(ui, &skin, "🎤", "Karaoke Studio...", "Ctrl+K", false, false).clicked() {
@@ -2395,6 +2464,10 @@ impl VortexMenu {
                 ui.close();
             }
             menu_separator(ui);
+            if menu_item(ui, &skin, "📐", "Snap Window to Video Ratio (No Black Bars)", "Shift+A", false, false).clicked() {
+                actions.snap_aspect_ratio = true;
+                ui.close();
+            }
             if menu_item(ui, &skin, "🎯", "Center Window (Fit Monitor AR)", "Ctrl+Alt+C", false, false).clicked() {
                 actions.center_window = true;
                 ui.close();
@@ -2437,6 +2510,7 @@ impl VortexMenu {
         // =====================================================================
         // 8. PREFERENCES, PLAYLIST, CONTROL PANEL, DIAGNOSTICS & ABOUT
         // =====================================================================
+        menu_section_header(ui, "TOOLS & PREFERENCES");
         if menu_item(ui, &skin, "⚙", "Preferences...", "F5", false, false).clicked() {
             actions.toggle_preferences = true;
             ui.close();
@@ -2454,6 +2528,21 @@ impl VortexMenu {
 
         if menu_item(ui, &skin, "ⓘ", "Playback Info...", "Ctrl+F1", false, false).clicked() {
             actions.toggle_media_info = true;
+            ui.close();
+        }
+
+        if menu_item(ui, &skin, "📊", "Telemetry HUD (Real-time Drops & Jitter)", "Ctrl+T", false, false).clicked() {
+            actions.toggle_telemetry_hud = true;
+            ui.close();
+        }
+
+        if menu_item(ui, &skin, "📋", "Playback & Frame Drop Debug Log...", "Ctrl+Shift+D", false, false).clicked() {
+            actions.toggle_debug_log = true;
+            ui.close();
+        }
+
+        if menu_item(ui, &skin, "🤓", "Stats for Nerds (Buffer & Frame Graphs)...", "Ctrl+Shift+N", false, false).clicked() {
+            actions.toggle_stats_for_nerds = true;
             ui.close();
         }
 

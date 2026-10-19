@@ -155,12 +155,26 @@ impl OsdEngine {
         self.render_ctx(ui.ctx(), video_rect, stats);
     }
 
-    pub fn render_ctx(&mut self, ctx: &egui::Context, video_rect: Rect, _stats: &MediaStats) {
+    pub fn render_ctx(&mut self, ctx: &egui::Context, video_rect: Rect, stats: &MediaStats) {
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("vortex_osd_layer")));
         let now = Instant::now();
 
         if self.message.is_some() {
             ctx.request_repaint();
+        }
+
+        // ── 1. Buffering Indicator (Network drives, slow I/O, initial probe) ────────
+        if !stats.is_idle && stats.cache_buffering_state < 100 {
+            ctx.request_repaint();
+            let center = video_rect.center();
+            let font = FontId::proportional(14.0);
+            let buf_text = format!("Buffering {}%", stats.cache_buffering_state);
+            let galley = painter.layout_no_wrap(buf_text.clone(), font.clone(), Color32::from_rgb(220, 235, 255));
+            let padding = Vec2::new(18.0, 10.0);
+            let pill_rect = Rect::from_center_size(center, galley.size() + padding * 2.0);
+            painter.rect_filled(pill_rect, CornerRadius::same(12), Color32::from_rgba_unmultiplied(12, 14, 20, 230));
+            painter.rect_stroke(pill_rect, CornerRadius::same(12), Stroke::new(1.0, Color32::from_rgba_unmultiplied(60, 140, 255, 160)), StrokeKind::Inside);
+            painter.text(center, Align2::CENTER_CENTER, buf_text, font, Color32::from_rgb(220, 235, 255));
         }
 
         // ── 2. Top-Left Modern Glassmorphism Pill Toast Notification ──────────
@@ -180,8 +194,11 @@ impl OsdEngine {
                 let text_size = galley.size();
 
                 let padding = Vec2::new(14.0, 7.0);
+                // Slide in from left on appear, slight drift down on fade-out
+                let slide_x = (1.0 - alpha_in) * -24.0;
+                let slide_y = (1.0 - alpha_out) * 6.0;
                 let toast_rect = Rect::from_min_size(
-                    video_rect.min + Vec2::new(20.0, 48.0),
+                    video_rect.min + Vec2::new(20.0 + slide_x, 48.0 + slide_y),
                     text_size + padding * 2.0,
                 );
 

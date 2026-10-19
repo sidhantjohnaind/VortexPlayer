@@ -1165,11 +1165,12 @@ impl PreferencesDialog {
                                                 egui::ComboBox::from_id_salt("hwdec_pref")
                                                     .selected_text(&config.hardware_decoding)
                                                     .show_ui(ui, |ui| {
-                                                        ui.selectable_value(&mut config.hardware_decoding, "auto-safe".to_string(), "Auto Safe (D3D11 / NVDEC)");
-                                                        ui.selectable_value(&mut config.hardware_decoding, "d3d11va".to_string(), "Direct3D 11 (D3D11VA - Recommended)");
-                                                        ui.selectable_value(&mut config.hardware_decoding, "nvdec".to_string(), "NVIDIA NVDEC (CUDA)");
-                                                        ui.selectable_value(&mut config.hardware_decoding, "dxva2".to_string(), "DirectX Video Acceleration (DXVA2)");
-                                                        ui.selectable_value(&mut config.hardware_decoding, "qsv".to_string(), "Intel QuickSync (QSV)");
+                                                        ui.selectable_value(&mut config.hardware_decoding, "auto-copy".to_string(), "Auto Copy (Safe GPU Decode • Recommended)");
+                                                        ui.selectable_value(&mut config.hardware_decoding, "nvdec-copy".to_string(), "NVIDIA NVDEC Copy (Anti-Freeze)");
+                                                        ui.selectable_value(&mut config.hardware_decoding, "d3d11va-copy".to_string(), "Direct3D 11 Copy (D3D11VA Copy)");
+                                                        ui.selectable_value(&mut config.hardware_decoding, "nvdec".to_string(), "NVIDIA NVDEC (Direct CUDA)");
+                                                        ui.selectable_value(&mut config.hardware_decoding, "d3d11va".to_string(), "Direct3D 11 (D3D11VA Direct)");
+                                                        ui.selectable_value(&mut config.hardware_decoding, "auto-safe".to_string(), "Auto Safe (Legacy)");
                                                         ui.selectable_value(&mut config.hardware_decoding, "no".to_string(), "Software Decoding (CPU)");
                                                     });
                                             });

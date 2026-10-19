@@ -73,6 +73,11 @@ pub struct MediaStats {
     pub hwdec_setting: String,
     pub hwdec_current: String,
     pub dropped_frames: i64,
+    pub vo_drop_frame_count: i64,
+    pub mistimed_frame_count: i64,
+    pub decoder_frame_drop_count: i64,
+    pub avsync_drift: f64,
+    pub total_frames_estimated: i64,
     pub aspect_ratio: String,
     pub audio_delay: f64,
     pub subtitle_delay: f64,
@@ -84,6 +89,11 @@ pub struct MediaStats {
     pub selected_subtitle_track: i64,
     pub selected_secondary_subtitle_track: i64,
     pub cache_buffer_percent: f64,
+    pub demuxer_cache_duration: f64,
+    pub demuxer_cache_time: f64,
+    pub demuxer_cache_bytes: i64,
+    pub cache_speed: i64,
+    pub cache_buffering_state: i64,
     // HDR & Color Metadata
     pub is_hdr: bool,
     pub hdr_format: String,
@@ -113,6 +123,9 @@ pub struct MediaStats {
     pub file_format: String,
     pub video_bit_depth: u32,
     pub is_wasapi_exclusive: bool,
+    pub video_tracks_count: usize,
+    pub total_tracks_count: usize,
+    pub has_loaded_metadata: bool,
 }
 
 #[cfg(windows)]
@@ -357,18 +370,26 @@ impl Player {
         // Configure default options for optimal performance, AV1/HEVC decoding, and HDR
         let mpv_log = std::env::temp_dir().join("vortex_mpv.log");
         Self::set_opt_str(&ffi, ctx, "log-file", &mpv_log.to_string_lossy());
-        Self::set_opt_str(&ffi, ctx, "msg-level", "all=v");
+        Self::set_opt_str(&ffi, ctx, "msg-level", "all=warn");
         Self::set_opt_str(&ffi, ctx, "keep-open", "yes");
         Self::set_opt_str(&ffi, ctx, "idle", "yes");
         Self::set_opt_str(&ffi, ctx, "ytdl", "no"); // Faster startup for local files
-        Self::set_opt_str(&ffi, ctx, "hwdec", "auto-safe"); // Full D3D11VA / VA-API / NVDEC HW decoding
+        Self::set_opt_str(&ffi, ctx, "hwdec", "auto-safe"); // Direct GPU hardware decoding without CPU PCIe copy overhead
         Self::set_opt_str(&ffi, ctx, "vo", "libmpv");
+
+        let shader_cache = dirs::data_local_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("VortexPlayer")
+            .join("shaders");
+        let _ = std::fs::create_dir_all(&shader_cache);
+        Self::set_opt_str(&ffi, ctx, "gpu-shader-cache-dir", &shader_cache.to_string_lossy());
 
         #[cfg(windows)]
         {
+            Self::set_opt_str(&ffi, ctx, "scale", "bilinear");
             Self::set_opt_str(&ffi, ctx, "dscale", "bilinear");
             Self::set_opt_str(&ffi, ctx, "sws-scaler", "fast-bilinear");
-            Self::set_opt_str(&ffi, ctx, "vd-lavc-fast", "yes");
+            Self::set_opt_str(&ffi, ctx, "vd-lavc-fast", "yes"); // Fast video decoding
             Self::set_opt_str(&ffi, ctx, "ao", "wasapi");
         }
 
@@ -390,18 +411,24 @@ impl Player {
         Self::set_opt_str(&ffi, ctx, "video-pan-y", "0");
         Self::set_opt_str(&ffi, ctx, "video-zoom", "0");
 
-        // Ultra High-Performance Demuxer Caching & Jitter-Free Playback
-        Self::set_opt_str(&ffi, ctx, "demuxer-max-bytes", "150M");
-        Self::set_opt_str(&ffi, ctx, "demuxer-max-back-bytes", "50M");
-        Self::set_opt_str(&ffi, ctx, "demuxer-readahead-secs", "10");
+        // Ultra High-Performance Demuxer Caching & Instant Jitter-Free Playback
+        Self::set_opt_str(&ffi, ctx, "demuxer-lavf-buffersize", "1048576"); // 1MB I/O buffer for network shares & disk
+        Self::set_opt_str(&ffi, ctx, "demuxer-max-bytes", "256M");
+        Self::set_opt_str(&ffi, ctx, "demuxer-max-back-bytes", "64M");
+        Self::set_opt_str(&ffi, ctx, "demuxer-readahead-secs", "20");
+        Self::set_opt_str(&ffi, ctx, "demuxer-hysteresis-secs", "2");
         Self::set_opt_str(&ffi, ctx, "cache", "yes");
-        Self::set_opt_str(&ffi, ctx, "cache-pause", "no");
-        Self::set_opt_str(&ffi, ctx, "vd-lavc-threads", "0");            // Auto multi-threaded CPU video decoding
+        Self::set_opt_str(&ffi, ctx, "cache-pause", "yes");
+        Self::set_opt_str(&ffi, ctx, "cache-pause-initial", "no"); // Prevent artificial pause stall at startup
+        Self::set_opt_str(&ffi, ctx, "cache-pause-wait", "0.2");
+        Self::set_opt_str(&ffi, ctx, "audio-buffer", "0.2"); // Prevent WASAPI audio underruns on start
+        Self::set_opt_str(&ffi, ctx, "vd-lavc-threads", "0"); // Auto multi-threaded CPU video decoding
         Self::set_opt_str(&ffi, ctx, "hr-seek", "default");
-        Self::set_opt_str(&ffi, ctx, "hr-seek-framedrop", "yes");
+        Self::set_opt_str(&ffi, ctx, "hr-seek-framedrop", "yes"); // Allow decoder to drop pre-target frames on seek for instant resume
         Self::set_opt_str(&ffi, ctx, "video-sync", "audio");
+        Self::set_opt_str(&ffi, ctx, "video-timing-offset", "0"); // Essential: prevents mpv_render_context_render from blocking UI thread
         Self::set_opt_str(&ffi, ctx, "audio-pitch-correction", "yes");
-        Self::set_opt_str(&ffi, ctx, "framedrop", "vo");
+        Self::set_opt_str(&ffi, ctx, "framedrop", "vo"); // Video output framedrop: ensures video catches up to audio clock on seek/resume
 
         // Color Management & HDR
         Self::set_opt_str(&ffi, ctx, "target-colorspace-hint", "yes");
@@ -411,7 +438,7 @@ impl Player {
         Self::set_opt_str(&ffi, ctx, "dither-depth", "auto");
 
         // Subtitles & Audio
-        Self::set_opt_str(&ffi, ctx, "sub-auto", "all");
+        Self::set_opt_str(&ffi, ctx, "sub-auto", "fuzzy");
         Self::set_opt_str(&ffi, ctx, "audio-file-auto", "fuzzy");
         Self::set_opt_str(&ffi, ctx, "audio-display", "no"); // Disable GPU video rendering for audio/album art (saves ~30W GPU power)
         Self::set_opt_str(&ffi, ctx, "sub-font-size", "28");
@@ -459,6 +486,7 @@ impl Player {
             let ctx = thread_ctx as *mut c_void;
             let mut audio_transform = AudioTransformFilter::new();
             let mut tick: u64 = 0;
+            let mut ticks_since_file_load: u64 = 0;
             let mut was_playing = false;
             let mut local_stats = MediaStats::default();
             while thread_running.load(Ordering::SeqCst) {
@@ -471,8 +499,45 @@ impl Player {
                     }
                 }
 
-                // Poll properties with tiered cadence to prevent mutex contention
-                Self::poll_properties(&thread_ffi, ctx, &thread_stats, &mut local_stats, &mut audio_transform, &thread_audio_bus, tick);
+                if thread_manually_stopped.load(Ordering::SeqCst) {
+                    local_stats.is_idle = true;
+                    local_stats.file_path.clear();
+                    local_stats.title.clear();
+                    local_stats.artist.clear();
+                    local_stats.album.clear();
+                    local_stats.duration = 0.0;
+                    local_stats.time_pos = 0.0;
+                    local_stats.percent_pos = 0.0;
+                    local_stats.video_width = 0;
+                    local_stats.video_height = 0;
+                    local_stats.audio_tracks.clear();
+                    local_stats.subtitle_tracks.clear();
+                    local_stats.chapters.clear();
+                    local_stats.video_tracks_count = 0;
+                    local_stats.total_tracks_count = 0;
+                    local_stats.has_loaded_metadata = false;
+                    if let Ok(mut lock) = thread_stats.lock() {
+                        lock.is_idle = true;
+                        lock.file_path.clear();
+                        lock.title.clear();
+                        lock.artist.clear();
+                        lock.album.clear();
+                        lock.duration = 0.0;
+                        lock.time_pos = 0.0;
+                        lock.percent_pos = 0.0;
+                        lock.video_width = 0;
+                        lock.video_height = 0;
+                        lock.audio_tracks.clear();
+                        lock.subtitle_tracks.clear();
+                        lock.chapters.clear();
+                        lock.video_tracks_count = 0;
+                        lock.total_tracks_count = 0;
+                        lock.has_loaded_metadata = false;
+                    }
+                } else {
+                    // Poll properties with tiered cadence to prevent mutex contention
+                    Self::poll_properties(&thread_ffi, ctx, &thread_stats, &mut local_stats, &mut audio_transform, &thread_audio_bus, tick, &mut ticks_since_file_load);
+                }
                 tick = tick.wrapping_add(1);
 
                 let is_playing = !local_stats.is_idle && !local_stats.is_paused;
@@ -504,8 +569,12 @@ impl Player {
 
                 let sleep_dur = if is_playing {
                     Duration::from_millis(25)
+                } else if local_stats.is_idle {
+                    // No media is loaded: avoid querying libmpv 25 times a second.
+                    Duration::from_millis(250)
                 } else {
-                    Duration::from_millis(40)
+                    // Keep pause/seek controls responsive without busy polling.
+                    Duration::from_millis(100)
                 };
                 thread::sleep(sleep_dur);
             }
@@ -624,10 +693,20 @@ impl Player {
 
     /// Load and play a file or URL
     pub fn load_file(&self, path_or_url: &str) {
+        self.load_file_with_start(path_or_url, None);
+    }
+
+    /// Load and play a file or URL with an optional start position in seconds
+    pub fn load_file_with_start(&self, path_or_url: &str, start_pos: Option<f64>) {
         self.manually_stopped.store(false, Ordering::SeqCst);
         self.set_property_string("video-align-x", "0");
         self.set_property_string("video-align-y", "0");
-        self.command(&["loadfile", path_or_url, "replace"]);
+        if let Some(pos) = start_pos.filter(|&p| p > 0.0) {
+            let start_opt = format!("start={:.2}", pos);
+            self.command(&["loadfile", path_or_url, "replace", "-1", &start_opt]);
+        } else {
+            self.command(&["loadfile", path_or_url, "replace"]);
+        }
     }
 
     /// Attach playback surface (kept for API compatibility, no-op in libmpv render context mode)
@@ -710,14 +789,16 @@ impl Player {
         self.init_render_context(egui_ctx.clone())
     }
 
-    pub fn render_frame(&self, fbo: i32, width: i32, height: i32) {
+    pub fn render_to_surface(&self, fbo: i32, width: i32, height: i32, force: bool) -> bool {
         if width <= 0 || height <= 0 {
-            return;
+            return false;
         }
         if let Ok(guard) = self.render_context.lock() {
             if let Some(render_ctx) = *guard {
-                unsafe {
-                    let _ = (self.ffi.mpv_render_context_update)(render_ctx);
+                let flags = unsafe { (self.ffi.mpv_render_context_update)(render_ctx) };
+                let has_new_frame = (flags & 1) != 0;
+                if !has_new_frame && !force {
+                    return false;
                 }
                 let mut flip_y: i32 = 1;
                 let mut fbo_param = MpvOpenglFbo {
@@ -742,9 +823,33 @@ impl Player {
                 ];
                 unsafe {
                     (self.ffi.mpv_render_context_render)(render_ctx, params.as_mut_ptr());
+                    if has_new_frame || force {
+                        (self.ffi.mpv_render_context_report_swap)(render_ctx);
+                    }
                 }
+                return true;
             }
         }
+        false
+    }
+
+    #[inline]
+    pub fn render_frame(&self, fbo: i32, width: i32, height: i32) -> bool {
+        self.render_to_surface(fbo, width, height, true)
+    }
+
+    #[inline]
+    pub fn render_frame_direct(&self, fbo: i32, width: i32, height: i32) -> bool {
+        self.render_to_surface(fbo, width, height, true)
+    }
+
+    pub fn check_update_flags(&self) -> u64 {
+        if let Ok(guard) = self.render_context.lock() {
+            if let Some(render_ctx) = *guard {
+                return unsafe { (self.ffi.mpv_render_context_update)(render_ctx) };
+            }
+        }
+        0
     }
 
     pub fn report_swap(&self) {
@@ -957,11 +1062,23 @@ impl Player {
             "16:9" => "4:3",
             "4:3" => "1.85:1",
             "1.85:1" => "2.35:1",
-            "2.35:1" => "stretch",
+            "2.35:1" => "crop_fill",
+            "crop_fill" => "fill",
             _ => "auto",
         };
         self.set_aspect_ratio(next);
         next.to_string()
+    }
+
+    pub fn toggle_crop_fill(&self) -> bool {
+        let current = self.stats.lock().unwrap_or_else(|e| e.into_inner()).aspect_ratio.clone();
+        if current == "crop" || current == "crop_fill" {
+            self.set_aspect_ratio("auto");
+            false
+        } else {
+            self.set_aspect_ratio("crop_fill");
+            true
+        }
     }
 
     pub fn set_video_brightness(&self, val: f64) {
@@ -1010,7 +1127,15 @@ impl Player {
     }
 
     pub fn set_hwdec(&self, mode: &str) {
-        self.set_property_string("hwdec", mode);
+        let safe_mode = match mode {
+            "auto" => "auto-safe",
+            other => other,
+        };
+        self.set_property_string("hwdec", safe_mode);
+    }
+
+    pub fn set_framedrop(&self, mode: &str) {
+        self.set_property_string("framedrop", mode);
     }
 
     pub fn apply_video_effects(&self, config: &VideoEffectsConfig) {
@@ -1409,9 +1534,10 @@ impl Player {
             presentation, gpu_name
         ));
         let queue_len = (stats.vo_delayed_frame_count + 16).clamp(1, 32);
+        let drop_color = if dropped > 0 { "0000FF" } else { "CC66FF" }; // Red in BGR (&H0000FF&) if dropped > 0
         ass.push_str(&format!(
-            "{{\\c&HFFFFFF&}}- Frames: {{\\c&HCC66FF&}}{}{{\\c&HFFFFFF&}}, Dropped: {{\\c&HCC66FF&}}{}{{\\c&HFFFFFF&}}, Jitter: {{\\c&HCC66FF&}}{}ms{{\\c&HFFFFFF&}}, Sync Offset: {{\\c&HCC66FF&}}0/0ms{{\\c&HFFFFFF&}}, Queue: {{\\c&HCC66FF&}}{}{{\\c&HFFFFFF&}}, Refresh Rate: {{\\c&HCC66FF&}}{:.1}Hz\\N",
-            elapsed_frames % 10000, dropped, jitter_ms, queue_len, display_hz
+            "{{\\c&HFFFFFF&}}- Frames: {{\\c&HCC66FF&}}{}{{\\c&HFFFFFF&}}, Dropped: {{\\c&H{}&}}{} [VO:{} Dec:{} Mist:{}]{{\\c&HFFFFFF&}}, Jitter: {{\\c&HCC66FF&}}{}ms{{\\c&HFFFFFF&}}, Queue: {{\\c&HCC66FF&}}{}{{\\c&HFFFFFF&}}, Refresh: {{\\c&HCC66FF&}}{:.1}Hz\\N",
+            elapsed_frames % 10000, drop_color, dropped, stats.vo_drop_frame_count, stats.decoder_frame_drop_count, stats.mistimed_frame_count, jitter_ms, queue_len, display_hz
         ));
         let present_count = elapsed_frames;
         let present_refresh = (stats.time_pos * display_hz) as u64;
@@ -1887,6 +2013,7 @@ impl Player {
         audio_transform: &mut AudioTransformFilter,
         audio_bus: &crate::engine::AudioAnalysisBus,
         tick: u64,
+        ticks_since_file_load: &mut u64,
     ) {
         let get_double = |prop: &str| -> Option<f64> {
             if let Ok(c_name) = CString::new(prop) {
@@ -1944,6 +2071,7 @@ impl Player {
 
         let path_changed = if let Some(p) = get_str("path") {
             if p != stats.file_path {
+                *ticks_since_file_load = 0;
                 stats.file_path = p;
                 stats.title.clear();
                 stats.artist.clear();
@@ -1957,12 +2085,16 @@ impl Player {
                 stats.audio_tracks.clear();
                 stats.subtitle_tracks.clear();
                 stats.chapters.clear();
+                stats.video_tracks_count = 0;
+                stats.total_tracks_count = 0;
+                stats.has_loaded_metadata = false;
                 true
             } else {
                 false
             }
         } else {
             if !stats.file_path.is_empty() {
+                *ticks_since_file_load = 0;
                 stats.file_path.clear();
                 stats.title.clear();
                 stats.artist.clear();
@@ -1976,11 +2108,18 @@ impl Player {
                 stats.audio_tracks.clear();
                 stats.subtitle_tracks.clear();
                 stats.chapters.clear();
+                stats.video_tracks_count = 0;
+                stats.total_tracks_count = 0;
+                stats.has_loaded_metadata = false;
                 true
             } else {
                 false
             }
         };
+
+        if !path_changed {
+            *ticks_since_file_load = ticks_since_file_load.saturating_add(1);
+        }
 
             // Fast properties (polled every tick for zero-lag controls & OSD)
             if stats.file_path.is_empty() {
@@ -2042,6 +2181,11 @@ impl Player {
                 stats.duration = get_double("duration").unwrap_or(0.0);
                 stats.is_seeking = get_bool("seeking").unwrap_or(false);
                 stats.dropped_frames = get_int("drop-frame-count").unwrap_or(0);
+                stats.vo_drop_frame_count = get_int("vo-drop-frame-count").unwrap_or(0);
+                stats.mistimed_frame_count = get_int("mistimed-frame-count").unwrap_or(0);
+                stats.decoder_frame_drop_count = get_int("decoder-frame-drop-count").unwrap_or(0);
+                stats.avsync_drift = get_double("avsync").unwrap_or(0.0);
+                stats.total_frames_estimated = get_int("estimated-frame-count").unwrap_or(0);
                 stats.hwdec_setting = get_str("hwdec").unwrap_or_else(|| "auto-safe".to_string());
                 stats.hwdec_current = get_str("hwdec-current").unwrap_or_else(|| "no".to_string());
                 stats.selected_secondary_subtitle_track = get_int("secondary-sid").unwrap_or(0);
@@ -2058,9 +2202,24 @@ impl Player {
                 if let Some(abr) = get_int("audio-bitrate") {
                     if abr > 0 { stats.audio_bitrate = abr; }
                 }
-                stats.cache_buffer_percent = get_double("demuxer-cache-state/cache-end-duration")
-                    .map(|dur| if stats.duration > 0.0 { (dur / stats.duration * 100.0).clamp(0.0, 100.0) } else { 0.0 })
+                stats.demuxer_cache_duration = get_double("demuxer-cache-duration")
+                    .or_else(|| get_double("demuxer-cache-state/cache-duration"))
                     .unwrap_or(0.0);
+                stats.demuxer_cache_time = get_double("demuxer-cache-time").unwrap_or(0.0);
+                stats.demuxer_cache_bytes = get_int("demuxer-cache-state/total-bytes")
+                    .or_else(|| get_int("cache-used").map(|k| k * 1024))
+                    .unwrap_or(0);
+                stats.cache_speed = get_int("cache-speed")
+                    .or_else(|| get_int("demuxer-cache-state/read-speed"))
+                    .unwrap_or(0);
+                stats.cache_buffering_state = get_int("cache-buffering-state").unwrap_or(100);
+                stats.cache_buffer_percent = if stats.demuxer_cache_duration > 0.0 && stats.duration > 0.0 {
+                    (stats.demuxer_cache_duration / stats.duration * 100.0).clamp(0.0, 100.0)
+                } else {
+                    get_double("demuxer-cache-state/cache-end-duration")
+                        .map(|dur| if stats.duration > 0.0 { (dur / stats.duration * 100.0).clamp(0.0, 100.0) } else { 0.0 })
+                        .unwrap_or(0.0)
+                };
                 // Fast in-memory track selection update (zero FFI overhead)
                 let aid = get_int("aid").unwrap_or(1);
                 let sid = get_int("sid").unwrap_or(1);
@@ -2110,16 +2269,43 @@ impl Player {
                         if out_ch > 0 { stats.audio_out_channels = out_ch; }
                     }
                 }
+
+                if stats.video_width == 0 && !stats.is_idle {
+                    if let Some(w) = get_int("video-params/w") {
+                        if w > 0 {
+                            stats.video_width = w as u32;
+                            stats.video_height = get_int("video-params/h").unwrap_or(0) as u32;
+                            stats.video_fps = get_double("container-fps").or_else(|| get_double("estimated-vf-fps")).unwrap_or(0.0);
+                            stats.video_codec = get_str("video-codec").unwrap_or_default();
+                            stats.video_format = get_str("video-format").unwrap_or_default();
+                            stats.pixel_format = get_str("video-params/pixelformat").unwrap_or_default();
+
+                            let override_val = get_str("video-aspect-override").unwrap_or_else(|| "auto".to_string());
+                            let panscan_val = get_double("panscan").unwrap_or(0.0);
+                            let keepaspect_val = get_bool("keepaspect").unwrap_or(true);
+                            stats.aspect_ratio = if !keepaspect_val {
+                                "fill".to_string()
+                            } else if panscan_val >= 0.95 {
+                                "crop_fill".to_string()
+                            } else if override_val == "no" || override_val == "-2.000000" || override_val == "-2" || override_val == "-1.000000" {
+                                "auto".to_string()
+                            } else {
+                                override_val
+                            };
+                        }
+                    }
+                }
             }
 
-            // Heavy metadata (cached on media load or when missing/tracks changed)
-            let needs_metadata = path_changed
-                || (!stats.is_idle && !stats.file_path.is_empty() && (stats.video_width == 0 && stats.audio_channels == 0 || stats.audio_tracks.is_empty()));
-            let cur_track_count = if is_slow && !stats.is_idle { get_int("track-list/count").unwrap_or(0) as usize } else { 0 };
-            let known_track_count = stats.audio_tracks.len() + stats.subtitle_tracks.len();
-            let tracks_changed = cur_track_count > 0 && cur_track_count != known_track_count;
+            // Check if playback has stabilized past the initial decoder / surface startup window
+            let is_playback_stable = !stats.is_idle
+                && !stats.file_path.is_empty()
+                && (stats.time_pos >= 0.5 || *ticks_since_file_load >= 30 || stats.is_paused);
 
-            if needs_metadata || tracks_changed {
+            // Heavy metadata (queried ONCE after playback is stable, never during decoder startup or on a loop)
+            let needs_metadata = is_playback_stable && !stats.has_loaded_metadata;
+
+            if needs_metadata {
                 if stats.audio_device_list.is_empty() {
                     if let Some(devs_json) = get_str("audio-device-list") {
                         if let Ok(devs) = serde_json::from_str::<Vec<AudioDeviceItem>>(&devs_json) {
@@ -2127,7 +2313,7 @@ impl Player {
                         }
                     }
                 }
-            if needs_metadata || stats.title.is_empty() {
+
                 let meta_title = get_str("metadata/by-key/Title")
                     .or_else(|| get_str("metadata/by-key/title"))
                     .or_else(|| get_str("metadata/by-key/TITLE"))
@@ -2153,159 +2339,161 @@ impl Player {
                     .or_else(|| get_str("metadata/by-key/album"))
                     .or_else(|| get_str("metadata/by-key/ALBUM"))
                     .unwrap_or_default();
-            }
-            stats.video_width = get_int("video-params/w").unwrap_or(0) as u32;
-            stats.video_height = get_int("video-params/h").unwrap_or(0) as u32;
-            stats.video_fps = get_double("container-fps").or_else(|| get_double("estimated-vf-fps")).unwrap_or(0.0);
-            stats.video_codec = get_str("video-codec").unwrap_or_default();
-            stats.video_format = get_str("video-format").unwrap_or_default();
-            stats.pixel_format = get_str("video-params/pixelformat").unwrap_or_default();
-            stats.video_bitrate = get_int("video-bitrate").unwrap_or(0);
-            stats.audio_codec = get_str("audio-codec").unwrap_or_default();
-            stats.audio_sample_rate = get_int("audio-params/samplerate").unwrap_or(0);
-            if let Some(ch) = get_int("audio-params/channel-count").or_else(|| get_int("audio-params/channels")) {
-                if ch > 0 { stats.audio_channels = ch; }
-            }
-            if let Some(raw_layout) = get_str("audio-params/hr-channels")
-                .or_else(|| get_str("audio-params/channel-layout"))
-                .or_else(|| get_str("audio-params/channels"))
-            {
-                if !raw_layout.is_empty() { stats.audio_channel_layout = raw_layout; }
-            }
-            stats.audio_bitrate = get_int("audio-bitrate").unwrap_or(0);
-            let active_format = get_str("audio-params/format").unwrap_or_default();
-            let mut active_bd = get_int("audio-params/bits-per-sample")
-                .or_else(|| get_int("audio-bitdepth"))
-                .or_else(|| get_int("demux-bitdepth"))
-                .unwrap_or(0);
-            if active_bd == 0 {
-                if active_format.contains("24") {
-                    active_bd = 24;
-                } else if active_format.contains("16") {
-                    active_bd = 16;
-                } else if active_format.contains("32") || active_format.contains("flt") || active_format.contains("float") {
-                    let ac_low = stats.audio_codec.to_lowercase();
-                    if ac_low.contains("truehd") || ac_low.contains("dts-hd") || ac_low.contains("flac") {
+
+                if stats.video_width == 0 {
+                    stats.video_width = get_int("video-params/w").unwrap_or(0) as u32;
+                    stats.video_height = get_int("video-params/h").unwrap_or(0) as u32;
+                    stats.video_fps = get_double("container-fps").or_else(|| get_double("estimated-vf-fps")).unwrap_or(0.0);
+                    stats.video_codec = get_str("video-codec").unwrap_or_default();
+                    stats.video_format = get_str("video-format").unwrap_or_default();
+                    stats.pixel_format = get_str("video-params/pixelformat").unwrap_or_default();
+                }
+                stats.video_bitrate = get_int("video-bitrate").unwrap_or(0);
+                stats.audio_codec = get_str("audio-codec").unwrap_or_default();
+                stats.audio_sample_rate = get_int("audio-params/samplerate").unwrap_or(0);
+                if let Some(ch) = get_int("audio-params/channel-count").or_else(|| get_int("audio-params/channels")) {
+                    if ch > 0 { stats.audio_channels = ch; }
+                }
+                if let Some(raw_layout) = get_str("audio-params/hr-channels")
+                    .or_else(|| get_str("audio-params/channel-layout"))
+                    .or_else(|| get_str("audio-params/channels"))
+                {
+                    if !raw_layout.is_empty() { stats.audio_channel_layout = raw_layout; }
+                }
+                stats.audio_bitrate = get_int("audio-bitrate").unwrap_or(0);
+                let active_format = get_str("audio-params/format").unwrap_or_default();
+                let mut active_bd = get_int("audio-params/bits-per-sample")
+                    .or_else(|| get_int("audio-bitdepth"))
+                    .or_else(|| get_int("demux-bitdepth"))
+                    .unwrap_or(0);
+                if active_bd == 0 {
+                    if active_format.contains("24") {
                         active_bd = 24;
-                    } else {
+                    } else if active_format.contains("16") {
                         active_bd = 16;
-                    }
-                } else {
-                    let ac_low = stats.audio_codec.to_lowercase();
-                    if ac_low.contains("truehd") || ac_low.contains("dts-hd") {
-                        active_bd = 24;
+                    } else if active_format.contains("32") || active_format.contains("flt") || active_format.contains("float") {
+                        let ac_low = stats.audio_codec.to_lowercase();
+                        if ac_low.contains("truehd") || ac_low.contains("dts-hd") || ac_low.contains("flac") {
+                            active_bd = 24;
+                        } else {
+                            active_bd = 16;
+                        }
+                    } else {
+                        let ac_low = stats.audio_codec.to_lowercase();
+                        if ac_low.contains("truehd") || ac_low.contains("dts-hd") {
+                            active_bd = 24;
+                        }
                     }
                 }
-            }
-            stats.audio_bit_depth = active_bd;
+                stats.audio_bit_depth = active_bd;
 
-            // Audio output format parameters queried directly from backend AO hardware driver
-            stats.audio_out_sample_rate = get_int("ao-params/samplerate")
-                .or_else(|| get_int("audio-out-params/samplerate"))
-                .unwrap_or(stats.audio_sample_rate);
-            stats.audio_out_channels = get_int("ao-params/channel-count")
-                .or_else(|| get_int("audio-out-params/channel-count"))
-                .unwrap_or(stats.audio_channels);
+                // Audio output format parameters queried directly from backend AO hardware driver
+                stats.audio_out_sample_rate = get_int("ao-params/samplerate")
+                    .or_else(|| get_int("audio-out-params/samplerate"))
+                    .unwrap_or(stats.audio_sample_rate);
+                stats.audio_out_channels = get_int("ao-params/channel-count")
+                    .or_else(|| get_int("audio-out-params/channel-count"))
+                    .unwrap_or(stats.audio_channels);
 
-            let ao_bits = get_int("ao-params/bits-per-sample")
-                .or_else(|| get_int("audio-out-params/bits-per-sample"))
-                .unwrap_or(0);
-            let out_format = get_str("ao-params/format")
-                .or_else(|| get_str("audio-out-params/format"))
-                .unwrap_or_default();
+                let ao_bits = get_int("ao-params/bits-per-sample")
+                    .or_else(|| get_int("audio-out-params/bits-per-sample"))
+                    .unwrap_or(0);
+                let out_format = get_str("ao-params/format")
+                    .or_else(|| get_str("audio-out-params/format"))
+                    .unwrap_or_default();
 
-            stats.audio_out_bit_depth = if ao_bits > 0 {
-                ao_bits
-            } else if out_format.contains("32") || out_format.contains("float") || out_format.contains("flt") {
-                if active_bd > 16 { active_bd } else { 24 }
-            } else if out_format.contains("24") || out_format.contains("s24") {
-                24
-            } else if out_format.contains("16") || out_format.contains("s16") {
-                16
-            } else if active_bd > 0 {
-                active_bd
-            } else {
-                24
-            };
-
-            stats.decoder_name = get_str("video-decoder-name")
-                .or_else(|| get_str("decoder-name"))
-                .unwrap_or_default();
-            stats.audio_decoder_name = get_str("audio-decoder-name")
-                .unwrap_or_default();
-            stats.file_format = get_str("file-format")
-                .or_else(|| get_str("demuxer"))
-                .unwrap_or_default();
-            stats.video_out_pixel_format = get_str("video-out-params/pixelformat")
-                .or_else(|| get_str("video-target-params/pixelformat"))
-                .unwrap_or_else(|| stats.pixel_format.clone());
-            stats.video_out_width = get_int("osd-width")
-                .or_else(|| get_int("video-target-params/w"))
-                .or_else(|| get_int("video-out-params/dw"))
-                .or_else(|| get_int("dwidth"))
-                .or_else(|| get_int("video-out-params/w"))
-                .unwrap_or(stats.video_width as i64) as u32;
-            stats.video_out_height = get_int("osd-height")
-                .or_else(|| get_int("video-target-params/h"))
-                .or_else(|| get_int("video-out-params/dh"))
-                .or_else(|| get_int("dheight"))
-                .or_else(|| get_int("video-out-params/h"))
-                .unwrap_or(stats.video_height as i64) as u32;
-            let plane_depth = get_int("video-params/plane-depth").unwrap_or(0);
-            stats.video_bit_depth = if plane_depth > 0 {
-                plane_depth as u32
-            } else if stats.pixel_format.contains("10") || stats.pixel_format.contains("p010") {
-                10
-            } else if stats.pixel_format.contains("12") {
-                12
-            } else if !stats.pixel_format.is_empty() {
-                8
-            } else {
-                0
-            };
-
-            stats.audio_format_str = active_format;
-            stats.hwdec_setting = get_str("hwdec").unwrap_or_else(|| "auto-safe".to_string());
-            stats.hwdec_current = get_str("hwdec-current").unwrap_or_else(|| "no".to_string());
-            stats.selected_secondary_subtitle_track = get_int("secondary-sid").unwrap_or(0);
-            stats.dropped_frames = get_int("drop-frame-count").unwrap_or(0);
-            stats.aspect_ratio = get_str("video-aspect-override").unwrap_or_else(|| "auto".to_string());
-            stats.audio_delay = get_double("audio-delay").unwrap_or(0.0);
-            stats.subtitle_delay = get_double("sub-delay").unwrap_or(0.0);
-            stats.subtitles_visible = get_bool("sub-visibility").unwrap_or(true);
-            stats.current_sub_text = get_str("sub-text").unwrap_or_default();
-            stats.cache_buffer_percent = get_double("demuxer-cache-state/cache-end-duration")
-                .map(|dur| if stats.duration > 0.0 { (dur / stats.duration * 100.0).clamp(0.0, 100.0) } else { 0.0 })
-                .unwrap_or(0.0);
-
-            // HDR & Color Metadata Extraction
-            stats.colormatrix = get_str("video-params/colormatrix").unwrap_or_default();
-            stats.primaries = get_str("video-params/primaries").unwrap_or_default();
-            stats.gamma = get_str("video-params/gamma").unwrap_or_default();
-            stats.colorlevels = get_str("video-params/colorlevels").unwrap_or_default();
-            stats.sig_peak = get_double("video-params/sig-peak").unwrap_or(100.0);
-            stats.hdr_tone_mapping = get_str("tone-mapping").unwrap_or_else(|| "auto".to_string());
-
-            let is_pq_or_hlg = stats.gamma.contains("pq") || stats.gamma.contains("hlg") || stats.gamma.contains("smpte2084");
-            let is_bt2020 = stats.primaries.contains("bt.2020") || stats.colormatrix.contains("bt.2020");
-            stats.is_hdr = is_pq_or_hlg || is_bt2020 || stats.sig_peak > 100.0;
-
-            stats.hdr_format = if stats.gamma.contains("hlg") {
-                "HLG".to_string()
-            } else if is_pq_or_hlg {
-                if stats.sig_peak > 1000.0 {
-                    format!("HDR10 ({:.0} nits)", stats.sig_peak)
+                stats.audio_out_bit_depth = if ao_bits > 0 {
+                    ao_bits
+                } else if out_format.contains("32") || out_format.contains("float") || out_format.contains("flt") {
+                    if active_bd > 16 { active_bd } else { 24 }
+                } else if out_format.contains("24") || out_format.contains("s24") {
+                    24
+                } else if out_format.contains("16") || out_format.contains("s16") {
+                    16
+                } else if active_bd > 0 {
+                    active_bd
                 } else {
-                    "HDR10 (PQ)".to_string()
-                }
-            } else if is_bt2020 {
-                "BT.2020 Wide Color".to_string()
-            } else {
-                "SDR (BT.709)".to_string()
-            };
+                    24
+                };
 
-            // Chapter Polling (cached on media load)
-            if needs_metadata || stats.chapters.is_empty() {
+                stats.decoder_name = get_str("video-decoder-name")
+                    .or_else(|| get_str("decoder-name"))
+                    .unwrap_or_default();
+                stats.audio_decoder_name = get_str("audio-decoder-name")
+                    .unwrap_or_default();
+                stats.file_format = get_str("file-format")
+                    .or_else(|| get_str("demuxer"))
+                    .unwrap_or_default();
+                stats.video_out_pixel_format = get_str("video-out-params/pixelformat")
+                    .or_else(|| get_str("video-target-params/pixelformat"))
+                    .unwrap_or_else(|| stats.pixel_format.clone());
+                stats.video_out_width = get_int("osd-width")
+                    .or_else(|| get_int("video-target-params/w"))
+                    .or_else(|| get_int("video-out-params/dw"))
+                    .or_else(|| get_int("dwidth"))
+                    .or_else(|| get_int("video-out-params/w"))
+                    .unwrap_or(stats.video_width as i64) as u32;
+                stats.video_out_height = get_int("osd-height")
+                    .or_else(|| get_int("video-target-params/h"))
+                    .or_else(|| get_int("video-out-params/dh"))
+                    .or_else(|| get_int("dheight"))
+                    .or_else(|| get_int("video-out-params/h"))
+                    .unwrap_or(stats.video_height as i64) as u32;
+                let plane_depth = get_int("video-params/plane-depth").unwrap_or(0);
+                stats.video_bit_depth = if plane_depth > 0 {
+                    plane_depth as u32
+                } else if stats.pixel_format.contains("10") || stats.pixel_format.contains("p010") {
+                    10
+                } else if stats.pixel_format.contains("12") {
+                    12
+                } else if !stats.pixel_format.is_empty() {
+                    8
+                } else {
+                    0
+                };
+
+                stats.audio_format_str = active_format;
+
+                let override_val = get_str("video-aspect-override").unwrap_or_else(|| "auto".to_string());
+                let panscan_val = get_double("panscan").unwrap_or(0.0);
+                let keepaspect_val = get_bool("keepaspect").unwrap_or(true);
+                stats.aspect_ratio = if !keepaspect_val {
+                    "fill".to_string()
+                } else if panscan_val >= 0.95 {
+                    "crop_fill".to_string()
+                } else if override_val == "no" || override_val == "-2.000000" || override_val == "-2" || override_val == "-1.000000" {
+                    "auto".to_string()
+                } else {
+                    override_val
+                };
+
+                // HDR & Color Metadata Extraction
+                stats.colormatrix = get_str("video-params/colormatrix").unwrap_or_default();
+                stats.primaries = get_str("video-params/primaries").unwrap_or_default();
+                stats.gamma = get_str("video-params/gamma").unwrap_or_default();
+                stats.colorlevels = get_str("video-params/colorlevels").unwrap_or_default();
+                stats.sig_peak = get_double("video-params/sig-peak").unwrap_or(100.0);
+                stats.hdr_tone_mapping = get_str("tone-mapping").unwrap_or_else(|| "auto".to_string());
+
+                let is_pq_or_hlg = stats.gamma.contains("pq") || stats.gamma.contains("hlg") || stats.gamma.contains("smpte2084");
+                let is_bt2020 = stats.primaries.contains("bt.2020") || stats.colormatrix.contains("bt.2020");
+                stats.is_hdr = is_pq_or_hlg || is_bt2020 || stats.sig_peak > 100.0;
+
+                stats.hdr_format = if stats.gamma.contains("hlg") {
+                    "HLG".to_string()
+                } else if is_pq_or_hlg {
+                    if stats.sig_peak > 1000.0 {
+                        format!("HDR10 ({:.0} nits)", stats.sig_peak)
+                    } else {
+                        "HDR10 (PQ)".to_string()
+                    }
+                } else if is_bt2020 {
+                    "BT.2020 Wide Color".to_string()
+                } else {
+                    "SDR (BT.709)".to_string()
+                };
+
+                // Chapter Polling (cached once on media load)
                 let ch_count = get_int("chapter-list/count").or_else(|| get_int("chapters")).unwrap_or(0);
                 if ch_count > 0 {
                     let mut chapters = Vec::new();
@@ -2320,28 +2508,84 @@ impl Player {
                     }
                     stats.chapters = chapters;
                 }
+
+                stats.has_loaded_metadata = true;
             }
 
-            // Track Polling (cached on media load or when track count changes)
-            if needs_metadata || tracks_changed {
+            // Track Polling: probed after playback is stable or when track count genuinely changes.
+            // Explicitly accounts for video tracks in known_track_count so video files never look "changed"!
+            let cur_track_count = if is_playback_stable {
+                if is_slow || stats.total_tracks_count == 0 {
+                    get_int("track-list/count").unwrap_or(0) as usize
+                } else {
+                    stats.total_tracks_count
+                }
+            } else {
+                0
+            };
+
+            let known_track_count = stats.video_tracks_count + stats.audio_tracks.len() + stats.subtitle_tracks.len();
+            let tracks_changed = is_playback_stable && cur_track_count > 0 && cur_track_count != known_track_count;
+
+            if tracks_changed {
                 stats.selected_audio_track = get_int("aid").unwrap_or(1);
                 stats.selected_subtitle_track = get_int("sid").unwrap_or(1);
 
-                if let Some(track_count) = get_int("track-list/count") {
                 let mut audio_tracks = Vec::new();
                 let mut subtitle_tracks = Vec::new();
                 let mut audio_stream_counter = 0;
                 let mut sub_stream_counter = 0;
+                let mut video_track_count = 0;
 
-                for i in 0..track_count {
+                for i in 0..cur_track_count {
                     let track_type = get_str(&format!("track-list/{}/type", i)).unwrap_or_default();
-                    let id = get_int(&format!("track-list/{}/id", i)).unwrap_or(i + 1);
+                    let id = get_int(&format!("track-list/{}/id", i)).unwrap_or(i as i64 + 1);
                     let title = get_str(&format!("track-list/{}/title", i)).unwrap_or_default();
                     let lang = get_str(&format!("track-list/{}/lang", i)).unwrap_or_default();
                     let codec = get_str(&format!("track-list/{}/codec", i)).unwrap_or_default();
                     let is_default = get_bool(&format!("track-list/{}/default", i)).unwrap_or(false);
                     let is_selected = get_bool(&format!("track-list/{}/selected", i)).unwrap_or(false);
 
+                    // Count video tracks so known_track_count accounts for video + audio + subtitles
+                    if track_type == "video" {
+                        video_track_count += 1;
+                        continue;
+                    }
+
+                    if track_type == "sub" {
+                        sub_stream_counter += 1;
+                        let display_title = if !title.is_empty() {
+                            if !lang.is_empty() {
+                                format!("{} [{}] ({})", title, lang, codec)
+                            } else {
+                                format!("{} ({})", title, codec)
+                            }
+                        } else if !lang.is_empty() {
+                            format!("Subtitle {} [{}] ({})", sub_stream_counter, lang, codec)
+                        } else {
+                            format!("Subtitle {} ({})", sub_stream_counter, codec)
+                        };
+
+                        subtitle_tracks.push(TrackInfo {
+                            id,
+                            title: display_title,
+                            lang,
+                            codec,
+                            channels: String::new(),
+                            channel_count: 0,
+                            sample_rate: 0,
+                            bit_depth: 0,
+                            bitrate: 0,
+                            byte_count: 0,
+                            element_count: 0,
+                            is_default,
+                            is_selected,
+                        });
+                        continue;
+                    }
+
+                    // Otherwise track_type == "audio"
+                    audio_stream_counter += 1;
                     let channels_str = get_str(&format!("track-list/{}/demux-channels", i))
                         .or_else(|| get_str(&format!("track-list/{}/audio-channels", i)))
                         .unwrap_or_default();
@@ -2359,7 +2603,7 @@ impl Player {
                         .or_else(|| get_int(&format!("track-list/{}/audio-params/bitdepth", i)))
                         .unwrap_or(0);
 
-                    // 1. Check title and metadata for bit depth
+                    // 1. Check title for bit depth hints
                     if bit_depth == 0 {
                         let t_lower = title.to_lowercase();
                         if t_lower.contains("24-bit") || t_lower.contains("24 bit") || t_lower.contains("24bit") {
@@ -2371,27 +2615,11 @@ impl Player {
                         }
                     }
 
-                    if bit_depth == 0 {
-                        for tag in &[
-                            "BITS_PER_SAMPLE", "bits_per_sample", "BITS_PER_SAMPLE-eng", "BITS_PER_SAMPLE-jpn",
-                            "BITS_PER_SAMPLE-ja", "BITS_PER_SAMPLE-und", "BIT_DEPTH", "bit_depth", "bps_per_sample"
-                        ] {
-                            if let Some(bd_str) = get_str(&format!("track-list/{}/metadata/{}", i, tag)) {
-                                if let Ok(bd) = bd_str.trim().parse::<i64>() {
-                                    if bd > 0 {
-                                        bit_depth = bd;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     // Format string check (e.g. s24, s16, s32, float)
-                    let track_audio_format = get_str(&format!("track-list/{}/audio-params/format", i))
-                        .or_else(|| get_str(&format!("track-list/{}/format", i)))
-                        .unwrap_or_default();
                     if bit_depth == 0 {
+                        let track_audio_format = get_str(&format!("track-list/{}/audio-params/format", i))
+                            .or_else(|| get_str(&format!("track-list/{}/format", i)))
+                            .unwrap_or_default();
                         if track_audio_format.contains("24") {
                             bit_depth = 24;
                         } else if track_audio_format.contains("16") {
@@ -2402,7 +2630,7 @@ impl Player {
                     }
 
                     // Codec heuristics for lossless master audio
-                    if bit_depth == 0 && track_type == "audio" {
+                    if bit_depth == 0 {
                         let c_lower = codec.to_lowercase();
                         if c_lower.contains("truehd") || c_lower.contains("dts-hd") || c_lower.contains("pcm_s24") {
                             bit_depth = 24;
@@ -2413,53 +2641,45 @@ impl Player {
                         }
                     }
 
-                    // 2. Check MKV/MP4 container metadata tags for bit rate
-                    if bitrate == 0 {
-                        for tag in &[
-                            "BPS", "bps", "BPS-eng", "BPS-jpn", "BPS-ja", "BPS-und", "BITRATE", "bitrate", "BPS_ENG", "BPS_JPN"
-                        ] {
-                            if let Some(bps_str) = get_str(&format!("track-list/{}/metadata/{}", i, tag)) {
-                                if let Ok(bps) = bps_str.trim().parse::<i64>() {
-                                    if bps > 0 {
-                                        bitrate = bps;
-                                        break;
-                                    }
-                                }
+                    // Targeted metadata tag lookup for BITS_PER_SAMPLE only if still unknown
+                    if bit_depth == 0 {
+                        if let Some(bd_str) = get_str(&format!("track-list/{}/metadata/BITS_PER_SAMPLE", i))
+                            .or_else(|| if !lang.is_empty() { get_str(&format!("track-list/{}/metadata/BITS_PER_SAMPLE-{}", i, lang)) } else { None })
+                        {
+                            if let Ok(bd) = bd_str.trim().parse::<i64>() {
+                                if bd > 0 { bit_depth = bd; }
                             }
                         }
                     }
 
-                    // 3. Extract byte_count (stream size) and element_count (frame/line count) from metadata
-                    let mut byte_count = 0u64;
-                    for tag in &[
-                        "NUMBER_OF_BYTES", "NUMBER_OF_BYTES-eng", "NUMBER_OF_BYTES-jpn", "NUMBER_OF_BYTES-ja",
-                        "NUMBER_OF_BYTES-und", "NUMBER_OF_BYTES-fra", "NUMBER_OF_BYTES-deu", "NUMBER_OF_BYTES-spa",
-                        "NUMBER_OF_BYTES-ita", "NUMBER_OF_BYTES-chi", "NUMBER_OF_BYTES-zho", "NUMBER_OF_BYTES-kor",
-                        "NUMBER_OF_BYTES-rus", "BYTES", "bytes", "size", "stream_size"
-                    ] {
-                        if let Some(bytes_str) = get_str(&format!("track-list/{}/metadata/{}", i, tag)) {
-                            if let Ok(bytes) = bytes_str.trim().parse::<u64>() {
-                                if bytes > 0 {
-                                    byte_count = bytes;
-                                    break;
-                                }
+                    // Targeted metadata tag lookup for BPS only if still unknown
+                    if bitrate == 0 {
+                        if let Some(bps_str) = get_str(&format!("track-list/{}/metadata/BPS", i))
+                            .or_else(|| if !lang.is_empty() { get_str(&format!("track-list/{}/metadata/BPS-{}", i, lang)) } else { None })
+                        {
+                            if let Ok(bps) = bps_str.trim().parse::<i64>() {
+                                if bps > 0 { bitrate = bps; }
                             }
+                        }
+                    }
+
+                    // Targeted metadata lookup for stream size
+                    let mut byte_count = 0u64;
+                    if let Some(bytes_str) = get_str(&format!("track-list/{}/metadata/NUMBER_OF_BYTES", i))
+                        .or_else(|| if !lang.is_empty() { get_str(&format!("track-list/{}/metadata/NUMBER_OF_BYTES-{}", i, lang)) } else { None })
+                        .or_else(|| get_str(&format!("track-list/{}/metadata/BYTES", i)))
+                    {
+                        if let Ok(bytes) = bytes_str.trim().parse::<u64>() {
+                            byte_count = bytes;
                         }
                     }
 
                     let mut element_count = 0i64;
-                    for tag in &[
-                        "NUMBER_OF_FRAMES", "NUMBER_OF_FRAMES-eng", "NUMBER_OF_FRAMES-jpn", "NUMBER_OF_FRAMES-ja",
-                        "NUMBER_OF_FRAMES-und", "NUMBER_OF_ELEMENTS", "NUMBER_OF_ELEMENTS-eng", "NUMBER_OF_ELEMENTS-jpn",
-                        "NUMBER_OF_ELEMENTS-ja", "NUMBER_OF_ELEMENTS-und", "NUMBER_OF_ENTRIES", "NUMBER_OF_ENTRIES-eng"
-                    ] {
-                        if let Some(elem_str) = get_str(&format!("track-list/{}/metadata/{}", i, tag)) {
-                            if let Ok(elem) = elem_str.trim().parse::<i64>() {
-                                if elem > 0 {
-                                    element_count = elem;
-                                    break;
-                                }
-                            }
+                    if let Some(elem_str) = get_str(&format!("track-list/{}/metadata/NUMBER_OF_FRAMES", i))
+                        .or_else(|| if !lang.is_empty() { get_str(&format!("track-list/{}/metadata/NUMBER_OF_FRAMES-{}", i, lang)) } else { None })
+                    {
+                        if let Ok(elem) = elem_str.trim().parse::<i64>() {
+                            element_count = elem;
                         }
                     }
 
@@ -2470,7 +2690,7 @@ impl Player {
                         byte_count = ((bitrate as f64 * stats.duration) / 8.0) as u64;
                     }
 
-                    // 4. If this track is currently active, backfill from active audio stats
+                    // Backfill from active audio stats if currently active
                     if is_selected || id == stats.selected_audio_track {
                         if channel_count == 0 && stats.audio_channels > 0 {
                             channel_count = stats.audio_channels;
@@ -2487,7 +2707,6 @@ impl Player {
                             bit_depth = stats.audio_bit_depth;
                         }
                     } else {
-                        // 4. Inactive track: inherit active bitrate if sharing codec & channel count, or sample rate
                         if bitrate == 0 && stats.audio_bitrate > 0 {
                             if !codec.is_empty() && codec.to_lowercase() == stats.audio_codec.to_lowercase() {
                                 bitrate = stats.audio_bitrate;
@@ -2504,7 +2723,6 @@ impl Player {
                         }
                     }
 
-                    // If byte_count still 0 but bitrate was backfilled
                     if byte_count == 0 && bitrate > 0 && stats.duration > 0.0 {
                         byte_count = ((bitrate as f64 * stats.duration) / 8.0) as u64;
                     }
@@ -2526,123 +2744,104 @@ impl Player {
                         String::new()
                     };
 
-                    // Format audio track detail parts
-                    let display_title = if track_type == "audio" {
-                        audio_stream_counter += 1;
-
-                        // 1. Language formatted name
-                        let lang_lower = lang.to_lowercase();
-                        let lang_formatted = match lang_lower.as_str() {
-                            "jpn" | "ja" | "japanese" => "Japanese (jpn)".to_string(),
-                            "eng" | "en" | "english" => "English".to_string(),
-                            "kor" | "ko" | "korean" => "Korean (kor)".to_string(),
-                            "chi" | "zho" | "zh" | "chinese" => "Chinese (chi)".to_string(),
-                            "fre" | "fra" | "fr" | "french" => "French (fre)".to_string(),
-                            "ger" | "deu" | "de" | "german" => "German (ger)".to_string(),
-                            "spa" | "es" | "spanish" => "Spanish (spa)".to_string(),
-                            "ita" | "it" | "italian" => "Italian (ita)".to_string(),
-                            "rus" | "ru" | "russian" => "Russian (rus)".to_string(),
-                            "por" | "pt" | "portuguese" => "Portuguese (por)".to_string(),
-                            "hin" | "hi" | "hindi" => "Hindi (hin)".to_string(),
-                            _ => {
-                                if !title.is_empty() {
-                                    title.clone()
-                                } else if !lang.is_empty() {
-                                    format!("{} ({})", lang, lang)
-                                } else {
-                                    "Audio".to_string()
-                                }
-                            }
-                        };
-
-                        let head = if !title.is_empty() {
-                            if title.to_lowercase().contains(&lang_lower) || lang_lower.is_empty() {
-                                if is_default {
-                                    format!("{} (Audio {}) <Default>", title, audio_stream_counter)
-                                } else {
-                                    format!("{} (Audio {})", title, audio_stream_counter)
-                                }
+                    // Format audio track title and details
+                    let lang_lower = lang.to_lowercase();
+                    let lang_formatted = match lang_lower.as_str() {
+                        "jpn" | "ja" | "japanese" => "Japanese (jpn)".to_string(),
+                        "eng" | "en" | "english" => "English".to_string(),
+                        "kor" | "ko" | "korean" => "Korean (kor)".to_string(),
+                        "chi" | "zho" | "zh" | "chinese" => "Chinese (chi)".to_string(),
+                        "fre" | "fra" | "fr" | "french" => "French (fre)".to_string(),
+                        "ger" | "deu" | "de" | "german" => "German (ger)".to_string(),
+                        "spa" | "es" | "spanish" => "Spanish (spa)".to_string(),
+                        "ita" | "it" | "italian" => "Italian (ita)".to_string(),
+                        "rus" | "ru" | "russian" => "Russian (rus)".to_string(),
+                        "por" | "pt" | "portuguese" => "Portuguese (por)".to_string(),
+                        "hin" | "hi" | "hindi" => "Hindi (hin)".to_string(),
+                        _ => {
+                            if !title.is_empty() {
+                                title.clone()
+                            } else if !lang.is_empty() {
+                                format!("{} ({})", lang, lang)
                             } else {
-                                if is_default {
-                                    format!("{} - {} (Audio {}) <Default>", lang_formatted, title, audio_stream_counter)
-                                } else {
-                                    format!("{} - {} (Audio {})", lang_formatted, title, audio_stream_counter)
-                                }
+                                "Audio".to_string()
+                            }
+                        }
+                    };
+
+                    let head = if !title.is_empty() {
+                        if title.to_lowercase().contains(&lang_lower) || lang_lower.is_empty() {
+                            if is_default {
+                                format!("{} (Audio {}) <Default>", title, audio_stream_counter)
+                            } else {
+                                format!("{} (Audio {})", title, audio_stream_counter)
                             }
                         } else {
                             if is_default {
-                                format!("{} (Audio {}) <Default>", lang_formatted, audio_stream_counter)
+                                format!("{} - {} (Audio {}) <Default>", lang_formatted, title, audio_stream_counter)
                             } else {
-                                format!("{} (Audio {})", lang_formatted, audio_stream_counter)
+                                format!("{} - {} (Audio {})", lang_formatted, title, audio_stream_counter)
                             }
-                        };
-
-                        // 3. Right side codec/specs: e.g. "Dolby TrueHD, 48.0 kHz, 5.1 Ch"
-                        let codec_formatted = if codec.to_lowercase().contains("truehd") {
-                            "TrueHD"
-                        } else if codec.to_lowercase().contains("flac") {
-                            "FLAC"
-                        } else if codec.to_lowercase().contains("aac") {
-                            "AAC"
-                        } else if codec.to_lowercase().contains("dts") {
-                            "DTS"
-                        } else if codec.to_lowercase().contains("opus") {
-                            "Opus"
-                        } else if codec.to_lowercase().contains("ac3") || codec.to_lowercase().contains("eac3") {
-                            "EAC3"
-                        } else if !codec.is_empty() {
-                            codec.as_str()
-                        } else {
-                            "Audio"
-                        };
-
-                        let sr_formatted = if sample_rate > 0 {
-                            format!("{:.1} kHz", (sample_rate as f64) / 1000.0)
-                        } else if stats.audio_sample_rate > 0 {
-                            format!("{:.1} kHz", (stats.audio_sample_rate as f64) / 1000.0)
-                        } else {
-                            "48.0 kHz".to_string()
-                        };
-
-                        let ch_formatted = if !ch_display.is_empty() {
-                            ch_display.clone()
-                        } else if stats.audio_channels == 6 {
-                            "5.1 Ch".to_string()
-                        } else if stats.audio_channels == 2 {
-                            "2.0 Ch".to_string()
-                        } else {
-                            "5.1 Ch".to_string()
-                        };
-
-                        let mut specs = Vec::new();
-                        specs.push(codec_formatted.to_string());
-                        specs.push(sr_formatted);
-                        if bit_depth > 0 {
-                            specs.push(format!("{}-bit", bit_depth));
-                        } else if is_selected && stats.audio_bit_depth > 0 {
-                            specs.push(format!("{}-bit", stats.audio_bit_depth));
                         }
-                        if !ch_formatted.is_empty() {
-                            specs.push(ch_formatted);
-                        }
-
-                        format!("{} - {}", head, specs.join(", "))
-                    } else if !title.is_empty() {
-                        sub_stream_counter += 1;
-                        if !lang.is_empty() {
-                            format!("{} [{}] ({})", title, lang, codec)
-                        } else {
-                            format!("{} ({})", title, codec)
-                        }
-                    } else if !lang.is_empty() {
-                        sub_stream_counter += 1;
-                        format!("Subtitle {} [{}] ({})", sub_stream_counter, lang, codec)
                     } else {
-                        sub_stream_counter += 1;
-                        format!("Subtitle {} ({})", sub_stream_counter, codec)
+                        if is_default {
+                            format!("{} (Audio {}) <Default>", lang_formatted, audio_stream_counter)
+                        } else {
+                            format!("{} (Audio {})", lang_formatted, audio_stream_counter)
+                        }
                     };
 
-                    let info = TrackInfo {
+                    let codec_formatted = if codec.to_lowercase().contains("truehd") {
+                        "TrueHD"
+                    } else if codec.to_lowercase().contains("flac") {
+                        "FLAC"
+                    } else if codec.to_lowercase().contains("aac") {
+                        "AAC"
+                    } else if codec.to_lowercase().contains("dts") {
+                        "DTS"
+                    } else if codec.to_lowercase().contains("opus") {
+                        "Opus"
+                    } else if codec.to_lowercase().contains("ac3") || codec.to_lowercase().contains("eac3") {
+                        "EAC3"
+                    } else if !codec.is_empty() {
+                        codec.as_str()
+                    } else {
+                        "Audio"
+                    };
+
+                    let sr_formatted = if sample_rate > 0 {
+                        format!("{:.1} kHz", (sample_rate as f64) / 1000.0)
+                    } else if stats.audio_sample_rate > 0 {
+                        format!("{:.1} kHz", (stats.audio_sample_rate as f64) / 1000.0)
+                    } else {
+                        "48.0 kHz".to_string()
+                    };
+
+                    let ch_formatted = if !ch_display.is_empty() {
+                        ch_display.clone()
+                    } else if stats.audio_channels == 6 {
+                        "5.1 Ch".to_string()
+                    } else if stats.audio_channels == 2 {
+                        "2.0 Ch".to_string()
+                    } else {
+                        "5.1 Ch".to_string()
+                    };
+
+                    let mut specs = Vec::new();
+                    specs.push(codec_formatted.to_string());
+                    specs.push(sr_formatted);
+                    if bit_depth > 0 {
+                        specs.push(format!("{}-bit", bit_depth));
+                    } else if is_selected && stats.audio_bit_depth > 0 {
+                        specs.push(format!("{}-bit", stats.audio_bit_depth));
+                    }
+                    if !ch_formatted.is_empty() {
+                        specs.push(ch_formatted);
+                    }
+
+                    let display_title = format!("{} - {}", head, specs.join(", "));
+
+                    audio_tracks.push(TrackInfo {
                         id,
                         title: display_title,
                         lang,
@@ -2656,13 +2855,7 @@ impl Player {
                         element_count,
                         is_default,
                         is_selected,
-                    };
-
-                    if track_type == "audio" {
-                        audio_tracks.push(info);
-                    } else if track_type == "sub" {
-                        subtitle_tracks.push(info);
-                    }
+                    });
                 }
 
                 if let Some(active_track) = audio_tracks.iter().find(|t| t.is_selected) {
@@ -2693,8 +2886,8 @@ impl Player {
 
                 stats.audio_tracks = audio_tracks;
                 stats.subtitle_tracks = subtitle_tracks;
-            }
-            }
+                stats.video_tracks_count = video_track_count;
+                stats.total_tracks_count = cur_track_count;
             }
 
         // Atomically publish updated snapshot to shared Mutex in < 1 microsecond

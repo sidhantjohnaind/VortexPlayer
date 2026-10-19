@@ -9,7 +9,7 @@ use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Instant;
 
@@ -31,7 +31,7 @@ pub struct SeekPreviewEngine {
     failed_keys: HashMap<(PathBuf, u64), Instant>,
     recent_keys: VecDeque<(PathBuf, u64)>,
     inflight: HashMap<(PathBuf, u64), Instant>,
-    latest_req: Arc<Mutex<Option<ThumbnailRequest>>>,
+    latest_req: Arc<(Mutex<Option<ThumbnailRequest>>, Condvar)>,
     res_rx: Receiver<ThumbnailResponse>,
     last_rendered_tex: Option<TextureHandle>,
 }
@@ -39,92 +39,100 @@ pub struct SeekPreviewEngine {
 impl Default for SeekPreviewEngine {
     fn default() -> Self {
         let (res_tx, res_rx) = channel::<ThumbnailResponse>();
-        let latest_req = Arc::new(Mutex::new(None::<ThumbnailRequest>));
+        let latest_req = Arc::new((Mutex::new(None::<ThumbnailRequest>), Condvar::new()));
 
-        // Spawn 2 parallel high-speed thumbnail worker threads with LIFO latest request grabbing
-        for thread_idx in 0..2 {
-            let latest_req_clone = Arc::clone(&latest_req);
-            let res_tx_clone = res_tx.clone();
+        let latest_req_clone = Arc::clone(&latest_req);
+        let res_tx_clone = res_tx.clone();
 
-            thread::Builder::new()
-                .name(format!("vortex_seek_thumb_{}", thread_idx))
-                .spawn(move || {
-                    loop {
-                        let req_opt = {
-                            let mut lock = match latest_req_clone.lock() {
-                                Ok(l) => l,
-                                Err(_) => break,
-                            };
-                            lock.take()
+        thread::Builder::new()
+            .name("vortex_seek_thumb".to_string())
+            .spawn(move || {
+                let (lock, cvar) = &*latest_req_clone;
+                loop {
+                    let req = {
+                        let guard = match lock.lock() {
+                            Ok(g) => g,
+                            Err(_) => break,
                         };
-
-                        let req = match req_opt {
-                            Some(r) => r,
-                            None => {
-                                thread::sleep(std::time::Duration::from_millis(8));
-                                continue;
-                            }
-                        };
-
-                        if !req.file_path.exists() {
-                            let _ = res_tx_clone.send(ThumbnailResponse {
-                                file_path: req.file_path,
-                                slot: req.slot,
-                                image: None,
-                            });
-                            continue;
+                        match cvar.wait_while(guard, |g| g.is_none()) {
+                            Ok(mut g) => g.take(),
+                            Err(_) => break,
                         }
+                    };
 
-                        let time_arg = format!("{:.2}", req.timestamp.max(0.0));
-                        let path_str = req.file_path.to_string_lossy().to_string();
+                    let req = match req {
+                        Some(r) => r,
+                        None => continue,
+                    };
 
-                        let output = crate::platform::silent_command("ffmpeg")
-                            .args([
-                                "-ss",
-                                &time_arg,
-                                "-noaccurate_seek",
-                                "-i",
-                                &path_str,
-                                "-an",
-                                "-sn",
-                                "-dn",
-                                "-vframes",
-                                "1",
-                                "-s",
-                                "192x108",
-                                "-f",
-                                "image2pipe",
-                                "-vcodec",
-                                "mjpeg",
-                                "pipe:1",
-                            ])
-                            .stdout(Stdio::piped())
-                            .stderr(Stdio::null())
-                            .output();
-
-                        let color_img = match output {
-                            Ok(out) if out.status.success() && !out.stdout.is_empty() => {
-                                if let Ok(dyn_img) = image::load_from_memory(&out.stdout) {
-                                    let rgba = dyn_img.to_rgba8();
-                                    let size = [rgba.width() as usize, rgba.height() as usize];
-                                    let pixels = rgba.into_raw();
-                                    Some(ColorImage::from_rgba_unmultiplied(size, &pixels))
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        };
-
+                    if !req.file_path.exists() {
                         let _ = res_tx_clone.send(ThumbnailResponse {
                             file_path: req.file_path,
                             slot: req.slot,
-                            image: color_img,
+                            image: None,
                         });
+                        continue;
                     }
-                })
-                .expect("Failed to spawn seek thumbnail worker thread");
-        }
+
+                    let time_arg = format!("{:.2}", req.timestamp.max(0.0));
+                    let path_str = req.file_path.to_string_lossy().to_string();
+
+                    let mut cmd = crate::platform::silent_command("ffmpeg");
+                    #[cfg(windows)]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        // CREATE_NO_WINDOW (0x08000000) | BELOW_NORMAL_PRIORITY_CLASS (0x00004000)
+                        cmd.creation_flags(0x08000000 | 0x00004000);
+                    }
+                    let output = cmd
+                        .args([
+                            "-ss",
+                            &time_arg,
+                            "-noaccurate_seek",
+                            "-i",
+                            &path_str,
+                            "-an",
+                            "-sn",
+                            "-dn",
+                            "-vframes",
+                            "1",
+                            "-s",
+                            "256x144",
+                            "-f",
+                            "image2pipe",
+                            "-vcodec",
+                            "mjpeg",
+                            "pipe:1",
+                        ])
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output();
+
+                    let color_img = match output {
+                        Ok(out) if out.status.success() && !out.stdout.is_empty() => {
+                            if let Ok(dyn_img) = image::load_from_memory(&out.stdout) {
+                                let rgba = dyn_img.to_rgba8();
+                                let size = [rgba.width() as usize, rgba.height() as usize];
+                                let pixels = rgba.into_raw();
+                                Some(ColorImage::from_rgba_unmultiplied(size, &pixels))
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    };
+
+                    let _ = res_tx_clone.send(ThumbnailResponse {
+                        file_path: req.file_path,
+                        slot: req.slot,
+                        image: color_img,
+                    });
+
+                    // Throttle slightly (40ms) to prevent hammering I/O during fast mouse movement
+                    thread::sleep(std::time::Duration::from_millis(40));
+                }
+            })
+            .expect("Failed to spawn seek thumbnail worker thread");
 
         Self {
             textures: HashMap::new(),
@@ -205,13 +213,19 @@ impl SeekPreviewEngine {
 
         // Request frame if not in flight or failed recently
         if !self.inflight.contains_key(&key) && !self.failed_keys.contains_key(&key) {
-            self.inflight.insert(key.clone(), Instant::now());
-            if let Ok(mut lock) = self.latest_req.lock() {
-                *lock = Some(ThumbnailRequest {
+            let (lock, cvar) = &*self.latest_req;
+            if let Ok(mut g) = lock.lock() {
+                if let Some(ref prev) = *g {
+                    let prev_key = (prev.file_path.clone(), prev.slot);
+                    self.inflight.remove(&prev_key);
+                }
+                *g = Some(ThumbnailRequest {
                     file_path: file_path.to_path_buf(),
                     timestamp: time_secs,
                     slot,
                 });
+                self.inflight.insert(key.clone(), Instant::now());
+                cvar.notify_one();
             }
         }
 

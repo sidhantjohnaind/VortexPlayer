@@ -296,7 +296,7 @@ impl VisualizerSuite {
                 );
 
                 // Phase Axis lines: +45° (L) and -45° (R)
-                let diag = radius * 0.7071;
+                let diag = radius * std::f32::consts::FRAC_1_SQRT_2;
                 painter.line_segment(
                     [Pos2::new(center.x - diag, center.y + diag), Pos2::new(center.x + diag, center.y - diag)],
                     Stroke::new(1.0, Color32::from_rgba_unmultiplied(80, 95, 120, 100)),
@@ -317,8 +317,8 @@ impl VisualizerSuite {
                         let l_val = (t_phase.sin() * 0.8 + (t_phase * 2.3).cos() * 0.3) as f32;
                         let r_val = ((t_phase + 0.35).sin() * 0.8 + (t_phase * 1.7).sin() * 0.25) as f32;
 
-                        let x = center.x + (r_val - l_val) * 0.7071 * radius * vol;
-                        let y = center.y - (r_val + l_val) * 0.7071 * radius * vol;
+                        let x = center.x + (r_val - l_val) * std::f32::consts::FRAC_1_SQRT_2 * radius * vol;
+                        let y = center.y - (r_val + l_val) * std::f32::consts::FRAC_1_SQRT_2 * radius * vol;
 
                         painter.circle_filled(
                             Pos2::new(x, y),

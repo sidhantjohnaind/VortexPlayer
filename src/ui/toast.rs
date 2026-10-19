@@ -115,12 +115,16 @@ impl ToastManager {
 
             let (x, y) = match self.anchor {
                 ToastPosition::BottomLeft => {
-                    let x = screen_rect.left() + 24.0;
+                    // Slide in from the left edge
+                    let slide_offset = (1.0 - fade_in) * -30.0 + (1.0 - fade_out) * 8.0;
+                    let x = screen_rect.left() + 24.0 + slide_offset;
                     let y = screen_rect.bottom() - 85.0 - (i as f32 * (toast_h + gap));
                     (x, y)
                 }
                 ToastPosition::BottomRight => {
-                    let x = screen_rect.right() - toast_w - 24.0;
+                    // Slide in from the right edge
+                    let slide_offset = (1.0 - fade_in) * 30.0 + (1.0 - fade_out) * 8.0;
+                    let x = screen_rect.right() - toast_w - 24.0 + slide_offset;
                     let base_y = if let Some(avoid) = avoid_rect {
                         // Unconditionally float cleanly above the avoid rect with 12px margin!
                         avoid.top() - 12.0 - toast_h
@@ -131,7 +135,9 @@ impl ToastManager {
                     (x, y)
                 }
                 ToastPosition::TopRight => {
-                    let x = screen_rect.right() - toast_w - 24.0;
+                    // Slide in from the right edge
+                    let slide_offset = (1.0 - fade_in) * 30.0 + (1.0 - fade_out) * 8.0;
+                    let x = screen_rect.right() - toast_w - 24.0 + slide_offset;
                     let y = 48.0 + (i as f32 * (toast_h + gap));
                     (x, y)
                 }

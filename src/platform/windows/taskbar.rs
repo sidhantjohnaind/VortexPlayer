@@ -81,6 +81,34 @@ const SUBCLASS_ID: usize = 0x5442; // "TB"
 #[cfg(windows)]
 static CBT_HOOK: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
 static IS_NATIVE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ACTIVE_ASPECT_RATIO_X1000: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static ACTIVE_EXTRA_WIDTH_PX: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static ACTIVE_EXTRA_HEIGHT_PX: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static LOCK_ASPECT_RATIO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static IS_IN_MODAL_SIZE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn is_in_modal_size() -> bool {
+    IS_IN_MODAL_SIZE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn set_active_aspect_ratio(ratio: f32, extra_width_px: u32, extra_height_px: u32) {
+    if ratio > 0.05 {
+        ACTIVE_ASPECT_RATIO_X1000.store((ratio * 1000.0).round() as u32, std::sync::atomic::Ordering::Relaxed);
+    } else {
+        ACTIVE_ASPECT_RATIO_X1000.store(0, std::sync::atomic::Ordering::Relaxed);
+    }
+    ACTIVE_EXTRA_WIDTH_PX.store(extra_width_px, std::sync::atomic::Ordering::Relaxed);
+    ACTIVE_EXTRA_HEIGHT_PX.store(extra_height_px, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn set_lock_aspect_ratio(lock: bool) {
+    LOCK_ASPECT_RATIO.store(lock, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn get_active_aspect_ratio() -> f32 {
+    let r = ACTIVE_ASPECT_RATIO_X1000.load(std::sync::atomic::Ordering::Relaxed);
+    if r > 0 { r as f32 / 1000.0 } else { 0.0 }
+}
 
 pub fn set_native_fullscreen_state(v: bool) {
     IS_NATIVE_FULLSCREEN.store(v, std::sync::atomic::Ordering::Relaxed);
@@ -384,44 +412,101 @@ unsafe extern "system" fn thumbbar_subclass_proc(
         return 1;
     }
 
-    // Handle native hardware window resizing on all 4 borders and 4 corners
+
+
+    // Handle native hardware window resizing on all 4 borders and 4 corners, and native caption dragging
     if msg == WM_NCHITTEST {
-        if !is_native_fullscreen() && IsZoomed(hwnd) == 0 {
+        if !is_native_fullscreen() {
             use windows_sys::Win32::Foundation::RECT;
             let mut wr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
             if GetWindowRect(hwnd, &mut wr) != 0 {
                 let x = ((lparam & 0xffff) as i16) as i32;
                 let y = (((lparam >> 16) & 0xffff) as i16) as i32;
-                let b = 8; // 8px resize edge for reliable mouse grabbing on left, right, bottom
-                let bt = 4; // 4px top edge so titlebar dragging is never interrupted
+                let is_max = IsZoomed(hwnd) != 0;
 
-                let on_left = x >= wr.left - 2 && x < wr.left + b;
-                let on_right = x <= wr.right + 2 && x > wr.right - b;
-                let on_top = y >= wr.top - 2 && y < wr.top + bt;
-                let on_bottom = y <= wr.bottom + 2 && y > wr.bottom - b;
+                // 1. Hardware window border resize edges (only in windowed mode)
+                if !is_max {
+                    let b = 9; // 9px resize edge for reliable mouse grabbing on left, right, bottom
+                    let bt = 3; // 3px top edge so titlebar tapping and buttons are NEVER intercepted!
+                    let corner_zone = 12;
 
-                if on_top && on_left { return HTTOPLEFT as _; }
-                if on_top && on_right { return HTTOPRIGHT as _; }
-                if on_bottom && on_left { return HTBOTTOMLEFT as _; }
-                if on_bottom && on_right { return HTBOTTOMRIGHT as _; }
-                if on_left { return HTLEFT as _; }
-                if on_right { return HTRIGHT as _; }
-                if on_bottom { return HTBOTTOM as _; }
-                if on_top { return HTTOP as _; }
+                    // Protect top-right window buttons (Close, Maximize, Minimize, Pin) from hit-test interception
+                    let in_right_controls = x > wr.right - 145 && y < wr.top + 34;
+
+                    let on_left = x >= wr.left - 2 && x < wr.left + b;
+                    let on_right = !in_right_controls && (x <= wr.right + 2 && x > wr.right - b);
+                    let on_top = !in_right_controls && (y >= wr.top - 2 && y < wr.top + bt);
+                    let on_bottom = y <= wr.bottom + 2 && y > wr.bottom - b;
+
+                    let near_left = x >= wr.left - 2 && x < wr.left + corner_zone;
+                    let near_right = !in_right_controls && (x <= wr.right + 2 && x > wr.right - corner_zone);
+                    let near_top = !in_right_controls && (y >= wr.top - 2 && y < wr.top + corner_zone);
+                    let near_bottom = y <= wr.bottom + 2 && y > wr.bottom - corner_zone;
+
+                    if (on_top && near_left) || (on_left && near_top) { return HTTOPLEFT as _; }
+                    if (on_top && near_right) || (on_right && near_top) { return HTTOPRIGHT as _; }
+                    if (on_bottom && near_left) || (on_left && near_bottom) { return HTBOTTOMLEFT as _; }
+                    if (on_bottom && near_right) || (on_right && near_bottom) { return HTBOTTOMRIGHT as _; }
+                    if on_left { return HTLEFT as _; }
+                    if on_right { return HTRIGHT as _; }
+                    if on_bottom { return HTBOTTOM as _; }
+                    if on_top { return HTTOP as _; }
+                }
+
+                // 2. Native title bar caption area (native dragging, snapping, and double-click maximize/restore)
+                // Middle area between left menu (~130px) and right buttons (~145px)
+                if y >= wr.top && y < wr.top + 34 && x >= wr.left + 130 && x <= wr.right - 145 {
+                    return HTCAPTION as _;
+                }
             }
         }
     }
 
-    // Direct native routing of non-client mouse clicks to DefWindowProcW so Windows
-    // executes modal sizing/moving loops without interference from winit/subclasses
-    if msg == WM_NCLBUTTONDOWN {
+    // Direct modal window drag / size handling
+    if msg == WM_SYSCOMMAND {
+        let cmd = (wparam & 0xFFF0) as u32;
+        if cmd == 0xF010 /* SC_MOVE */ || cmd == 0xF000 /* SC_SIZE */ {
+            use windows_sys::Win32::UI::WindowsAndMessaging::DefWindowProcW;
+            return DefWindowProcW(hwnd, msg, wparam, lparam);
+        }
+    }
+
+    if msg == WM_NCLBUTTONDOWN || msg == WM_NCLBUTTONDBLCLK {
         use windows_sys::Win32::UI::WindowsAndMessaging::DefWindowProcW;
         return DefWindowProcW(hwnd, msg, wparam, lparam);
+    }
+
+
+    // Window tracking limits: minimum 360x200; maximized restricted to monitor work area (taskbar remains visible)
+    if msg == 0x0024 /* WM_GETMINMAXINFO */ {
+        use windows_sys::Win32::UI::WindowsAndMessaging::MINMAXINFO;
+        use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+        let mmi = lparam as *mut MINMAXINFO;
+        if !mmi.is_null() {
+            (*mmi).ptMinTrackSize.x = 360;
+            (*mmi).ptMinTrackSize.y = 200;
+
+            if !is_native_fullscreen() {
+                let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                let mut mi: MONITORINFO = std::mem::zeroed();
+                mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                if !hmon.is_null() && GetMonitorInfoW(hmon, &mut mi) != 0 {
+                    let work_w = mi.rcWork.right - mi.rcWork.left;
+                    let work_h = mi.rcWork.bottom - mi.rcWork.top;
+                    (*mmi).ptMaxPosition.x = mi.rcWork.left - mi.rcMonitor.left;
+                    (*mmi).ptMaxPosition.y = mi.rcWork.top - mi.rcMonitor.top;
+                    (*mmi).ptMaxSize.x = work_w;
+                    (*mmi).ptMaxSize.y = work_h;
+                }
+            }
+            return 0;
+        }
     }
 
     // Remove 1-pixel top line inset caused by Windows DefWindowProc on borderless windows,
     // and when maximized, align the client rectangle exactly to the monitor work area.
     // In fullscreen mode, client rectangle is always the 100% full monitor bounds.
+    // Always return 0 so DWM composition stays responsive and never deadlocks on startup.
     if msg == WM_NCCALCSIZE && wparam != 0 {
         if !is_native_fullscreen() && IsZoomed(hwnd) != 0 {
             use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
@@ -437,6 +522,57 @@ unsafe extern "system" fn thumbbar_subclass_proc(
         return 0;
     }
 
+    // Modal resize entry and exit handling:
+    // Track modal state and avoid heavy DWM RPC calls during dragging.
+    if msg == WM_ENTERSIZEMOVE {
+        IS_IN_MODAL_SIZE.store(true, std::sync::atomic::Ordering::Relaxed);
+        return DefSubclassProc(hwnd, msg, wparam, lparam);
+    }
+
+    if msg == WM_EXITSIZEMOVE {
+        IS_IN_MODAL_SIZE.store(false, std::sync::atomic::Ordering::Relaxed);
+        apply_border_suppression(hwnd);
+        return DefSubclassProc(hwnd, msg, wparam, lparam);
+    }
+
+    // Constraint sizing rectangle for aspect ratio lock when dragging window borders
+    if msg == 0x0214 /* WM_SIZING */ {
+        if LOCK_ASPECT_RATIO.load(std::sync::atomic::Ordering::Relaxed) {
+            let ar = get_active_aspect_ratio();
+            if ar > 0.05 {
+                let extra_w = ACTIVE_EXTRA_WIDTH_PX.load(std::sync::atomic::Ordering::Relaxed) as i32;
+                let extra_h = ACTIVE_EXTRA_HEIGHT_PX.load(std::sync::atomic::Ordering::Relaxed) as i32;
+                let rect = lparam as *mut windows_sys::Win32::Foundation::RECT;
+                if !rect.is_null() {
+                    let cur_w = (*rect).right - (*rect).left;
+                    let cur_h = (*rect).bottom - (*rect).top;
+                    let vid_w = (cur_w - extra_w).max(50);
+                    let vid_h = (cur_h - extra_h).max(50);
+                    match wparam as u32 {
+                        1 /* WMSZ_LEFT */ | 2 /* WMSZ_RIGHT */ => {
+                            let target_h = (vid_w as f32 / ar).round() as i32 + extra_h;
+                            (*rect).bottom = (*rect).top + target_h;
+                        }
+                        3 /* WMSZ_TOP */ | 6 /* WMSZ_BOTTOM */ => {
+                            let target_w = (vid_h as f32 * ar).round() as i32 + extra_w;
+                            (*rect).right = (*rect).left + target_w;
+                        }
+                        4 /* WMSZ_TOPLEFT */ | 5 /* WMSZ_TOPRIGHT */ => {
+                            let target_h = (vid_w as f32 / ar).round() as i32 + extra_h;
+                            (*rect).top = (*rect).bottom - target_h;
+                        }
+                        7 /* WMSZ_BOTTOMLEFT */ | 8 /* WMSZ_BOTTOMRIGHT */ => {
+                            let target_h = (vid_w as f32 / ar).round() as i32 + extra_h;
+                            (*rect).bottom = (*rect).top + target_h;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        return DefSubclassProc(hwnd, msg, wparam, lparam);
+    }
+
     // Undocumented non-client themed frame/caption draw messages (WM_NCUAHDRAWCAPTION / WM_NCUAHDRAWFRAME)
     // Suppress without invoking heavy synchronous DWM RPC calls on hover
     if msg == 0x00AE || msg == 0x00AF {
@@ -444,13 +580,9 @@ unsafe extern "system" fn thumbbar_subclass_proc(
     }
 
     // Re-apply border suppression on window state and theme changes, but NEVER during
-    // continuous move/size loops (WM_MOVING, WM_MOVE, WM_WINDOWPOSCHANGING) which would flood
+    // continuous move/size loops (WM_MOVING, WM_MOVE, WM_WINDOWPOSCHANGED, WM_SIZE, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE) which would flood
     // synchronous cross-process DWM RPC calls and cause heavy window dragging lag.
-    if msg == WM_ENTERSIZEMOVE
-        || msg == WM_EXITSIZEMOVE
-        || msg == WM_WINDOWPOSCHANGED
-        || msg == WM_SIZE
-        || msg == WM_ACTIVATE
+    if msg == WM_ACTIVATE
         || msg == WM_ACTIVATEAPP
         || msg == WM_SETFOCUS
         || msg == WM_SHOWWINDOW
@@ -1200,3 +1332,11 @@ pub fn mark_fullscreen_window(hwnd: isize, fullscreen: bool) {
 }
 #[cfg(not(windows))]
 pub fn mark_fullscreen_window(_hwnd: isize, _fullscreen: bool) {}
+#[cfg(not(windows))]
+pub fn set_active_aspect_ratio(_ratio: f32, _extra_width_px: u32, _extra_height_px: u32) {}
+#[cfg(not(windows))]
+pub fn set_lock_aspect_ratio(_lock: bool) {}
+#[cfg(not(windows))]
+pub fn get_active_aspect_ratio() -> f32 { 0.0 }
+#[cfg(not(windows))]
+pub fn is_in_modal_size() -> bool { false }

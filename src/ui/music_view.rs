@@ -396,13 +396,18 @@ impl MusicBackgroundView {
 
 
 
+    pub fn clear(&mut self) {
+        self.cover_texture = None;
+        self.blurred_texture = None;
+        self.cached_cover_path = None;
+        self.last_file_path.clear();
+        self.cover_receiver = None;
+    }
+
     pub fn render(&mut self, ui: &mut egui::Ui, player: &Player, rect: Rect, stats: &MediaStats) {
         if !Self::is_song(stats) {
             if self.cover_texture.is_some() || self.blurred_texture.is_some() {
-                self.cover_texture = None;
-                self.blurred_texture = None;
-                self.cached_cover_path = None;
-                self.last_file_path.clear();
+                self.clear();
             }
             return;
         }

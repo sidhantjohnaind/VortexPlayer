@@ -9,6 +9,7 @@ use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Margin, Painter, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, TextureHandle, Vec2,
 };
 use std::path::Path;
+use std::time::Instant;
 
 pub struct ControlBar;
 
@@ -479,14 +480,32 @@ impl ControlBar {
         let played_w = track_rect.width() * progress;
         if played_w > 0.0 {
             let played_rect = Rect::from_min_size(track_rect.min, Vec2::new(played_w, track_h));
-            painter.rect_filled(played_rect, CornerRadius::same(2), skin.accent_primary);
+            
+            // Soft luminous hover glow
             if seek_hovered {
                 painter.rect_filled(
-                    played_rect.expand(1.0),
+                    played_rect.expand(1.5),
                     CornerRadius::same(3),
-                    skin.accent_bright.gamma_multiply(0.35),
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 28),
                 );
             }
+
+            // Smooth horizontal gradient fill from deep accent to radiant playhead
+            let p0 = played_rect.left_top();
+            let p1 = played_rect.right_top();
+            let p2 = played_rect.right_bottom();
+            let p3 = played_rect.left_bottom();
+            let c_left = skin.accent_primary.gamma_multiply(0.68);
+            let c_right = skin.accent_bright;
+
+            let mut mesh = egui::epaint::Mesh::default();
+            mesh.colored_vertex(p0, c_left);
+            mesh.colored_vertex(p1, c_right);
+            mesh.colored_vertex(p2, c_right);
+            mesh.colored_vertex(p3, c_left);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            painter.add(egui::Shape::Mesh(mesh.into()));
         }
 
         // A-B Loop Range Visualization (Emerald Green Highlight)
@@ -506,6 +525,8 @@ impl ControlBar {
 
         // Chapter Markers & Dividers (Crystal-clear segmented timeline notches)
         if stats.duration > 0.0 {
+            let mut hovered_chapter: Option<(f32, &str, f64)> = None; // (ch_x, title, time_pos)
+
             for (_i, ch) in stats.chapters.iter().enumerate() {
                 if ch.time_pos > 0.0 && ch.time_pos < stats.duration {
                     let ch_frac = (ch.time_pos / stats.duration) as f32;
@@ -517,7 +538,47 @@ impl ControlBar {
                         Stroke::new(1.2, Color32::from_rgb(185, 195, 220)),
                     );
                     painter.circle_filled(Pos2::new(ch_x, track_rect.top() - 1.5), 1.4, Color32::from_rgb(100, 180, 255));
+
+                    // Check if mouse is near this chapter marker
+                    if seek_hovered {
+                        if let Some(mp) = ui.input(|i| i.pointer.hover_pos()) {
+                            if (mp.x - ch_x).abs() < 12.0 && mp.y >= track_rect.top() - 16.0 && mp.y <= track_rect.bottom() + 8.0 {
+                                // Prefer the closest marker
+                                let is_closer = hovered_chapter.map_or(true, |(prev_x, _, _)| (mp.x - ch_x).abs() < (mp.x - prev_x).abs());
+                                if is_closer {
+                                    hovered_chapter = Some((ch_x, &ch.title, ch.time_pos));
+                                }
+                            }
+                        }
+                    }
                 }
+            }
+
+            // Floating chapter name pill above the hovered marker
+            if let Some((ch_x, title, time_pos)) = hovered_chapter {
+                let ch_label = if title.chars().count() > 24 {
+                    let t: String = title.chars().take(21).collect();
+                    format!("📑 {}…  {}", t, format_time(time_pos))
+                } else {
+                    format!("📑 {}  {}", title, format_time(time_pos))
+                };
+
+                let pill_font = FontId::proportional(10.5);
+                let pill_galley = painter.layout_no_wrap(ch_label.clone(), pill_font.clone(), Color32::WHITE);
+                let pill_w = pill_galley.size().x + 16.0;
+                let pill_h = 20.0;
+                let pill_lo = track_rect.left() + pill_w * 0.5 + 2.0;
+                let pill_hi = track_rect.right() - pill_w * 0.5 - 2.0;
+                let pill_x = if pill_lo <= pill_hi { ch_x.clamp(pill_lo, pill_hi) } else { track_rect.center().x };
+                let pill_rect = Rect::from_center_size(
+                    Pos2::new(pill_x, track_rect.top() - 16.0),
+                    Vec2::new(pill_w, pill_h),
+                );
+
+                // Frosted glass pill background
+                painter.rect_filled(pill_rect, CornerRadius::same(5), Color32::from_rgba_unmultiplied(14, 16, 24, 235));
+                painter.rect_stroke(pill_rect, CornerRadius::same(5), Stroke::new(0.8, Color32::from_rgba_unmultiplied(100, 180, 255, 100)), StrokeKind::Inside);
+                painter.text(pill_rect.center(), Align2::CENTER_CENTER, ch_label, pill_font, Color32::from_rgb(180, 215, 255));
             }
         }
 
@@ -551,14 +612,22 @@ impl ControlBar {
             }
         }
 
-        // Seek Knob: Vortex circular white scrubber knob with halo
+        // Seek Knob: Crisp, Distraction-Free Scrubber (No ugly yellow circles or distracting pulsing rings)
         let knob_r = if seek_hovered { 5.5 } else { 4.0 };
-        let knob_x = (track_rect.left() + played_w).clamp(track_rect.left() + knob_r, track_rect.right() - knob_r);
+        let knob_min = track_rect.left() + knob_r;
+        let knob_max = track_rect.right() - knob_r;
+        let knob_x = if knob_min <= knob_max {
+            (track_rect.left() + played_w).clamp(knob_min, knob_max)
+        } else {
+            track_rect.center().x
+        };
         let knob_y = track_rect.center().y;
+
         if seek_hovered {
-            painter.circle_filled(Pos2::new(knob_x, knob_y), 11.0, skin.accent_bright.gamma_multiply(0.35));
-            painter.circle_filled(Pos2::new(knob_x, knob_y), 7.5, skin.accent_bright.gamma_multiply(0.70));
+            // Subtle, sleek neutral hover halo (clean frosted glow, zero yellow rings)
+            painter.circle_filled(Pos2::new(knob_x, knob_y), 8.5, Color32::from_rgba_unmultiplied(255, 255, 255, 38));
         }
+
         painter.circle_filled(Pos2::new(knob_x, knob_y), knob_r, Color32::WHITE);
         painter.circle_stroke(Pos2::new(knob_x, knob_y), knob_r, Stroke::new(1.0, Color32::from_rgb(35, 38, 48)));
 
@@ -591,9 +660,9 @@ impl ControlBar {
                 }).map(|c| c.title.clone());
 
                 let has_video = !stats.file_path.is_empty() && !crate::ui::music_view::MusicBackgroundView::is_song(stats);
-                let card_w = if has_video { 204.0 } else { 160.0 };
+                let card_w = if has_video { 216.0 } else { 160.0 };
                 let card_h = if has_video {
-                    if chapter_title.is_some() { 172.0 } else { 144.0 }
+                    if chapter_title.is_some() { 178.0 } else { 150.0 }
                 } else if chapter_title.is_some() {
                     72.0
                 } else {
@@ -617,19 +686,46 @@ impl ControlBar {
                 let card_painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("vortex_seek_preview_tooltip")));
 
                 // Soft Ambient Drop Shadow
-                card_painter.rect_filled(card_rect.translate(Vec2::new(0.0, 4.0)).expand(2.0), CornerRadius::same(10), Color32::from_rgba_premultiplied(0, 0, 0, 140));
+                card_painter.rect_filled(card_rect.translate(Vec2::new(0.0, 5.0)).expand(3.0), CornerRadius::same(12), Color32::from_rgba_premultiplied(0, 0, 0, 160));
 
-                // Card Frosted Obsidian Glass Background
-                card_painter.rect_filled(card_rect, CornerRadius::same(8), Color32::from_rgba_unmultiplied(16, 18, 24, 248));
-                // Sleek, elegant subtle slate border (avoids harsh yellow/orange borders)
-                card_painter.rect_stroke(card_rect, CornerRadius::same(8), Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 32)), StrokeKind::Inside);
+                let card_bg = Color32::from_rgba_unmultiplied(16, 18, 26, 250);
+                let card_border = Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 36));
+
+                // Frosted Obsidian Glass Body
+                card_painter.rect_filled(card_rect, CornerRadius::same(10), card_bg);
+                card_painter.rect_stroke(card_rect, CornerRadius::same(10), card_border, StrokeKind::Inside);
+
+                // Top Specular Highlight reflection line
+                card_painter.line_segment(
+                    [
+                        Pos2::new(card_rect.left() + 12.0, card_rect.top() + 1.0),
+                        Pos2::new(card_rect.right() - 12.0, card_rect.top() + 1.0),
+                    ],
+                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 45)),
+                );
+
+                // Callout Caret / Pointer Arrow pointing down directly toward the scrub position
+                let caret_center_x = mouse_pos.x.clamp(card_rect.left() + 16.0, card_rect.right() - 16.0);
+                let caret_h = 7.0;
+                let caret_w = 12.0;
+                let caret_left = Pos2::new(caret_center_x - caret_w * 0.5, card_rect.bottom());
+                let caret_right = Pos2::new(caret_center_x + caret_w * 0.5, card_rect.bottom());
+                let caret_tip = Pos2::new(caret_center_x, card_rect.bottom() + caret_h);
+
+                card_painter.add(egui::epaint::PathShape::convex_polygon(
+                    vec![caret_left, caret_tip, caret_right],
+                    card_bg,
+                    Stroke::NONE,
+                ));
+                card_painter.line_segment([caret_left, caret_tip], card_border);
+                card_painter.line_segment([caret_tip, caret_right], card_border);
 
                 let mut cur_inner_y = card_rect.top() + 8.0;
 
                 // 1. Live Video Frame Thumbnail Preview
                 if has_video {
-                    let thumb_w = 188.0;
-                    let thumb_h = 105.0;
+                    let thumb_w = 200.0;
+                    let thumb_h = 112.0;
                     let img_rect = Rect::from_min_size(Pos2::new(card_rect.left() + (card_w - thumb_w) * 0.5, cur_inner_y), Vec2::new(thumb_w, thumb_h));
 
                     let pb = std::path::Path::new(&stats.file_path);
@@ -642,11 +738,11 @@ impl ControlBar {
                             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                             Color32::WHITE,
                         );
-                        card_painter.rect_stroke(img_rect, CornerRadius::same(5), Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 30)), StrokeKind::Inside);
+                        card_painter.rect_stroke(img_rect, CornerRadius::same(6), Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 32)), StrokeKind::Inside);
                     } else {
                         // Animated shimmer loading card
-                        card_painter.rect_filled(img_rect, CornerRadius::same(5), Color32::from_rgb(22, 24, 32));
-                        card_painter.rect_stroke(img_rect, CornerRadius::same(5), Stroke::new(1.0, Color32::from_rgb(45, 48, 62)), StrokeKind::Inside);
+                        card_painter.rect_filled(img_rect, CornerRadius::same(6), Color32::from_rgb(22, 24, 32));
+                        card_painter.rect_stroke(img_rect, CornerRadius::same(6), Stroke::new(1.0, Color32::from_rgb(45, 48, 62)), StrokeKind::Inside);
                         card_painter.text(
                             img_rect.center(),
                             Align2::CENTER_CENTER,
@@ -771,8 +867,8 @@ impl ControlBar {
             actions.stop = true;
         }
 
-        // 2b. Close File & Return to Home (26px) (Wide Video mode only)
-        if !is_song && is_wide && make_tile("tile_close_file", 26.0, "Close File & Return to Home (Ctrl+W / F4)", &|p, r, c| Icons::draw_close(p, r, c)) {
+        // 2b. Close File & Return to Home (26px) (Video & Music modes)
+        if (is_wide || is_song) && make_tile("tile_close_file", 26.0, "Close File & Return to Home (Ctrl+W / F4)", &|p, r, c| Icons::draw_close(p, r, c)) {
             actions.close_file = true;
         }
 
@@ -1049,8 +1145,8 @@ impl ControlBar {
 
             let lcd_r = Rect::from_min_size(Pos2::new(left_x, row_top), Vec2::new(lcd_w, row_h));
             
-            // Background container (pure visual background plate, does NOT consume clicks)
-            painter.rect_filled(lcd_r, CornerRadius::ZERO, skin.bg_canvas);
+            // Intentionally no status-container fill: the time and technical details
+            // live directly on the transport bar, instead of forming a black rectangle.
 
             // Tightly scoped time click area (ONLY covers the time string)
             let time_click_rect = Rect::from_min_size(
@@ -1065,42 +1161,48 @@ impl ControlBar {
                     "Elapsed Time active (Click to switch to Remaining Time -)"
                 };
                 hovered_tooltip = Some((time_click_rect, tip.to_string()));
-                painter.rect_filled(time_click_rect, CornerRadius::same(2), skin.bg_btn_hover);
+                // A restrained accent underline reads as an interactive time display
+                // without turning the timestamp into another rectangular button.
+                painter.line_segment(
+                    [
+                        Pos2::new(time_click_rect.left() + 3.0, time_click_rect.bottom() - 1.0),
+                        Pos2::new(time_click_rect.right() - 3.0, time_click_rect.bottom() - 1.0),
+                    ],
+                    Stroke::new(1.0, skin.accent_primary),
+                );
             }
 
             if time_resp.clicked() {
                 *show_remaining_time = !*show_remaining_time;
             }
 
-            // Draw Vortex Pixel-Perfect Cyan / Dimmed Time
+            // Modern metadata hierarchy: legible elapsed time, quieter duration,
+            // and a neutral separator instead of the former cyan LCD treatment.
             let time_y = lcd_r.center().y;
             
-            // Current Time (Light Cyan #64B4FF)
             painter.text(
                 Pos2::new(lcd_r.left() + 7.0, time_y),
                 Align2::LEFT_CENTER,
                 &time_str,
                 FontId::monospace(11.0),
-                Color32::from_rgb(100, 185, 255),
+                skin.text_primary,
             );
 
-            // Slash Separator (Muted Amber / Gray)
             let slash_x = lcd_r.left() + 7.0 + cur_time_w + 3.0;
             painter.text(
                 Pos2::new(slash_x, time_y),
                 Align2::LEFT_CENTER,
                 "/",
                 FontId::monospace(11.0),
-                Color32::from_rgb(160, 130, 80),
+                skin.text_muted,
             );
 
-            // Total Duration (Muted Steel Cyan #87AFDC)
             painter.text(
                 Pos2::new(slash_x + 9.0, time_y),
                 Align2::LEFT_CENTER,
                 &total_str,
                 FontId::monospace(11.0),
-                Color32::from_rgb(135, 175, 220),
+                skin.text_secondary,
             );
 
             // Draw Badges (S/W, AVC1, TrueHD, 5.1, HDR)
@@ -1128,13 +1230,26 @@ impl ControlBar {
                         } else {
                             "Software Decoding Active [S/W]\nClick to enable Hardware Acceleration [H/W]".to_string()
                         };
-                        let bg = if is_hw {
-                            if r.hovered() { Color32::from_rgb(26, 46, 76) } else { Color32::from_rgb(18, 32, 54) }
+                        // Deliberately use the active skin instead of a custom badge palette.
+                        // That makes the decoder state sit in the same visual layer as the
+                        // time/codec strip rather than reading as a blue button.
+                        let bg = if r.hovered() {
+                            skin.bg_btn_hover
                         } else {
-                            if r.hovered() { Color32::from_rgb(38, 42, 54) } else { Color32::from_rgb(24, 26, 34) }
+                            skin.bg_canvas
                         };
-                        let stroke = if is_hw { Color32::from_rgb(60, 140, 240) } else { Color32::from_rgb(50, 54, 68) };
-                        let text = if is_hw { Color32::from_rgb(90, 200, 255) } else { Color32::from_rgb(160, 165, 180) };
+                        let stroke = if r.hovered() {
+                            skin.border_light
+                        } else {
+                            skin.border_dark
+                        };
+                        let text = if r.hovered() {
+                            skin.text_primary
+                        } else if is_hw {
+                            skin.text_secondary
+                        } else {
+                            skin.text_muted
+                        };
                         (r, bg, stroke, text, tip)
                     }
                     BadgeKind::AudioChannels => {
@@ -1188,8 +1303,12 @@ impl ControlBar {
                     hovered_tooltip = Some((b_rect, tip_str));
                 }
 
-                painter.rect_filled(b_rect, CornerRadius::same(2), bg_col);
-                painter.rect_stroke(b_rect, CornerRadius::same(2), Stroke::new(1.0, stroke_col), StrokeKind::Inside);
+                // Keep the default state text-only so codec details blend into the
+                // transport surface. A button surface appears only on interaction.
+                if b_resp.hovered() {
+                    painter.rect_filled(b_rect, CornerRadius::same(2), bg_col);
+                    painter.rect_stroke(b_rect, CornerRadius::same(2), Stroke::new(1.0, stroke_col), StrokeKind::Inside);
+                }
                 painter.text(b_rect.center(), Align2::CENTER_CENTER, &b.text, FontId::monospace(9.5), text_col);
 
                 match b.kind {
@@ -1385,18 +1504,34 @@ impl ControlBar {
                     hovered_tooltip = Some((vbar_r, format!("Volume: {:.0}%", display_vol_pct * 100.0)));
                 }
 
-                // Groove & Fill
-                painter.rect_filled(vbar_r, CornerRadius::ZERO, skin.border_dark);
+                // Groove & Fill — Modern rounded track with accent glow
+                let vol_hovered = v_resp.hovered() || is_vol_scrubbing;
+                let track_thickness = if vol_hovered { 4.0 } else { 3.5 };
+                let vbar_visual = Rect::from_center_size(
+                    vbar_r.center(),
+                    Vec2::new(vbar_r.width(), track_thickness),
+                );
+                painter.rect_filled(vbar_visual, CornerRadius::same(2), skin.border_dark);
 
                 let fill_w = vbar_w * display_vol_pct;
                 if fill_w > 0.0 {
-                    let fill_r = Rect::from_min_size(vbar_r.min, Vec2::new(fill_w, 2.5));
-                    painter.rect_filled(fill_r, CornerRadius::ZERO, skin.accent_primary);
+                    let fill_r = Rect::from_min_size(vbar_visual.min, Vec2::new(fill_w, track_thickness));
+                    painter.rect_filled(fill_r, CornerRadius::same(2), skin.accent_primary);
+                    // Subtle glow behind fill when interacting
+                    if vol_hovered {
+                        painter.rect_filled(
+                            fill_r.expand(1.5),
+                            CornerRadius::same(3),
+                            skin.accent_bright.gamma_multiply(0.20),
+                        );
+                    }
                 }
 
-                // Volume Knob
+                // Volume Knob — larger, with border for visibility
                 let vknob_x = vbar_r.left() + fill_w;
-                painter.circle_filled(Pos2::new(vknob_x, vbar_r.center().y), 2.2, Color32::WHITE);
+                let vknob_r = if vol_hovered { 5.0 } else { 4.0 };
+                painter.circle_filled(Pos2::new(vknob_x, vbar_r.center().y), vknob_r, Color32::WHITE);
+                painter.circle_stroke(Pos2::new(vknob_x, vbar_r.center().y), vknob_r, Stroke::new(0.8, Color32::from_rgb(35, 38, 48)));
             }
 
             // Mouse wheel volume adjust when hovering anywhere on the volume tile

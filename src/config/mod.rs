@@ -140,7 +140,7 @@ pub enum DoubleClickAction {
 
 impl Default for DoubleClickAction {
     fn default() -> Self {
-        DoubleClickAction::PlayPause
+        DoubleClickAction::ToggleFullscreen
     }
 }
 
@@ -265,6 +265,12 @@ pub struct AppConfig {
     pub hardware_decoding: String,
     pub aspect_ratio: String,
     pub video_align_y: String,
+    #[serde(default = "default_false")]
+    pub lock_aspect_ratio: bool,
+    #[serde(default = "default_true")]
+    pub auto_fit_window_to_video: bool,
+    #[serde(default = "default_false")]
+    pub auto_crop_fill_black_bars: bool,
     pub video_brightness: f64,
     pub video_contrast: f64,
     pub video_saturation: f64,
@@ -463,6 +469,7 @@ pub struct AppConfig {
 }
 
 fn default_true() -> bool { true }
+fn default_false() -> bool { false }
 fn default_screenshot_format() -> String { "png".to_string() }
 fn default_screenshot_quality() -> u32 { 90 }
 fn default_screenshot_template() -> String { "vortex_%F_%P".to_string() }
@@ -530,6 +537,9 @@ impl Default for AppConfig {
             hardware_decoding: "auto-safe".to_string(),
             aspect_ratio: "auto".to_string(),
             video_align_y: "center".to_string(),
+            lock_aspect_ratio: false,
+            auto_fit_window_to_video: true,
+            auto_crop_fill_black_bars: false,
             video_brightness: 100.0,
             video_contrast: 100.0,
             video_saturation: 100.0,

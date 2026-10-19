@@ -43,12 +43,10 @@ fn main() {
                     .arg(&rc_file)
                     .status();
 
-                if let Ok(s) = status {
-                    if s.success() && res_file.exists() {
-                        println!("cargo:rustc-link-arg={}", res_file.display());
-                        compiled = true;
-                        break;
-                    }
+                if status.map_or(false, |s| s.success()) && res_file.exists() {
+                    println!("cargo:rustc-link-arg={}", res_file.display());
+                    compiled = true;
+                    break;
                 }
             }
 

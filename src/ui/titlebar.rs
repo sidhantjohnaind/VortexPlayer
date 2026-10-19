@@ -10,6 +10,7 @@ pub struct TitleBarResponse {
     pub drag_started: bool,
     pub double_clicked: bool,
     pub toggle_maximize: bool,
+    pub close_clicked: bool,
 }
 
 pub struct TitleBar;
@@ -34,6 +35,7 @@ impl TitleBar {
         let mut drag_started = false;
         let mut double_clicked = false;
         let mut toggle_maximize = false;
+        let mut close_clicked = false;
 
         let (rect, _bar_resp) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), Self::HEIGHT),
@@ -127,10 +129,26 @@ impl TitleBar {
             Pos2::new(drag_right, rect.bottom()),
         );
         let drag_resp = ui.interact(drag_rect, ui.id().with("tb_drag_area"), Sense::click_and_drag());
+        let drag_id = ui.id().with("tb_drag_active");
+        let drag_active = ui.data(|d| d.get_temp::<bool>(drag_id).unwrap_or(false));
+
         if drag_resp.double_clicked() {
             double_clicked = true;
-        } else if drag_resp.drag_started() {
-            drag_started = true;
+            ui.data_mut(|d| d.insert_temp(drag_id, false));
+        } else if drag_resp.dragged() {
+            let exceeds_threshold = ui.input(|i| {
+                if let (Some(origin), Some(current)) = (i.pointer.press_origin(), i.pointer.interact_pos()) {
+                    (current - origin).length() >= 5.0
+                } else {
+                    false
+                }
+            });
+            if exceeds_threshold && !drag_active {
+                drag_started = true;
+                ui.data_mut(|d| d.insert_temp(drag_id, true));
+            }
+        } else if drag_active {
+            ui.data_mut(|d| d.insert_temp(drag_id, false));
         }
 
         let is_idle_title = title.is_empty() || title == "VertexPlayer" || title == "Ready" || title == "VortexPlayer";
@@ -206,12 +224,13 @@ impl TitleBar {
             if close_resp.hovered() { Color32::WHITE } else { skin.text_primary },
         );
         if close_resp.clicked() {
+            close_clicked = true;
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
         btn_right -= btn_w + 2.0;
 
         // Maximize Button (◻)
-        let is_max = is_fullscreen || is_maximized || ui.input(|i| i.viewport().maximized.unwrap_or(false));
+        let is_max = is_fullscreen || is_maximized;
         let max_rect = Rect::from_min_size(Pos2::new(btn_right - btn_w, btn_y), Vec2::new(btn_w, btn_h));
         let max_resp = ui.interact(max_rect, ui.id().with("tb_max"), Sense::click());
         if max_resp.hovered() {
@@ -273,6 +292,7 @@ impl TitleBar {
             drag_started,
             double_clicked,
             toggle_maximize,
+            close_clicked,
         }
     }
 }

@@ -217,3 +217,6 @@ pub use update_dialog::UpdateDialog;
 pub mod surround_eq_dialog;
 pub use surround_eq_dialog::{SurroundEqDialog, SurroundTab};
 
+pub mod stats_for_nerds;
+pub use stats_for_nerds::StatsForNerdsDialog;
+

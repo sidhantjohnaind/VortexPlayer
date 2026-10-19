@@ -1005,8 +1005,14 @@ impl MediaInfoDialog {
                 lines.push(format!("  HDR Format: {}", stats.hdr_format));
             }
             let is_hw = !stats.hwdec_current.is_empty() && stats.hwdec_current != "no";
-            lines.push(format!("  Hardware Decode: {}", if is_hw { &stats.hwdec_current } else { "off (software)" }));
-            lines.push(format!("  Dropped Frames: {}", stats.dropped_frames));
+            lines.push(format!("  Hardware Decoding: {}", if is_hw { format!("Active ({})", stats.hwdec_current) } else { "Inactive (Software)".to_string() }));
+            let drop_detail = if stats.dropped_frames > 0 {
+                format!("{} (VO: {}, Decoder: {}, Mistimed: {})", stats.dropped_frames, stats.vo_drop_frame_count, stats.decoder_frame_drop_count, stats.mistimed_frame_count)
+            } else {
+                "0 (none)".to_string()
+            };
+            lines.push(format!("  Dropped Frames: {}", drop_detail));
+            lines.push(format!("  A/V Sync Drift: {:+.2} ms (Jitter: {:.2} ms)", stats.avsync_drift * 1000.0, stats.vsync_jitter * 1000.0));
         }
 
         if ch > 0 || sr > 0 || !stats.audio_codec.is_empty() {

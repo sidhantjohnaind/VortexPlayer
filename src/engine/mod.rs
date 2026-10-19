@@ -35,7 +35,10 @@ pub mod transform;
 pub mod vapoursynth;
 pub mod video_calibration;
 pub mod video_effects;
+pub mod video_surface;
 pub mod web_remote;
+
+pub use video_surface::VideoSurface;
 
 pub use archive::ArchiveEngine;
 pub use audio_calibration::SpeakerCalibrationMatrix;

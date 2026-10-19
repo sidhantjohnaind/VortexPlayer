@@ -487,7 +487,9 @@ fn test_bookmark_skip_intervals() {
 fn test_player_audio_51_and_multichannel() {
     use vortex_player::engine::Player;
     if let Ok(player) = Player::new() {
-        player.set_volume(100.0);
+        player.set_volume(0.0);
+        player.set_mute(true);
+        player.set_property_string("ao", "null");
         player.set_audio_channels("auto");
         let path = "/mnt/94C83957C83938B6/Downloads/Torrents/[UDF] The Girl Who Leapt Through Time 2006 (BD 1080p 2xFLAC) [dual-audio] [E5869AB8].mkv";
         if std::path::Path::new(path).exists() {
@@ -537,7 +539,6 @@ fn test_taskbar_button_icons_valid() {
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
         // Run on the interactive "Default" desktop where Shell_TrayWnd resides
-        let icons_clone = icons.clone();
         let handle = std::thread::spawn(move || unsafe {
             #[link(name = "user32")]
             unsafe extern "system" {

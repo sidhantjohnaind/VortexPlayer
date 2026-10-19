@@ -7298,20 +7298,15 @@ impl eframe::App for VortexApp {
                 ctx.request_repaint_after(std::time::Duration::from_secs(1));
             }
         } else if is_active_ui {
-            // Full interaction budget for silky-smooth responsive controls
-            ctx.request_repaint_after(repaint_for_fps(self.config.fps_interaction));
+            // Full interaction budget for silky-smooth responsive controls at native display refresh rate
+            ctx.request_repaint();
         } else if !stats.is_paused && !stats.is_idle {
-            // Display-synced playback rate matching monitor refresh rate (60Hz / 120Hz / 144Hz).
-            // Never throttle active video playback when unfocused/backgrounded:
-            // Throttling to fps_background (20 FPS) forces video presentation behind audio clock,
-            // resulting in A/V desync and rubber-banding acceleration/deceleration.
-            let display_hz = if stats.display_fps >= 50.0 { stats.display_fps.round() as u32 } else { 60 };
-            let target_fps = self.config.fps_playback.max(display_hz);
-            ctx.request_repaint_after(repaint_for_fps(target_fps));
+            // Active video playback at native display refresh rate with zero frame judder
+            ctx.request_repaint();
         } else {
-            // Keep paused controls, hover states, and window interactions responsive.
+            // Foreground idle / paused controls: keep smooth at 30 FPS without high wattage
             let idle_delay = if is_foreground {
-                std::time::Duration::from_millis(100)
+                std::time::Duration::from_millis(33)
             } else {
                 repaint_for_fps(self.config.fps_background)
             };

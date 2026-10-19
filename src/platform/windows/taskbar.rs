@@ -1340,3 +1340,24 @@ pub fn set_lock_aspect_ratio(_lock: bool) {}
 pub fn get_active_aspect_ratio() -> f32 { 0.0 }
 #[cfg(not(windows))]
 pub fn is_in_modal_size() -> bool { false }
+
+#[cfg(windows)]
+pub fn get_system_refresh_rate() -> u32 {
+    use windows_sys::Win32::Graphics::Gdi::{EnumDisplaySettingsW, DEVMODEW, ENUM_CURRENT_SETTINGS};
+    unsafe {
+        let mut dm: DEVMODEW = std::mem::zeroed();
+        dm.dmSize = std::mem::size_of::<DEVMODEW>() as u16;
+        if EnumDisplaySettingsW(std::ptr::null(), ENUM_CURRENT_SETTINGS, &mut dm) != 0 {
+            if dm.dmDisplayFrequency >= 30 {
+                return dm.dmDisplayFrequency;
+            }
+        }
+    }
+    60
+}
+
+#[cfg(not(windows))]
+pub fn get_system_refresh_rate() -> u32 {
+    60
+}
+

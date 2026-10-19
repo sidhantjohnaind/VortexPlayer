@@ -487,9 +487,9 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme_mode: ThemeMode::VortexClassic,
-            fps_interaction: 60,
-            fps_playback: 30,
-            fps_background: 20,
+            fps_interaction: 144,
+            fps_playback: 144,
+            fps_background: 60,
             zero_gpu_minimized: true,
             volume: 80.0,
             is_muted: false,
@@ -740,6 +740,15 @@ impl AppConfig {
                     }
                     if cfg.subtitle_vertical_pos > 100.0 || cfg.subtitle_vertical_pos <= 0.0 {
                         cfg.subtitle_vertical_pos = 100.0;
+                    }
+                    if cfg.fps_interaction < 120 {
+                        cfg.fps_interaction = 144;
+                    }
+                    if cfg.fps_playback < 60 {
+                        cfg.fps_playback = 144;
+                    }
+                    if cfg.fps_background < 30 {
+                        cfg.fps_background = 60;
                     }
                     return cfg;
                 }

@@ -20,12 +20,12 @@ use eframe::egui::{IconData, ViewportBuilder};
 use std::env;
 use std::path::PathBuf;
 
-// Instruct NVIDIA and AMD drivers that this is a 2D desktop utility (not a 3D game)
+// Instruct NVIDIA and AMD drivers to use the high-performance dedicated GPU for hardware video decoding & OpenGL rendering
 #[unsafe(no_mangle)]
-pub static mut NvOptimusEnablement: u32 = 0x00000000;
+pub static mut NvOptimusEnablement: u32 = 0x00000001;
 
 #[unsafe(no_mangle)]
-pub static mut AmdPowerXpressRequestHighPerformance: i32 = 0;
+pub static mut AmdPowerXpressRequestHighPerformance: i32 = 1;
 
 // RISC-V 64 Linux glibc CRT compatibility stubs for cross-compilation
 #[cfg(all(target_os = "linux", target_arch = "riscv64"))]
@@ -56,7 +56,7 @@ fn main() {
     }));
     log_step("2. panic hook set");
 
-    // Suppress NVIDIA GeForce Experience / ShadowPlay gaming overlay hooks
+    // Suppress NVIDIA GeForce Experience / ShadowPlay gaming overlay hooks while allowing driver multithreading
     unsafe {
         std::env::set_var("NV_DISABLE_GAMING_OVERLAY", "1");
         std::env::set_var("SHADOWPLAY_DISABLE", "1");
@@ -66,7 +66,7 @@ fn main() {
         std::env::set_var("GFE_IN_GAME_OVERLAY_DISABLE", "1");
         std::env::set_var("SHADOWPLAY_RECORDING_DISABLE", "1");
         std::env::set_var("NvCameraEnable", "0");
-        std::env::set_var("__GL_THREADED_OPTIMIZATIONS", "0");
+        std::env::set_var("__GL_THREADED_OPTIMIZATIONS", "1");
     }
 
     #[cfg(windows)]

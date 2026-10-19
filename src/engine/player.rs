@@ -812,17 +812,6 @@ impl Player {
             if let Some(render_ctx) = *guard {
                 let flags = unsafe { (self.ffi.mpv_render_context_update)(render_ctx) };
                 let has_new_frame = (flags & 1) != 0;
-                {
-                    // TEMP diagnostics: trace the first render calls to find the startup black gap.
-                    static RENDER_SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-                    let seq = RENDER_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    if seq < 240 {
-                        crate::log_step(&format!(
-                            "render#{} {}x{} force={} has_new={} flags=0x{:x}",
-                            seq, width, height, force, has_new_frame, flags
-                        ));
-                    }
-                }
                 if !has_new_frame && !force {
                     return false;
                 }

@@ -228,6 +228,7 @@ pub struct VortexApp {
     pub show_debug_log_dialog: bool,
     pub stats_for_nerds: crate::ui::StatsForNerdsDialog,
     pub has_handled_eof: bool,
+    pub media_closed_this_frame: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -572,6 +573,7 @@ impl VortexApp {
             show_debug_log_dialog: false,
             stats_for_nerds: crate::ui::StatsForNerdsDialog::new(),
             has_handled_eof: false,
+            media_closed_this_frame: false,
         };
 
         crate::ui::theme::VortexTheme::apply(&cc.egui_ctx, app.config.theme_mode);
@@ -1602,13 +1604,10 @@ impl VortexApp {
                     } else if self.space_press_start.is_some() {
                         self.space_press_start = None;
                         if stats.is_idle {
-                            if let Some(item) = self.playlist.lock().unwrap().current_item() {
-                                open_file_path = Some(item.path.clone());
-                            } else if let Some(recent) = self.config.recent_files.first() {
-                                let p = PathBuf::from(recent);
-                                if p.exists() {
-                                    open_file_path = Some(p);
-                                }
+                            if let Some(target) = self.get_idle_play_target() {
+                                open_file_path = Some(target);
+                            } else if let Some(file) = rfd::FileDialog::new().pick_file() {
+                                open_file_path = Some(file);
                             }
                         } else {
                             player.toggle_pause();
@@ -2243,6 +2242,37 @@ impl VortexApp {
 }
 
 impl VortexApp {
+    pub fn get_idle_play_target(&self) -> Option<PathBuf> {
+        // 1. Current item in playlist if available
+        if let Some(item) = self.playlist.lock().unwrap().current_item() {
+            if item.path.exists() {
+                return Some(item.path.clone());
+            }
+        }
+        // 2. First item in playlist
+        if let Some(item) = self.playlist.lock().unwrap().items.first() {
+            if item.path.exists() {
+                return Some(item.path.clone());
+            }
+        }
+        // 3. Most recent item from playback history
+        if let Some(entry) = self.playback_history.entries.iter().map(|e| PathBuf::from(&e.file_path)).find(|p| p.exists()) {
+            return Some(entry);
+        }
+        // 4. Most recent item from recent_files
+        if let Some(p) = self.config.recent_files.iter().map(PathBuf::from).find(|p| p.exists()) {
+            return Some(p);
+        }
+        // 5. Last played file
+        if let Some(ref last) = self.config.last_played_file {
+            let p = PathBuf::from(last);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+        None
+    }
+
     pub fn has_open_dialog(&self) -> bool {
         self.show_library_view
             || self.show_preferences
@@ -3036,6 +3066,8 @@ impl VortexApp {
             self.intro_btn_shown_at = None;
             self.intro_last_time_pos = 0.0;
             self.last_skipped_chapter_index = None;
+            self.media_closed_this_frame = true;
+            self.last_opened_path = None;
 
             ctx.request_repaint();
         }
@@ -3723,8 +3755,9 @@ impl eframe::App for VortexApp {
         // Process seekbar hover preview frame textures, shortcuts, drag-and-drop, window resizing, A-B loop
         self.seek_preview.pump(&ctx);
         self.handle_shortcuts(&ctx, &mut stats);
-        if stats.is_idle && stats.file_path.is_empty() {
+        if self.media_closed_this_frame {
             file_to_open = None;
+            self.media_closed_this_frame = false;
         }
         self.handle_drag_and_drop(&ctx);
         self.handle_window_resizing(&ctx, &stats);
@@ -3759,13 +3792,8 @@ impl eframe::App for VortexApp {
                     }
                     crate::platform::windows::taskbar::THUMB_CMD_PLAY_PAUSE => {
                         if stats.is_idle {
-                            if let Some(item) = self.playlist.lock().unwrap().current_item() {
-                                file_to_open = Some(item.path.clone());
-                            } else if let Some(recent) = self.config.recent_files.first() {
-                                let p = PathBuf::from(recent);
-                                if p.exists() {
-                                    file_to_open = Some(p);
-                                }
+                            if let Some(target) = self.get_idle_play_target() {
+                                file_to_open = Some(target);
                             }
                         } else if let Ok(ref player) = self.player {
                             player.toggle_pause();
@@ -4121,13 +4149,10 @@ impl eframe::App for VortexApp {
 
                         if actions.toggle_play {
                             if stats.is_idle {
-                                if let Some(item) = self.playlist.lock().unwrap().current_item() {
-                                    file_to_open = Some(item.path.clone());
-                                } else if let Some(recent) = self.config.recent_files.first() {
-                                    let p = PathBuf::from(recent);
-                                    if p.exists() {
-                                        file_to_open = Some(p);
-                                    }
+                                if let Some(target) = self.get_idle_play_target() {
+                                    file_to_open = Some(target);
+                                } else if let Some(file) = rfd::FileDialog::new().pick_file() {
+                                    file_to_open = Some(file);
                                 }
                             } else if let Ok(ref player) = self.player {
                                 player.toggle_pause();
@@ -4462,8 +4487,8 @@ impl eframe::App for VortexApp {
                         }
                     } else if !in_ui_overlay && response.clicked() {
                         if stats.is_idle {
-                            if let Some(item) = self.playlist.lock().unwrap().current_item() {
-                                file_to_open = Some(item.path.clone());
+                            if let Some(target) = self.get_idle_play_target() {
+                                file_to_open = Some(target);
                             }
                         }
                     }
@@ -7107,8 +7132,9 @@ impl eframe::App for VortexApp {
         // =========================================================================
         // 6. PROCESS FILE / FOLDER OPENS
         // =========================================================================
-        if stats.is_idle && stats.file_path.is_empty() {
+        if self.media_closed_this_frame {
             file_to_open = None;
+            self.media_closed_this_frame = false;
         }
         if let Some(path) = file_to_open {
             self.open_media_file(path);

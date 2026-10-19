@@ -727,6 +727,11 @@ impl VortexApp {
     }
 
     pub fn open_media_file(&mut self, path: PathBuf) {
+        // Deeply nested Windows paths (> MAX_PATH) must use the extended-length
+        // prefix everywhere: libmpv refuses them otherwise, and stats.file_path
+        // / resume / auto-fit comparisons would no longer match the path we
+        // stored.
+        let path = crate::engine::player::normalize_media_path_buf(path);
         if let Some(ref last_p) = self.last_opened_path {
             if last_p == &path && self.last_opened_time.elapsed().as_millis() < 200 {
                 return;
@@ -4969,8 +4974,10 @@ impl eframe::App for VortexApp {
                     // Real-Time Visualizer Suite
                     self.visualizer.render(ui, rect, &stats);
 
-                    // Synchronized Karaoke Lyrics Overlay
-                    let mediainfo_cached = if self.lyrics_overlay.track.is_none() && !stats.file_path.is_empty() {
+                    // Synchronized Karaoke Lyrics Overlay.
+                    // Only fetch MediaInfo while there is genuinely a discovery
+                    // attempt pending, so this never becomes per-frame work.
+                    let mediainfo_cached = if self.lyrics_overlay.needs_discovery(&stats.file_path) {
                         crate::engine::mediainfo::get_mediainfo_text(&stats.file_path, &stats)
                     } else {
                         String::new()
@@ -7301,8 +7308,13 @@ impl eframe::App for VortexApp {
             // Full interaction budget for silky-smooth responsive controls at native display refresh rate
             ctx.request_repaint();
         } else if !stats.is_paused && !stats.is_idle {
-            // Active video playback at native display refresh rate with zero frame judder
-            ctx.request_repaint();
+            // mpv's render update callback requests a repaint for every new video
+            // frame. Rely on that instead of re-running the whole UI at the display
+            // refresh rate: a 24 fps video was previously driving 144 full-UI frames
+            // per second, burning a whole CPU core and causing multi-hundred-ms
+            // message-loop stalls. The timer is only a low-rate safety net for the
+            // clock/progress UI in case the callback is ever missed.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         } else {
             // Foreground idle / paused controls: keep smooth at 30 FPS without high wattage
             let idle_delay = if is_foreground {

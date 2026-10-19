@@ -15,6 +15,12 @@ pub struct LyricsOverlay {
     pub copied_feedback: f64,
     pub auto_scroll: bool,
     pub last_active_idx: Option<usize>,
+    /// Number of lyrics-discovery attempts made for the current file.
+    /// Discovery performs filesystem I/O and synchronous mpv property lookups,
+    /// so it must never run once per frame.
+    discovery_attempts: u32,
+    /// Timestamp of the last discovery attempt (used to rate-limit retries).
+    last_discovery_at: Option<std::time::Instant>,
 }
 
 impl Default for LyricsOverlay {
@@ -28,6 +34,8 @@ impl Default for LyricsOverlay {
             copied_feedback: 0.0,
             auto_scroll: true,
             last_active_idx: None,
+            discovery_attempts: 0,
+            last_discovery_at: None,
         }
     }
 }
@@ -60,10 +68,17 @@ impl LyricsOverlay {
             self.track = None;
             self.user_offset_sec = 0.0;
             self.last_active_idx = None;
+            self.discovery_attempts = 0;
+            self.last_discovery_at = None;
         }
 
-        // If lyrics are not yet loaded (or if MediaInfo just became available), attempt load
-        if self.track.is_none() {
+        // Lyrics discovery does real work: it issues synchronous mpv property
+        // lookups, scans the media directory for a sidecar `.lrc`, and for some
+        // containers reads a chunk of the media file. Previously it ran on
+        // every frame while `track` stayed `None` (i.e. for every file without
+        // lyrics), which dominated the UI frame cost. It is now bounded and
+        // rate-limited via `needs_discovery`.
+        if self.track.is_none() && self.needs_discovery(file_path) {
             let mpv_lyrics = player.and_then(|p| {
                 let keys = [
                     "metadata/by-key/Lyrics",
@@ -87,11 +102,51 @@ impl LyricsOverlay {
                 None
             });
 
+            // The directory scan is the most expensive part of discovery, so it
+            // only runs on the first attempt for a file; later retries still
+            // check the cheap sibling path and mpv/embedded metadata.
+            let scan_directory = self.discovery_attempts == 0;
             self.track = load_lyrics_for_media(
                 file_path,
                 mpv_lyrics.as_deref(),
                 mediainfo_text,
+                scan_directory,
             );
+            self.discovery_attempts = self.discovery_attempts.saturating_add(1);
+            self.last_discovery_at = Some(std::time::Instant::now());
+        }
+    }
+
+    /// Whether lyrics discovery should be attempted for `file_path` right now.
+    ///
+    /// Performs one initial attempt per file followed by a small number of
+    /// spaced retries (to pick up metadata that becomes available shortly after
+    /// the file is opened), then stays idle until the file changes. This keeps
+    /// the UI thread from repeating expensive I/O on every frame.
+    pub fn needs_discovery(&self, file_path: &str) -> bool {
+        const MAX_DISCOVERY_ATTEMPTS: u32 = 4;
+        const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(750);
+
+        if file_path.is_empty() {
+            return false;
+        }
+        // A fresh file always gets an attempt (the overlay state is reset here
+        // on the next `update_track` call).
+        if self.last_file_path != file_path {
+            return true;
+        }
+        if self.track.is_some() {
+            return false;
+        }
+        if self.discovery_attempts == 0 {
+            return true;
+        }
+        if self.discovery_attempts >= MAX_DISCOVERY_ATTEMPTS {
+            return false;
+        }
+        match self.last_discovery_at {
+            Some(t) => t.elapsed() >= RETRY_INTERVAL,
+            None => true,
         }
     }
 
@@ -462,5 +517,102 @@ impl LyricsOverlay {
             }
         }
         self.last_active_idx = active_idx;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A path that is guaranteed not to exist, so discovery always fails fast.
+    const MISSING: &str = r"C:\__vortex_lyrics_overlay_missing_file__.mp4";
+
+    #[test]
+    fn needs_discovery_is_false_for_empty_path() {
+        let ov = LyricsOverlay::default();
+        assert!(!ov.needs_discovery(""));
+    }
+
+    #[test]
+    fn needs_discovery_is_true_for_a_fresh_file() {
+        let ov = LyricsOverlay::default();
+        assert!(ov.needs_discovery(MISSING));
+    }
+
+    #[test]
+    fn needs_discovery_is_true_again_after_path_change() {
+        let mut ov = LyricsOverlay::default();
+        ov.update_track(MISSING, None, None);
+        // Exhaust the retry budget for the first file.
+        for _ in 0..10 {
+            ov.last_discovery_at =
+                Some(std::time::Instant::now() - std::time::Duration::from_secs(10));
+            ov.update_track(MISSING, None, None);
+        }
+        assert!(!ov.needs_discovery(MISSING));
+
+        // A different file must get a fresh attempt.
+        assert!(ov.needs_discovery(r"C:\__vortex_lyrics_overlay_other__.mp4"));
+    }
+
+    #[test]
+    fn needs_discovery_is_false_when_a_track_is_loaded() {
+        // Simulate that this exact file was already processed and its lyrics
+        // loaded: the path must match so the "fresh file" branch does not fire.
+        let ov = LyricsOverlay {
+            last_file_path: MISSING.to_string(),
+            track: Some(LyricTrack::default()),
+            ..Default::default()
+        };
+        assert!(!ov.needs_discovery(MISSING));
+    }
+
+    /// Regression guard for the per-frame freeze: repeated `update_track` calls
+    /// within the rate-limit window (i.e. successive UI frames) must not repeat
+    /// discovery work.
+    #[test]
+    fn update_track_does_not_rediscover_on_every_frame() {
+        let mut ov = LyricsOverlay::default();
+        ov.update_track(MISSING, None, None);
+        let after_first = ov.discovery_attempts;
+        for _ in 0..200 {
+            ov.update_track(MISSING, None, None);
+        }
+        assert_eq!(after_first, 1, "the first call performs exactly one attempt");
+        assert_eq!(
+            ov.discovery_attempts, 1,
+            "discovery must be rate-limited, not repeated once per frame"
+        );
+    }
+
+    /// The retry budget is bounded: even with the rate limit bypassed, discovery
+    /// must stop after a fixed number of attempts per file.
+    #[test]
+    fn update_track_bounds_total_discovery_attempts() {
+        let mut ov = LyricsOverlay::default();
+        for _ in 0..1000 {
+            ov.last_discovery_at =
+                Some(std::time::Instant::now() - std::time::Duration::from_secs(10));
+            ov.update_track(MISSING, None, None);
+        }
+        assert_eq!(
+            ov.discovery_attempts, 4,
+            "discovery must stop after its bounded retry budget"
+        );
+        assert!(ov.track.is_none());
+    }
+
+    /// Only the first attempt may perform the expensive directory scan.
+    #[test]
+    fn directory_scan_is_only_used_on_the_first_attempt() {
+        let mut ov = LyricsOverlay::default();
+        ov.update_track(MISSING, None, None);
+        assert_eq!(ov.discovery_attempts, 1);
+        // Subsequent (rate-limit-bypassed) retries still run discovery, which
+        // internally disables the directory scan for `attempts > 0`; the
+        // assertions here just pin the attempt counter behaviour.
+        ov.last_discovery_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(10));
+        ov.update_track(MISSING, None, None);
+        assert_eq!(ov.discovery_attempts, 2);
     }
 }

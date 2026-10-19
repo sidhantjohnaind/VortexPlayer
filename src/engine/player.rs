@@ -7,7 +7,7 @@ use super::mpv_ffi::*;
 use super::video_effects::VideoEffectsConfig;
 use serde::{Deserialize, Serialize};
 use std::ffi::{c_void, CStr, CString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -340,6 +340,67 @@ impl AudioFilterState {
         } else {
             format!("{},{}", filters.join(","), ASTATS_FILTER)
         }
+    }
+}
+
+/// Convert a local media path into a long-path-safe Win32 form for libmpv.
+///
+/// Windows file associations, drag & drop and the command line hand us ordinary
+/// paths. libmpv opens files through FFmpeg's `open()`, which rejects paths
+/// longer than `MAX_PATH` (260) unless they use the `\\?\` extended-length
+/// prefix. Without this, opening a deeply nested file silently fails and the UI
+/// is left on the "Playing" screen forever.
+///
+/// Only local drive/UNC paths at or beyond the legacy limit are rewritten.
+/// URLs (anything with `://`), device paths and already-prefixed paths are
+/// returned unchanged.
+pub fn normalize_media_path(path: &str) -> String {
+    #[cfg(windows)]
+    {
+        if path.is_empty()
+            || path.contains("://")
+            || path.starts_with("\\\\?\\")
+            || path.starts_with("\\\\.\\")
+        {
+            return path.to_string();
+        }
+
+        let is_drive_path = path.as_bytes().get(1) == Some(&b':');
+        if !is_drive_path && !Path::new(path).is_absolute() {
+            return path.to_string();
+        }
+
+        // Length is measured in bytes here on purpose: UTF-8 bytes are never
+        // fewer than UTF-16 code units, so this is a conservative threshold.
+        if path.len() < 240 {
+            return path.to_string();
+        }
+
+        let abs = std::path::absolute(path).unwrap_or_else(|_| PathBuf::from(path));
+        let abs = abs.to_string_lossy().replace('/', "\\");
+        if let Some(rest) = abs.strip_prefix("\\\\") {
+            return format!("\\\\?\\UNC\\{}", rest);
+        }
+        format!("\\\\?\\{}", abs)
+    }
+    #[cfg(not(windows))]
+    {
+        path.to_string()
+    }
+}
+
+/// [`normalize_media_path`] for callers that already hold a `PathBuf`.
+pub fn normalize_media_path_buf(path: PathBuf) -> PathBuf {
+    match path.to_str() {
+        Some(s) => {
+            let normalized = normalize_media_path(s);
+            if normalized == s {
+                path
+            } else {
+                PathBuf::from(normalized)
+            }
+        }
+        None => path,
     }
 }
 
@@ -707,6 +768,8 @@ impl Player {
         self.manually_stopped.store(false, Ordering::SeqCst);
         self.set_property_string("video-align-x", "0");
         self.set_property_string("video-align-y", "0");
+        let path_or_url = normalize_media_path(path_or_url);
+        let path_or_url = path_or_url.as_str();
         if let Some(pos) = start_pos.filter(|&p| p > 0.0) {
             let start_opt = format!("start={:.2}", pos);
             self.command(&["loadfile", path_or_url, "replace", "-1", &start_opt]);
@@ -804,6 +867,13 @@ impl Player {
         self.init_render_context(egui_ctx.clone())
     }
 
+    /// Render the current mpv frame into `fbo`.
+    ///
+    /// Returns `true` only when a *new* decoded video frame was consumed. A
+    /// forced render (`force = true`) may redraw the previously decoded frame
+    /// into a resized surface without a new frame being available; in that case
+    /// the return value is `false`, so callers must not treat it as evidence
+    /// that real video has been presented yet.
     pub fn render_to_surface(&self, fbo: i32, width: i32, height: i32, force: bool) -> bool {
         if width <= 0 || height <= 0 {
             return false;
@@ -842,7 +912,7 @@ impl Player {
                         (self.ffi.mpv_render_context_report_swap)(render_ctx);
                     }
                 }
-                return true;
+                return has_new_frame;
             }
         }
         false
@@ -3008,5 +3078,63 @@ impl Drop for Player {
         unsafe {
             (self.ffi.mpv_terminate_destroy)(self.ctx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_media_path_leaves_short_paths_untouched() {
+        let p = r"C:\Videos\movie.mkv";
+        assert_eq!(normalize_media_path(p), p);
+    }
+
+    #[test]
+    fn normalize_media_path_leaves_urls_untouched() {
+        let p = "https://example.com/a/very/long/url/that/exceeds/the/limit/but/is/a/url/stream/file.mkv";
+        assert_eq!(normalize_media_path(p), p);
+    }
+
+    #[test]
+    fn normalize_media_path_leaves_empty_untouched() {
+        assert_eq!(normalize_media_path(""), "");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_media_path_prefixes_long_drive_paths() {
+        let long = format!("C:\\{}\\{}.mkv", "a".repeat(150), "b".repeat(150));
+        assert!(long.len() >= 240);
+        let got = normalize_media_path(&long);
+        assert!(got.starts_with("\\\\?\\C:\\"), "unexpected: {}", got);
+        assert!(got.ends_with(".mkv"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_media_path_prefixes_long_unc_paths() {
+        let long = format!("\\\\server\\share\\{}\\{}.mkv", "a".repeat(150), "b".repeat(150));
+        assert!(long.len() >= 240);
+        let got = normalize_media_path(&long);
+        assert!(got.starts_with("\\\\?\\UNC\\server\\share\\"), "unexpected: {}", got);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_media_path_keeps_already_prefixed_and_device_paths() {
+        let prefixed = format!("\\\\?\\C:\\{}", "a".repeat(260));
+        assert_eq!(normalize_media_path(&prefixed), prefixed);
+
+        let device = r"\\.\PIPE\someverylongdevicenamethatcertainlyexceedsanykindoflegacybytebasedlimit.exe";
+        assert_eq!(normalize_media_path(device), device);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_media_path_buf_roundtrips_short_path() {
+        let p = PathBuf::from(r"C:\Videos\movie.mkv");
+        assert_eq!(normalize_media_path_buf(p.clone()), p);
     }
 }

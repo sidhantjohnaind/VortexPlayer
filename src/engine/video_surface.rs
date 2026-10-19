@@ -136,10 +136,16 @@ impl VideoSurface {
         let had_rendered = self.has_rendered_any_frame;
         match self.ensure_surface(gl, w, h) {
             Ok(fbo_id) => {
-                let force = (size_changed && had_rendered) || !self.has_rendered_any_frame;
-                if player.render_to_surface(fbo_id, w, h, force) {
-                    self.has_rendered_any_frame = true;
-                } else if had_rendered {
+                // Never force the very first render: before mpv has decoded a real
+                // frame, a forced render only produces an undefined/black texture.
+                // Blitting that would hide the loading UI and look like a freeze.
+                // A forced render is still useful after a resize to redraw the
+                // current frame into the new FBO; the previous texture stays valid
+                // until then, so `had_rendered` keeps the blit path enabled.
+                let force = size_changed && had_rendered;
+                let got_frame = player.render_to_surface(fbo_id, w, h, force);
+                if got_frame {
+                    // A real (new) frame was rendered and is ready to present.
                     self.has_rendered_any_frame = true;
                 }
                 if self.has_rendered_any_frame {

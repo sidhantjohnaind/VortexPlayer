@@ -255,7 +255,13 @@ impl LyricTrack {
 
 /// Discovers an external `.lrc` file matching the media file
 pub fn find_external_lrc(media_path: &Path) -> Option<PathBuf> {
-    // 1. Exact stem + .lrc or .LRC
+    find_external_lrc_sibling(media_path).or_else(|| find_external_lrc_scan(media_path))
+}
+
+/// Cheap sidecar lookup: only checks the two exact sibling paths next to the
+/// media file (`foo.lrc` / `foo.LRC`). Never scans a directory.
+pub fn find_external_lrc_sibling(media_path: &Path) -> Option<PathBuf> {
+    // Exact stem + .lrc or .LRC
     let lrc1 = media_path.with_extension("lrc");
     if lrc1.is_file() {
         return Some(lrc1);
@@ -264,23 +270,37 @@ pub fn find_external_lrc(media_path: &Path) -> Option<PathBuf> {
     if lrc2.is_file() {
         return Some(lrc2);
     }
+    None
+}
 
-    // 2. Directory scan matching file stem (case-insensitive)
+/// Expensive sidecar lookup: scans the media file's directory for a `.lrc`
+/// whose stem matches the media file (case-insensitive). On large or network
+/// directories this can take tens of milliseconds, so callers should not run it
+/// repeatedly (e.g. once per retry).
+pub fn find_external_lrc_scan(media_path: &Path) -> Option<PathBuf> {
     let parent = media_path.parent()?;
     let stem = media_path.file_stem()?.to_string_lossy().to_lowercase();
     if let Ok(entries) = fs::read_dir(parent) {
         for entry in entries.flatten() {
             let p = entry.path();
-            if p.is_file() {
-                if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-                    if ext.eq_ignore_ascii_case("lrc") {
-                        if let Some(ent_stem) = p.file_stem().and_then(|s| s.to_str()) {
-                            if ent_stem.to_lowercase() == stem {
-                                return Some(p);
-                            }
-                        }
-                    }
-                }
+            // Match the (cheap) extension first so we do not issue a metadata
+            // syscall for every entry in the directory, which is expensive on
+            // large/network directories.
+            let is_lrc = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("lrc"));
+            if !is_lrc {
+                continue;
+            }
+            if !p.is_file() {
+                continue;
+            }
+            let Some(ent_stem) = p.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            if ent_stem.to_lowercase() == stem {
+                return Some(p);
             }
         }
     }
@@ -553,14 +573,24 @@ pub fn load_lyrics_for_media(
     file_path: &str,
     mpv_lyrics: Option<&str>,
     mediainfo_text: Option<&str>,
+    scan_directory: bool,
 ) -> Option<LyricTrack> {
     if file_path.is_empty() {
         return None;
     }
     let path = Path::new(file_path);
 
-    // 1. External .lrc file (highest user precedence)
-    if let Some(lrc_path) = find_external_lrc(path) {
+    // 1. External .lrc file (highest user precedence). The cheap sibling checks
+    //    always run; the directory scan is optionally skipped (e.g. on retries)
+    //    because it is the most expensive part of discovery on large/network
+    //    directories.
+    let sibling = find_external_lrc_sibling(path);
+    let from_scan = if sibling.is_none() && scan_directory {
+        find_external_lrc_scan(path)
+    } else {
+        None
+    };
+    if let Some(lrc_path) = sibling.or(from_scan) {
         if let Some(track) = LyricTrack::from_lrc_file(&lrc_path) {
             return Some(track);
         }
@@ -606,4 +636,128 @@ pub fn load_lyrics_for_media(
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Creates a unique scratch directory under the system temp dir.
+    fn scratch_dir(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!(
+            "vortex_lyrics_test_{}_{}_{}",
+            tag,
+            std::process::id(),
+            nanos
+        ));
+        fs::create_dir_all(&dir).expect("create scratch dir");
+        dir
+    }
+
+    #[test]
+    fn sibling_lookup_finds_exact_lrc() {
+        let dir = scratch_dir("sibling");
+        let media = dir.join("song.mp4");
+        fs::write(&media, b"x").unwrap();
+        let lrc = dir.join("song.lrc");
+        fs::write(&lrc, b"[00:01.00]hello\n").unwrap();
+
+        assert_eq!(find_external_lrc_sibling(&media), Some(lrc));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sibling_lookup_is_none_without_sidecar() {
+        let dir = scratch_dir("nosibling");
+        let media = dir.join("song.mp4");
+        fs::write(&media, b"x").unwrap();
+
+        assert_eq!(find_external_lrc_sibling(&media), None);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn directory_scan_matches_different_case_stem() {
+        let dir = scratch_dir("scan");
+        let media = dir.join("My Song.mp4");
+        fs::write(&media, b"x").unwrap();
+        // A `.lrc` with a differently-cased stem and extension.
+        let lrc = dir.join("my song.LRC");
+        fs::write(&lrc, b"[00:01.00]hello\n").unwrap();
+
+        // On case-sensitive filesystems the cheap sibling lookup cannot find a
+        // differently-cased stem, so only the scan can. On Windows the
+        // filesystem is case-insensitive and the sibling path resolves too.
+        #[cfg(not(windows))]
+        assert_eq!(find_external_lrc_sibling(&media), None);
+
+        assert_eq!(find_external_lrc_scan(&media), Some(lrc.clone()));
+        // `find_external_lrc` prefers the sibling path, whose textual casing may
+        // differ from the on-disk entry on case-insensitive filesystems, so
+        // compare the resolved file rather than the raw path.
+        assert_eq!(
+            find_external_lrc(&media).map(|p| p.canonicalize().unwrap()),
+            Some(lrc.canonicalize().unwrap())
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn directory_scan_ignores_unrelated_files() {
+        let dir = scratch_dir("ignore");
+        let media = dir.join("song.mp4");
+        fs::write(&media, b"x").unwrap();
+        // Present but must not match: different stem / different extension.
+        fs::write(dir.join("other.lrc"), b"[00:01.00]x\n").unwrap();
+        fs::write(dir.join("song.txt"), b"not lyrics\n").unwrap();
+
+        assert_eq!(find_external_lrc_scan(&media), None);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_lyrics_prefers_sibling_even_without_directory_scan() {
+        let dir = scratch_dir("prefer");
+        let media = dir.join("song.mp3");
+        fs::write(&media, b"x").unwrap();
+        let lrc = dir.join("song.lrc");
+        fs::write(&lrc, b"[00:01.00]hello\n").unwrap();
+
+        let track = load_lyrics_for_media(
+            media.to_str().unwrap(),
+            None,
+            None,
+            /* scan_directory */ false,
+        )
+        .expect("sibling .lrc should be found without a directory scan");
+        assert_eq!(track.lines.len(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_lyrics_respects_directory_scan_flag() {
+        let dir = scratch_dir("noscan");
+        let media = dir.join("My Song.mp4");
+        fs::write(&media, b"x").unwrap();
+        fs::write(dir.join("my song.lrc"), b"[00:01.00]hello\n").unwrap();
+
+        // The cheap sibling lookup always runs; on case-sensitive filesystems
+        // it misses the differently-cased stem, so with the scan disabled the
+        // directory entry stays invisible. Windows filesystems are
+        // case-insensitive, so the sibling path resolves regardless.
+        if cfg!(windows) {
+            assert!(load_lyrics_for_media(media.to_str().unwrap(), None, None, false).is_some());
+        } else {
+            assert!(load_lyrics_for_media(media.to_str().unwrap(), None, None, false).is_none());
+        }
+
+        // With the scan enabled the differently-cased sidecar is found on every
+        // platform.
+        assert!(load_lyrics_for_media(media.to_str().unwrap(), None, None, true).is_some());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

@@ -2168,6 +2168,67 @@ impl VortexApp {
         }
     }
 
+    /// Display name of the media most recently requested, for error messages.
+    fn last_opened_name(&self) -> String {
+        self.last_opened_path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or("media")
+            .to_string()
+    }
+
+    /// Surface libmpv load failures and recover from a load that never resolves.
+    ///
+    /// Without this a bad file (unsupported format, unreadable path, decode
+    /// error) leaves `is_loading_media` stuck forever, which silently disables
+    /// auto-advance and the playlist for the rest of the session while the UI
+    /// keeps showing the file as loaded.
+    pub fn check_load_errors(&mut self) {
+        let reported = if let Ok(ref player) = self.player {
+            player.take_load_error()
+        } else {
+            None
+        };
+
+        if let Some(message) = reported {
+            let name = self.last_opened_name();
+            self.report_load_failure(format!("Failed to play {}: {}", name, message));
+            return;
+        }
+
+        // Fallback for a load that silently never starts: libmpv returned to
+        // idle without ever exposing a file. Generous headroom so buffering a
+        // slow but valid source is not misreported as a failure.
+        if self.is_loading_media && self.media_load_start.elapsed().as_secs_f64() >= 8.0 {
+            let stalled = if let Ok(ref player) = self.player {
+                let s = player.stats();
+                s.file_path.is_empty() && s.is_idle
+            } else {
+                true
+            };
+            if stalled {
+                let name = self.last_opened_name();
+                self.report_load_failure(format!("Failed to load {}", name));
+            }
+        }
+    }
+
+    /// Clear the stuck "loading" state and surface a failed load to the user.
+    fn report_load_failure(&mut self, message: String) {
+        self.is_loading_media = false;
+        self.pending_resume = None;
+        self.prev_was_playing = false;
+
+        let line = format!("[LOAD ERROR] {}", message);
+        crate::log_playback_debug(&line);
+        if self.debug_log_entries.len() >= 500 {
+            self.debug_log_entries.pop_front();
+        }
+        self.debug_log_entries.push_back(line);
+        self.osd.show(format!("⚠ {}", message), 6000);
+    }
+
     pub fn check_auto_advance(&mut self) -> Option<PathBuf> {
         // Never auto-advance if an initial file or media is currently loading
         if self.pending_initial_file.is_some() || self.is_loading_media {
@@ -3047,6 +3108,7 @@ impl VortexApp {
                 let _ = self.config.save();
             }
             self.prev_was_playing = false;
+            self.is_loading_media = false;
             player.close_media();
             self.bookmark_mgr.set_video(None);
             self.playlist.lock().unwrap().current_index = None;
@@ -3771,6 +3833,7 @@ impl eframe::App for VortexApp {
         }
         self.handle_drag_and_drop(&ctx);
         self.handle_window_resizing(&ctx, &stats);
+        self.check_load_errors();
         self.check_ab_loop_and_resume();
         self.bookmark_mgr.poll_async_load();
 

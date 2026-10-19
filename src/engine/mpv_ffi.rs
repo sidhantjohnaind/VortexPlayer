@@ -32,6 +32,13 @@ pub const MPV_EVENT_SEEK: c_int = 20;
 pub const MPV_EVENT_PLAYBACK_RESTART: c_int = 21;
 pub const MPV_EVENT_PROPERTY_CHANGE: c_int = 22;
 
+// mpv_end_file_reason (see mpv/client.h). Note that 1 is intentionally unused.
+pub const MPV_END_FILE_REASON_EOF: c_int = 0;
+pub const MPV_END_FILE_REASON_STOP: c_int = 2;
+pub const MPV_END_FILE_REASON_QUIT: c_int = 3;
+pub const MPV_END_FILE_REASON_ERROR: c_int = 4;
+pub const MPV_END_FILE_REASON_REDIRECT: c_int = 5;
+
 #[repr(C)]
 pub struct MpvEvent {
     pub event_id: c_int,

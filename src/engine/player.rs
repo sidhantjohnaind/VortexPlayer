@@ -415,6 +415,10 @@ pub struct Player {
     audio_filter_state: Mutex<AudioFilterState>,
     on_eof: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
     manually_stopped: Arc<AtomicBool>,
+    /// Last load/playback failure reported by libmpv (e.g. unsupported format,
+    /// missing file). Taken once by the UI so it can stop showing the media as
+    /// playing and surface the failure to the user.
+    load_error: Arc<Mutex<Option<String>>>,
     thread_handle: Option<thread::JoinHandle<()>>,
 }
 
@@ -543,6 +547,8 @@ impl Player {
         let thread_on_eof = Arc::clone(&on_eof);
         let manually_stopped = Arc::new(AtomicBool::new(false));
         let thread_manually_stopped = Arc::clone(&manually_stopped);
+        let load_error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        let thread_load_error = Arc::clone(&load_error);
 
         let thread_handle = thread::spawn(move || {
             let ctx = thread_ctx as *mut c_void;
@@ -557,8 +563,29 @@ impl Player {
                 let event_ptr = unsafe { (thread_ffi.mpv_wait_event)(ctx, 0.0) };
                 if !event_ptr.is_null() {
                     let event = unsafe { &*event_ptr };
-                    if event.event_id == MPV_EVENT_SHUTDOWN {
-                        break;
+                    match event.event_id {
+                        MPV_EVENT_SHUTDOWN => break,
+                        MPV_EVENT_END_FILE if !event.data.is_null() => {
+                            // Surface genuine playback/load failures (unrecognized
+                            // format, missing file, decode error) so the UI stops
+                            // pretending the media is playing. Normal EOF, stop,
+                            // quit and redirects are not errors.
+                            let end = unsafe { &*(event.data as *const MpvEventEndFile) };
+                            if end.reason == MPV_END_FILE_REASON_ERROR {
+                                let msg = unsafe {
+                                    let p = (thread_ffi.mpv_error_string)(end.error);
+                                    if p.is_null() {
+                                        "unknown error".to_string()
+                                    } else {
+                                        CStr::from_ptr(p).to_string_lossy().into_owned()
+                                    }
+                                };
+                                if let Ok(mut e) = thread_load_error.lock() {
+                                    *e = Some(msg);
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
 
@@ -659,8 +686,15 @@ impl Player {
             audio_filter_state: Mutex::new(AudioFilterState::default()),
             on_eof,
             manually_stopped,
+            load_error,
             thread_handle: Some(thread_handle),
         })
+    }
+
+    /// Take the most recent load/playback failure reported by libmpv, if any.
+    /// The value is consumed so it is only surfaced to the user once.
+    pub fn take_load_error(&self) -> Option<String> {
+        self.load_error.lock().ok().and_then(|mut e| e.take())
     }
 
     pub fn stats(&self) -> MediaStats {
@@ -766,6 +800,10 @@ impl Player {
     /// Load and play a file or URL with an optional start position in seconds
     pub fn load_file_with_start(&self, path_or_url: &str, start_pos: Option<f64>) {
         self.manually_stopped.store(false, Ordering::SeqCst);
+        // A failure from a previous load must not be reported against this one.
+        if let Ok(mut e) = self.load_error.lock() {
+            *e = None;
+        }
         self.set_property_string("video-align-x", "0");
         self.set_property_string("video-align-y", "0");
         let path_or_url = normalize_media_path(path_or_url);
@@ -972,6 +1010,9 @@ impl Player {
 
     pub fn close_media(&self) {
         self.manually_stopped.store(true, Ordering::SeqCst);
+        if let Ok(mut e) = self.load_error.lock() {
+            *e = None;
+        }
         // Use mpv "stop" command to fully unload the file and go idle.
         // This is different from player.stop() which just pauses+seeks for resume.
         self.command(&["stop"]);

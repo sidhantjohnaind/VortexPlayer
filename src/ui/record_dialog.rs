@@ -38,7 +38,7 @@ impl StreamRecordDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📼 Live Stream / Video Recorder")
+        crate::ui::popup_window::PopupWindow::new("📼 Live Stream / Video Recorder")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)

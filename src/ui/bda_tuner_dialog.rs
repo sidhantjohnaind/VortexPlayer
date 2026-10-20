@@ -137,7 +137,7 @@ impl BdaTunerDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📡 Digital TV Broadcast Tuner (BDA) Studio")
+        crate::ui::popup_window::PopupWindow::new("📡 Digital TV Broadcast Tuner (BDA) Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

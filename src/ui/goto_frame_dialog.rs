@@ -37,7 +37,7 @@ impl GotoFrameDialog {
         self.total_frames = (stats.duration * self.fps) as u64;
 
         let mut open = self.is_open;
-        egui::Window::new("🎞️ Go To Frame")
+        crate::ui::popup_window::PopupWindow::new("🎞️ Go To Frame")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)

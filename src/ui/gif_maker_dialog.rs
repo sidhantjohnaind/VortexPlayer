@@ -40,7 +40,7 @@ impl GifMakerDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎞️ Animated GIF & Video Clip Maker (Ctrl+G)")
+        crate::ui::popup_window::PopupWindow::new("🎞️ Animated GIF & Video Clip Maker (Ctrl+G)")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)

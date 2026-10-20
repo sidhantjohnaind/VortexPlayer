@@ -97,7 +97,7 @@ impl TranscoderDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🔄 Built-in Media Transcoder & Format Converter")
+        crate::ui::popup_window::PopupWindow::new("🔄 Built-in Media Transcoder & Format Converter")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

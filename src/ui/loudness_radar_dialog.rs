@@ -86,7 +86,7 @@ impl LoudnessRadarDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("📊 EBU R128 & LUFS Loudness Radar")
+        crate::ui::popup_window::PopupWindow::new("📊 EBU R128 & LUFS Loudness Radar")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

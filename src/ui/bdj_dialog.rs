@@ -93,7 +93,7 @@ impl BdjDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("☕ Java BD-J Interactive Blu-ray Menu Engine")
+        crate::ui::popup_window::PopupWindow::new("☕ Java BD-J Interactive Blu-ray Menu Engine")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

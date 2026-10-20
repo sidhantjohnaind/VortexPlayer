@@ -39,7 +39,7 @@ impl KaraokeStudioDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎤 Karaoke & Pitch/Tempo Studio (Ctrl+K)")
+        crate::ui::popup_window::PopupWindow::new("🎤 Karaoke & Pitch/Tempo Studio (Ctrl+K)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

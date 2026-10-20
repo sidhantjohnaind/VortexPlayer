@@ -54,7 +54,7 @@ impl ZoomMagnifierDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🔍 Interactive Live Video Zoom Magnifier Lens")
+        crate::ui::popup_window::PopupWindow::new("🔍 Interactive Live Video Zoom Magnifier Lens")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

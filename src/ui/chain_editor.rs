@@ -35,7 +35,7 @@ impl ChainEditorDialog {
 
         let mut open = self.is_open;
         let mut should_close = false;
-        egui::Window::new("Pipeline Processing Chain Editor")
+        crate::ui::popup_window::PopupWindow::new("Pipeline Processing Chain Editor")
             .open(&mut open)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)

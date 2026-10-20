@@ -53,7 +53,7 @@ impl DamagedFileRepairDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🔧 Damaged Media Index Repair & Codec Diagnostic (GOM Style)")
+        crate::ui::popup_window::PopupWindow::new("🔧 Damaged Media Index Repair & Codec Diagnostic (GOM Style)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

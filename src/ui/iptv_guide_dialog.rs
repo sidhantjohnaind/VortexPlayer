@@ -140,7 +140,7 @@ impl IptvGuideDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📺 IPTV Channel Guide & EPG Browser (Ctrl+I)")
+        crate::ui::popup_window::PopupWindow::new("📺 IPTV Channel Guide & EPG Browser (Ctrl+I)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

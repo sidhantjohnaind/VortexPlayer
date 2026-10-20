@@ -109,7 +109,7 @@ impl RadioDirectoryDialog {
         ];
 
         let mut open = self.is_open;
-        egui::Window::new("📻 Icecast & Shoutcast Internet Radio Directory")
+        crate::ui::popup_window::PopupWindow::new("📻 Icecast & Shoutcast Internet Radio Directory")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

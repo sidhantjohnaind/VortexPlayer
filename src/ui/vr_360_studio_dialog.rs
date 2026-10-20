@@ -79,7 +79,7 @@ impl Vr360StudioDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🥽 360° VR Spherical Video Studio (KMPlayer 64X)")
+        crate::ui::popup_window::PopupWindow::new("🥽 360° VR Spherical Video Studio (KMPlayer 64X)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

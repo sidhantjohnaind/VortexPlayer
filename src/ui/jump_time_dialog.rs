@@ -3,7 +3,7 @@ use crate::bookmark::format_time;
 use crate::engine::{MediaStats, Player};
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Margin, Rect, RichText, Stroke,
-    Vec2, Window,
+    Vec2,
 };
 
 pub struct JumpTimeDialog {
@@ -55,7 +55,7 @@ impl JumpTimeDialog {
         let mut do_close = false;
         let mut target_time: Option<f64> = None;
 
-        let resp = Window::new("Jump to Specific Time (G)")
+        let resp = crate::ui::popup_window::PopupWindow::new("Jump to Specific Time (G)")
             .open(is_open)
             .resizable(false)
             .collapsible(false)

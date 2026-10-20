@@ -27,7 +27,7 @@ impl SettingsInspectorDialog {
         }
 
         let mut open_flag = self.is_open;
-        let resp = egui::Window::new("🔍 Settings Inspector & Layer Provenance")
+        let resp = crate::ui::popup_window::PopupWindow::new("🔍 Settings Inspector & Layer Provenance")
             .open(&mut open_flag)
             .default_width(620.0)
             .default_height(420.0)

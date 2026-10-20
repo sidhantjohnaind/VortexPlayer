@@ -97,7 +97,7 @@ impl AudioCompressorDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🔊 Dynamic Range Compressor & Night Mode")
+        crate::ui::popup_window::PopupWindow::new("🔊 Dynamic Range Compressor & Night Mode")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

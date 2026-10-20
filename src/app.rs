@@ -586,6 +586,14 @@ impl VortexApp {
 
         crate::ui::theme::VortexTheme::apply(&cc.egui_ctx, app.config.theme_mode);
 
+        // Honour the saved "open on start" preferences.
+        if app.config.show_control_panel {
+            app.show_control_panel = true;
+        }
+        if app.config.show_playlist {
+            app.show_playlist = true;
+        }
+
         // Synchronize recent_files list and playback_history store on startup
         if app.config.recent_files.is_empty() && !app.playback_history.entries.is_empty() {
             app.config.recent_files = app.playback_history.entries.iter().map(|e| e.file_path.clone()).collect();
@@ -2483,7 +2491,7 @@ impl VortexApp {
 
         let mut close_requested = false;
 
-        egui::Window::new("📋 Playback & Frame Drop Diagnostics Log")
+        crate::ui::popup_window::PopupWindow::new("📋 Playback & Frame Drop Diagnostics Log")
             .open(&mut is_open)
             .resizable(true)
             .default_size([760.0, 520.0])
@@ -3618,9 +3626,12 @@ impl eframe::App for VortexApp {
         // Setup single window handles and SMTC on initial render
         if !self.attached_hwnd {
             crate::log_step("10a. !self.attached_hwnd entered");
-            if let Ok(ref player) = self.player {
-                crate::log_step("10b. player is Ok");
-                let _ = player.ensure_render_context(&ctx);
+            // The mpv OpenGL render context is deliberately NOT created here:
+            // creating it inside an egui pass leaves the GL state in a way that
+            // breaks eframe's painting of every other viewport. Popup windows
+            // (tool dialogs) then came up blank and the player window went
+            // black. The paint callback creates it instead, where it belongs.
+            {
                 if let Ok(handle) = frame.window_handle() {
                     crate::log_step("10c. got window_handle");
                     match handle.as_raw() {
@@ -6985,7 +6996,7 @@ impl eframe::App for VortexApp {
 
         if self.show_about_dialog {
             let mut close_about = false;
-            let window_resp = egui::Window::new("About VortexPlayer")
+            let window_resp = crate::ui::popup_window::PopupWindow::new("About VortexPlayer")
                 .open(&mut self.show_about_dialog)
                 .resizable(false)
                 .collapsible(false)

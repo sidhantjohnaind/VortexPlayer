@@ -137,7 +137,7 @@ impl StatsForNerdsDialog {
 
         let skin = VortexTheme::current_skin();
 
-        let window = egui::Window::new("🤓 Stats for Nerds")
+        let window = crate::ui::popup_window::PopupWindow::new("🤓 Stats for Nerds")
             .open(&mut is_open)
             .resizable(true)
             .collapsible(true)

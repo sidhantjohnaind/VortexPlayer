@@ -80,7 +80,7 @@ impl CdRipperDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("💿 Audio CD (CDDA) Player & Ripper Studio")
+        crate::ui::popup_window::PopupWindow::new("💿 Audio CD (CDDA) Player & Ripper Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

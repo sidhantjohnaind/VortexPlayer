@@ -1,5 +1,8 @@
 #![allow(unused_imports)]
 
+pub mod popup_window;
+pub use popup_window::PopupWindow;
+
 pub mod music_view;
 pub use music_view::MusicBackgroundView;
 pub mod audio_meter;

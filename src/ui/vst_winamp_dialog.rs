@@ -139,7 +139,7 @@ impl VstWinampDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎛️ VST2 / VST3 & Winamp DSP Plugin Host Studio")
+        crate::ui::popup_window::PopupWindow::new("🎛️ VST2 / VST3 & Winamp DSP Plugin Host Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

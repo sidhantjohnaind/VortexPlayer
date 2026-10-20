@@ -37,7 +37,7 @@ impl ContactSheetDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🖼️ Storyboard Contact Sheet Generator")
+        crate::ui::popup_window::PopupWindow::new("🖼️ Storyboard Contact Sheet Generator")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)

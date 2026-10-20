@@ -81,7 +81,7 @@ impl MotionVectorInspectorDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🔬 Motion Vector & Codec Inspector")
+        crate::ui::popup_window::PopupWindow::new("🔬 Motion Vector & Codec Inspector")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

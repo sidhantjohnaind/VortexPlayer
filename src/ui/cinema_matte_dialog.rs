@@ -138,7 +138,7 @@ impl CinemaMatteDialog {
     pub fn render(&mut self, ctx: &egui::Context) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🎭 Cinema Screen Matte & Ambient Curtains")
+        crate::ui::popup_window::PopupWindow::new("🎭 Cinema Screen Matte & Ambient Curtains")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

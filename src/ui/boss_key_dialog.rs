@@ -76,7 +76,7 @@ impl BossKeyDialog {
     pub fn render(&mut self, ctx: &egui::Context) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🛡️ Boss Key & Privacy Disguise")
+        crate::ui::popup_window::PopupWindow::new("🛡️ Boss Key & Privacy Disguise")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

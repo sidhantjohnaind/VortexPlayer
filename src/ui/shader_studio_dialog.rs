@@ -39,7 +39,7 @@ impl ShaderStudioDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎨 Pixel Shader Studio & Code Editor")
+        crate::ui::popup_window::PopupWindow::new("🎨 Pixel Shader Studio & Code Editor")
             .open(&mut open)
             .collapsible(false)
             .default_size(Vec2::new(560.0, 420.0))

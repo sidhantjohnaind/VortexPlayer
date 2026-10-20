@@ -84,7 +84,7 @@ impl DiscNavigationDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📀 DVD & Blu-ray Title Browser / Navigation")
+        crate::ui::popup_window::PopupWindow::new("📀 DVD & Blu-ray Title Browser / Navigation")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

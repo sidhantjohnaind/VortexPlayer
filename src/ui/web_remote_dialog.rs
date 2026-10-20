@@ -45,7 +45,7 @@ impl WebRemoteDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📱 Mobile Web Remote Control Studio")
+        crate::ui::popup_window::PopupWindow::new("📱 Mobile Web Remote Control Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

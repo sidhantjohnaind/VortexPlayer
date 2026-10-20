@@ -52,7 +52,7 @@ impl LogoWatermarkDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🖼️ Custom Logo & Watermark Overlay Studio")
+        crate::ui::popup_window::PopupWindow::new("🖼️ Custom Logo & Watermark Overlay Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

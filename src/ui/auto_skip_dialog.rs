@@ -176,7 +176,7 @@ impl AutoSkipDialog {
         let mut save_and_close = false;
         let mut cancel_and_close = false;
 
-        let window_resp = egui::Window::new("Skip Setup")
+        let window_resp = crate::ui::popup_window::PopupWindow::new("Skip Setup")
             .id(egui::Id::new("vortex_skip_setup_window"))
             .open(&mut open)
             .resizable(false)
@@ -779,7 +779,7 @@ impl AutoSkipDialog {
             let mut modal_open = self.is_modal_open;
             let mut apply_modal = false;
 
-            egui::Window::new(modal_title)
+            crate::ui::popup_window::PopupWindow::new(modal_title)
                 .id(egui::Id::new("sub_modal_skip_interval"))
                 .open(&mut modal_open)
                 .resizable(false)

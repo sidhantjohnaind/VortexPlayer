@@ -3631,10 +3631,9 @@ impl eframe::App for VortexApp {
                 // The mpv OpenGL render context is deliberately NOT created
                 // here: creating it inside an egui pass leaves the GL state in
                 // a way that breaks eframe's painting of every other viewport.
-                // Native windows (the detached playlist, the media info
-                // dialog) then came up blank white and the player window
-                // went black. The paint callback creates it instead, where it
-                // belongs.
+                // The app's native windows (detached playlist, media info)
+                // then came up blank white and the player window went black.
+                // The paint callback creates it instead, where it belongs.
                 let _ = player;
                 if let Ok(handle) = frame.window_handle() {
                     crate::log_step("10c. got window_handle");

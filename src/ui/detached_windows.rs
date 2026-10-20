@@ -49,7 +49,7 @@ impl DetachedWindowsController {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🪟 Detachable Multi-Window & Video Wall Studio")
+        egui::Window::new("🪟 Detachable Multi-Window & Video Wall Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

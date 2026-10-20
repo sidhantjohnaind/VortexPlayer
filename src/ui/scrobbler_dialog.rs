@@ -88,7 +88,7 @@ impl ScrobblerDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🎬 Trakt.tv, AniList & Last.fm Scrobbler Studio")
+        egui::Window::new("🎬 Trakt.tv, AniList & Last.fm Scrobbler Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

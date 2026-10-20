@@ -72,7 +72,7 @@ impl RichBookmarkNotesDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📝 Rich Thumbnail Bookmarks & Study Notes")
+        egui::Window::new("📝 Rich Thumbnail Bookmarks & Study Notes")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

@@ -30,7 +30,7 @@ impl InputEditorDialog {
         }
 
         let mut open_flag = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("⌨ Input Shortcuts & Gesture Binding Editor (Ctrl+K)")
+        egui::Window::new("⌨ Input Shortcuts & Gesture Binding Editor (Ctrl+K)")
             .open(&mut open_flag)
             .default_width(720.0)
             .default_height(500.0)

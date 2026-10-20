@@ -67,7 +67,7 @@ impl VideoCropDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("✂️ Video Crop & Pan-Scan Tool")
+        egui::Window::new("✂️ Video Crop & Pan-Scan Tool")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

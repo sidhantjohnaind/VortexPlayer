@@ -70,7 +70,7 @@ impl AmbilightDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("💡 Ambilight & Razer Chroma RGB Lighting Studio")
+        egui::Window::new("💡 Ambilight & Razer Chroma RGB Lighting Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

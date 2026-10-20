@@ -25,12 +25,6 @@ pub struct SkinColors {
 /// Global active skin – updated by `VortexTheme::apply()`.
 static CURRENT_SKIN: RwLock<Option<SkinColors>> = RwLock::new(None);
 
-/// Global active theme mode – updated by `VortexTheme::apply()`.
-///
-/// Popup windows live in their own egui viewport, which does not inherit the
-/// styling of the player window. They use this to apply the same theme.
-static CURRENT_MODE: RwLock<Option<ThemeMode>> = RwLock::new(None);
-
 pub struct VortexTheme;
 
 impl VortexTheme {
@@ -60,18 +54,6 @@ impl VortexTheme {
             .ok()
             .and_then(|guard| *guard)
             .unwrap_or_else(|| Self::get_skin(ThemeMode::VortexClassic))
-    }
-
-    /// Returns the currently active theme mode (set by the last `apply()` call).
-    ///
-    /// Popup windows live in their own egui viewport, which does not inherit
-    /// the styling of the player window; they use this to apply the same theme.
-    pub fn current_mode() -> ThemeMode {
-        CURRENT_MODE
-            .read()
-            .ok()
-            .and_then(|guard| *guard)
-            .unwrap_or(ThemeMode::VortexClassic)
     }
 
     pub fn get_skin(mode: ThemeMode) -> SkinColors {
@@ -308,9 +290,6 @@ impl VortexTheme {
         // Store globally so current_skin() works everywhere
         if let Ok(mut guard) = CURRENT_SKIN.write() {
             *guard = Some(skin);
-        }
-        if let Ok(mut guard) = CURRENT_MODE.write() {
-            *guard = Some(mode);
         }
         let mut visuals = egui::Visuals::dark();
 

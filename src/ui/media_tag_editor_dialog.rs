@@ -55,7 +55,7 @@ impl MediaTagEditorDialog {
         self.load_from_stats(stats);
 
         let mut open = self.is_open;
-        let window_resp = crate::ui::popup_window::PopupWindow::new("🏷️ Media Metadata / Tag Editor")
+        let window_resp = egui::Window::new("🏷️ Media Metadata / Tag Editor")
             .id(egui::Id::new("media_tag_editor_window"))
             .open(&mut open)
             .collapsible(false)

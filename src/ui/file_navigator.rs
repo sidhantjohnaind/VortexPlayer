@@ -48,7 +48,7 @@ impl FileNavigatorSidebar {
         }
 
         let mut open_flag = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📁 File Explorer Navigator")
+        egui::Window::new("📁 File Explorer Navigator")
             .open(&mut open_flag)
             .default_width(320.0)
             .default_height(480.0)

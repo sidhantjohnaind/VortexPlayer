@@ -111,7 +111,7 @@ impl SubtitleStudioDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📝 Subtitle Studio & Timeline Editor (Ctrl+T)")
+        egui::Window::new("📝 Subtitle Studio & Timeline Editor (Ctrl+T)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

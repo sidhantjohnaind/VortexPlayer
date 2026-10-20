@@ -76,7 +76,7 @@ impl ChapterMarkerDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📑 Chapter Timeline Manager & Scene Title Studio")
+        egui::Window::new("📑 Chapter Timeline Manager & Scene Title Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

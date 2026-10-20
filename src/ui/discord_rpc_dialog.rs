@@ -60,7 +60,7 @@ impl DiscordRpcDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🎮 Discord Rich Presence (RPC) Settings")
+        egui::Window::new("🎮 Discord Rich Presence (RPC) Settings")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

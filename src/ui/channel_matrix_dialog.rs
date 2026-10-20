@@ -60,7 +60,7 @@ impl ChannelMatrixDialog {
 
         let mut open = self.is_open;
         let mut should_close = false;
-        crate::ui::popup_window::PopupWindow::new("7.1 Surround Channel Matrix Router")
+        egui::Window::new("7.1 Surround Channel Matrix Router")
             .open(&mut open)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)

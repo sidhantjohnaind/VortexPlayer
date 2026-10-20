@@ -62,7 +62,7 @@ impl FrameDumperDialog {
     pub fn render(&mut self, ctx: &egui::Context, _player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📸 Continuous Burst Frame Dumper")
+        egui::Window::new("📸 Continuous Burst Frame Dumper")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

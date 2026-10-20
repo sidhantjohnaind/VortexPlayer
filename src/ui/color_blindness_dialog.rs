@@ -77,7 +77,7 @@ impl ColorBlindnessDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("👁️ Color Blindness & Vision Accessibility")
+        egui::Window::new("👁️ Color Blindness & Vision Accessibility")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

@@ -2,7 +2,7 @@ use super::theme::VortexTheme;
 use crate::engine::sleep_timer::{PlaybackCompletionAction, SleepTimerEngine};
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, Margin, ProgressBar, Rect, RichText, Stroke,
-    Vec2,
+    Vec2, Window,
 };
 
 pub struct SleepTimerDialog {
@@ -39,7 +39,7 @@ impl SleepTimerDialog {
         let accent = VortexTheme::current_skin().accent_primary;
         let mut do_close = false;
 
-        let resp = crate::ui::popup_window::PopupWindow::new("🌙 Sleep Timer")
+        let resp = Window::new("🌙 Sleep Timer")
             .open(is_open)
             .resizable(false)
             .collapsible(false)

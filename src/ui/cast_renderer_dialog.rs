@@ -96,7 +96,7 @@ impl CastRendererDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📡 Google Chromecast & Apple AirPlay Casting Studio")
+        egui::Window::new("📡 Google Chromecast & Apple AirPlay Casting Studio")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

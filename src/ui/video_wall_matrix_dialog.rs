@@ -58,7 +58,7 @@ impl VideoWallMatrixDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🔲 Multi-Screen Video Wall Matrix & Bezel Compensation")
+        egui::Window::new("🔲 Multi-Screen Video Wall Matrix & Bezel Compensation")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

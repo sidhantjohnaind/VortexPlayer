@@ -5,7 +5,7 @@ use crate::engine::surround_eq::{
 use crate::engine::Player;
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, RichText, Sense, Stroke,
-    StrokeKind, Vec2,
+    StrokeKind, Vec2, Window,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,7 +63,7 @@ impl SurroundEqDialog {
         let def_w = 780.0f32.min(win_size.x - 32.0);
         let def_h = 560.0f32.min(win_size.y - 32.0);
 
-        let window_resp = crate::ui::popup_window::PopupWindow::new("🎛 7.1 Surround Per-Channel Equalizer")
+        let window_resp = Window::new("🎛 7.1 Surround Per-Channel Equalizer")
             .open(is_open)
             .resizable(true)
             .default_width(def_w)

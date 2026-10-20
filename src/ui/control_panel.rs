@@ -99,7 +99,7 @@ impl ControlPanel {
         let mut close_requested = false;
         let mut drag_delta = Vec2::ZERO;
 
-        let resp = crate::ui::popup_window::PopupWindow::new("vortex_control_panel_win")
+        let resp = egui::Window::new("vortex_control_panel_win")
             .title_bar(false)
             .collapsible(false)
             .resizable(true)

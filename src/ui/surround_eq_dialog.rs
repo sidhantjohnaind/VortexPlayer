@@ -59,26 +59,30 @@ impl SurroundEqDialog {
         let skin = VortexTheme::current_skin();
         let accent = skin.accent_primary;
 
-        let win_size = ctx.input(|i| i.viewport().inner_rect.or(i.raw.screen_rect)).map(|r| r.size()).unwrap_or(Vec2::new(1280.0, 720.0));
-        let def_w = 780.0f32.min(win_size.x - 32.0);
-        let def_h = 560.0f32.min(win_size.y - 32.0);
+        let _win_size = ctx.input(|i| i.viewport().inner_rect.or(i.raw.screen_rect)).map(|r| r.size()).unwrap_or(Vec2::new(1280.0, 720.0));
+        // let def_w = 780.0f32.min(win_size.x - 32.0);
+        // let def_h = 560.0f32.min(win_size.y - 32.0);
 
-        let window_resp = Window::new("🎛 7.1 Surround Per-Channel Equalizer")
-            .open(is_open)
-            .resizable(true)
-            .default_width(def_w)
-            .default_height(def_h)
-            .max_width(win_size.x - 20.0)
-            .max_height(win_size.y - 20.0)
-            .constrain(true)
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(14, 16, 22))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(40, 48, 65)))
-                    .corner_radius(CornerRadius::same(10))
-                    .inner_margin(Margin::same(14)),
-            )
-            .show(ctx, |ui| {
+        let mut should_close = false;
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_surround_eq_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("7.1 Surround Per-Channel Equalizer")
+            .with_inner_size([780.0, 560.0])
+            .with_min_inner_size([580.0, 420.0])
+            .with_resizable(true)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                should_close = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
@@ -498,11 +502,17 @@ impl SurroundEqDialog {
                     });
             });
 
+        });
+
         if changed {
             let af_str = config.build_audio_filter_string();
             player.set_audio_filter(&af_str);
         }
 
-        window_resp.map(|w| w.response.rect)
+        if should_close {
+            *is_open = false;
+        }
+
+        None
     }
 }

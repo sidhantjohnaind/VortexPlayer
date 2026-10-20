@@ -34,12 +34,26 @@ impl CaptureDialog {
             return None;
         }
 
-        let resp = egui::Window::new("Capture & Recording Studio (Ctrl+S)")
-            .open(is_open)
-            .resizable(false)
-            .default_width(520.0)
-            .default_height(380.0)
-            .show(ctx, |ui| {
+        let mut should_close = false;
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_capture_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Capture & Recording Studio (Ctrl+S)")
+            .with_inner_size([540.0, 400.0])
+            .with_min_inner_size([460.0, 320.0])
+            .with_resizable(true)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                should_close = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let tabs = ["Burst Snapshot", "Contact Sheet", "Video & Stream Recording"];
                     for t in tabs {
@@ -128,6 +142,12 @@ impl CaptureDialog {
                     _ => {}
                 }
             });
-        resp.map(|r| r.response.rect)
+        });
+
+        if should_close {
+            *is_open = false;
+        }
+
+        None
     }
 }

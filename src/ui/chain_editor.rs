@@ -35,13 +35,14 @@ impl ChainEditorDialog {
 
         let mut open = self.is_open;
         let mut should_close = false;
-        egui::Window::new("Pipeline Processing Chain Editor")
-            .open(&mut open)
-            .resizable(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_width(560.0)
-            .default_height(460.0)
-            .show(ctx, |ui| {
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_chain_editor_window",
+            "Pipeline Processing Chain Editor",
+            &mut open,
+            [660.0, 480.0],
+            [500.0, 360.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     if ui.selectable_label(self.active_tab == 0, RichText::new("📹 Video Filter Chain").strong()).clicked() {
                         self.active_tab = 0;

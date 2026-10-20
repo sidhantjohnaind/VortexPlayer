@@ -27,12 +27,15 @@ impl SubtitleExplorerDialog {
             return;
         }
 
-        let mut open_flag = self.is_open;
-        egui::Window::new("📝 Subtitle Explorer & Timeline Search")
-            .open(&mut open_flag)
-            .default_width(550.0)
-            .default_height(400.0)
-            .show(ctx, |ui| {
+        let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_subtitle_explorer_window",
+            "📝 Subtitle Explorer (Ctrl+Shift+S)",
+            &mut open,
+            [700.0, 520.0],
+            [520.0, 380.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("SUBTITLE LINES & DIALOGUE").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -68,6 +71,6 @@ impl SubtitleExplorerDialog {
                     });
                 }
             });
-        self.is_open = open_flag;
+        self.is_open = open;
     }
 }

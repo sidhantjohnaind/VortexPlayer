@@ -39,20 +39,25 @@ impl SleepTimerDialog {
         let accent = VortexTheme::current_skin().accent_primary;
         let mut do_close = false;
 
-        let resp = Window::new("🌙 Sleep Timer")
-            .open(is_open)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(400.0, 360.0))
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(18, 20, 26))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 68)))
-                    .corner_radius(CornerRadius::same(8))
-                    .inner_margin(Margin::same(16)),
-            )
-            .show(ctx, |ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_sleep_timer_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Sleep Timer & Auto-Shutdown")
+            .with_inner_size([420.0, 380.0])
+            .with_min_inner_size([380.0, 300.0])
+            .with_resizable(false)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                do_close = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(14)),
+                )
+                .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Title and Description
                     ui.label(
@@ -223,10 +228,12 @@ impl SleepTimerDialog {
                 });
             });
 
+        });
+
         if do_close {
             *is_open = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

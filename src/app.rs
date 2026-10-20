@@ -1029,6 +1029,33 @@ impl VortexApp {
                 self.vr_360_studio.is_open = false;
                 self.damaged_file_repair.is_open = false;
                 self.show_debug_log_dialog = false;
+                self.binaural_crossfeed.is_open = false;
+                self.video_wall_matrix.is_open = false;
+                self.chapter_marker_dialog.is_open = false;
+                self.audio_compressor.is_open = false;
+                self.video_crop.is_open = false;
+                self.goto_frame.is_open = false;
+                self.deinterlace_dialog.is_open = false;
+                self.ab_repeat_dialog.is_open = false;
+                self.motion_interpolation.is_open = false;
+                self.color_lut_dialog.is_open = false;
+                self.subtitle_translator.is_open = false;
+                self.ai_subtitle.is_open = false;
+                self.ai_upscaling.is_open = false;
+                self.ai_audio.is_open = false;
+                self.loudness_radar.is_open = false;
+                self.frame_dumper.is_open = false;
+                self.color_blindness.is_open = false;
+                self.cinema_matte.is_open = false;
+                self.motion_vector_inspector.is_open = false;
+                self.rich_bookmark_notes.is_open = false;
+                self.pitch_formant.is_open = false;
+                self.channel_matrix_dialog.is_open = false;
+                self.chain_editor.is_open = false;
+                self.auto_skip_dialog.is_open = false;
+                self.playback_history.is_open = false;
+                self.media_tag_editor.is_open = false;
+                self.lyrics_overlay.is_expanded = false;
                 if !self.stats_for_nerds.is_pinned {
                     self.stats_for_nerds.is_open = false;
                 }
@@ -1418,11 +1445,8 @@ impl VortexApp {
             if input.modifiers.ctrl && input.modifiers.alt {
                 if input.key_pressed(egui::Key::B) {
                     // Boss key
-                    // Keep playback, audio, and the queue unchanged while the
-                    // window is hidden. MPV's mute flag is global and would
-                    // otherwise carry into every later playlist item.
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                    self.toast.info("Boss Key: Minimized");
+                    self.boss_key_dialog.trigger_boss_key(player, ctx);
+                    self.toast.info("Boss Key: Concealed");
                 }
                 if input.key_pressed(egui::Key::C) {
                     center_window_requested = true;
@@ -1510,7 +1534,6 @@ impl VortexApp {
                 }
                 if input.key_pressed(egui::Key::K) {
                     self.boss_key_dialog.trigger_boss_key(player, ctx);
-                    self.boss_key_dialog.is_open = !self.boss_key_dialog.is_open;
                 }
             }
 
@@ -2458,6 +2481,30 @@ impl VortexApp {
             || self.media_tag_editor.is_open
             || self.auto_skip_dialog.is_open
             || self.show_debug_log_dialog
+            || self.binaural_crossfeed.is_open
+            || self.video_wall_matrix.is_open
+            || self.chapter_marker_dialog.is_open
+            || self.audio_compressor.is_open
+            || self.video_crop.is_open
+            || self.goto_frame.is_open
+            || self.deinterlace_dialog.is_open
+            || self.ab_repeat_dialog.is_open
+            || self.motion_interpolation.is_open
+            || self.color_lut_dialog.is_open
+            || self.subtitle_translator.is_open
+            || self.ai_subtitle.is_open
+            || self.ai_upscaling.is_open
+            || self.ai_audio.is_open
+            || self.loudness_radar.is_open
+            || self.frame_dumper.is_open
+            || self.color_blindness.is_open
+            || self.cinema_matte.is_open
+            || self.motion_vector_inspector.is_open
+            || self.rich_bookmark_notes.is_open
+            || self.pitch_formant.is_open
+            || self.channel_matrix_dialog.is_open
+            || self.chain_editor.is_open
+            || self.lyrics_overlay.is_expanded
             || (self.stats_for_nerds.is_open && !self.stats_for_nerds.is_pinned)
     }
 
@@ -2479,6 +2526,7 @@ impl VortexApp {
             || self.boss_key_dialog.is_open
             || self.broadcast_dialog.is_open
             || self.show_debug_log_dialog
+            || self.lyrics_overlay.is_expanded
     }
 
     pub fn render_debug_log_dialog(&mut self, ctx: &egui::Context, stats: &MediaStats) {
@@ -2491,14 +2539,25 @@ impl VortexApp {
 
         let mut close_requested = false;
 
-        egui::Window::new("📋 Playback & Frame Drop Diagnostics Log")
-            .open(&mut is_open)
-            .resizable(true)
-            .default_size([760.0, 520.0])
-            .min_size([540.0, 360.0])
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
-            .show(ctx, |ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_debug_log_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("📋 Playback & Frame Drop Diagnostics Log (Ctrl+Shift+D)")
+            .with_inner_size([760.0, 520.0])
+            .with_min_inner_size([540.0, 360.0])
+            .with_resizable(true)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                close_requested = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(egui::Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
 
                 // Top Diagnostic Cards Header
@@ -2653,6 +2712,7 @@ impl VortexApp {
                         }
                     });
             });
+        });
 
         if close_requested {
             is_open = false;
@@ -5587,6 +5647,9 @@ impl eframe::App for VortexApp {
         }
 
                 if let Ok(ref player) = self.player {
+            if !stats.is_paused && !stats.is_idle {
+                self.ab_repeat_dialog.check_and_seek(player, stats.time_pos);
+            }
             self.shader_studio.render(&ctx, player);
             self.stereo_3d_dialog.render(&ctx, player);
             self.karaoke_studio.render(&ctx, player);
@@ -6999,46 +7062,52 @@ impl eframe::App for VortexApp {
 
         if self.show_about_dialog {
             let mut close_about = false;
-            let window_resp = egui::Window::new("About VortexPlayer")
-                .open(&mut self.show_about_dialog)
-                .resizable(false)
-                .collapsible(false)
-                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-                .frame(
-                    egui::Frame::new()
-                        .fill(Color32::from_rgb(0, 0, 0))
-                        .stroke(Stroke::new(1.0, VortexTheme::current_skin().accent_primary))
-                        .corner_radius(CornerRadius::same(8)),
-                )
-                .show(&ctx, |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(8.0);
-                        let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(50.0), Sense::hover());
-                        Icons::draw_vertex_logo(ui.painter(), logo_rect.center(), 24.0);
+            let viewport_id = egui::ViewportId::from_hash_of("vortex_about_window");
+            let builder = egui::ViewportBuilder::default()
+                .with_title("About VortexPlayer")
+                .with_inner_size([440.0, 360.0])
+                .with_min_inner_size([380.0, 300.0])
+                .with_resizable(false)
+                .with_decorations(true);
 
-                        ui.add_space(8.0);
-                        ui.label(RichText::new("VortexPlayer v1.1.0").size(16.0).strong().color(VortexTheme::VORTEX_CYAN));
-                        ui.label(RichText::new("High-Quality Hardware Accelerated Media Player").size(11.5).color(Color32::from_rgb(170, 160, 200)));
+            ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+                if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                    close_about = true;
+                }
+                egui::CentralPanel::default()
+                    .frame(
+                        egui::Frame::new()
+                            .fill(Color32::from_rgb(14, 16, 22))
+                            .stroke(Stroke::new(1.0, VortexTheme::current_skin().accent_primary))
+                            .inner_margin(egui::Margin::same(16)),
+                    )
+                    .show(ctx, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(8.0);
+                            let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(50.0), Sense::hover());
+                            Icons::draw_vertex_logo(ui.painter(), logo_rect.center(), 24.0);
 
-                        ui.add_space(10.0);
-                        ui.separator();
-                        ui.add_space(6.0);
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("VortexPlayer v1.2.0").size(16.0).strong().color(VortexTheme::VORTEX_CYAN));
+                            ui.label(RichText::new("High-Quality Hardware Accelerated Media Player").size(11.5).color(Color32::from_rgb(170, 160, 200)));
 
-                        ui.label(RichText::new("Built with Rust, eframe/egui & libmpv").size(10.5).color(Color32::from_rgb(140, 130, 170)));
-                        ui.label(RichText::new("AV1, HEVC 10-bit/12-bit D3D11 Acceleration").size(10.0).color(Color32::from_rgb(120, 110, 150)));
-                        ui.label(RichText::new("18-Band Parametric Equalizer & Audio DSP").size(10.0).color(Color32::from_rgb(120, 110, 150)));
-                        ui.label(RichText::new("Multi-Theme Engine (Dark / Midnight / Slate)").size(10.0).color(Color32::from_rgb(120, 110, 150)));
+                            ui.add_space(10.0);
+                            ui.separator();
+                            ui.add_space(6.0);
 
-                        ui.add_space(12.0);
-                        if ui.button(RichText::new("  Close  ").size(11.0)).clicked() {
-                            close_about = true;
-                        }
-                        ui.add_space(4.0);
+                            ui.label(RichText::new("Built with Rust, eframe/egui & libmpv").size(10.5).color(Color32::from_rgb(140, 130, 170)));
+                            ui.label(RichText::new("AV1, HEVC 10-bit/12-bit D3D11 Acceleration").size(10.0).color(Color32::from_rgb(120, 110, 150)));
+                            ui.label(RichText::new("18-Band Parametric Equalizer & Audio DSP").size(10.0).color(Color32::from_rgb(120, 110, 150)));
+                            ui.label(RichText::new("Multi-Theme Engine (Dark / Midnight / Slate)").size(10.0).color(Color32::from_rgb(120, 110, 150)));
+
+                            ui.add_space(12.0);
+                            if ui.button(RichText::new("  Close  ").size(11.0)).clicked() {
+                                close_about = true;
+                            }
+                            ui.add_space(4.0);
+                        });
                     });
-                });
-            if let Some(inner) = window_resp {
-                self.active_popup_rects.push(inner.response.rect);
-            }
+            });
             if close_about {
                 self.show_about_dialog = false;
             }

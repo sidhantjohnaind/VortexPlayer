@@ -43,7 +43,7 @@ impl Default for BossKeyDialog {
             auto_pause_on_hide: true,
             auto_mute_on_hide: true,
             restore_unmute: true,
-            key_shortcut_desc: "Ctrl+Alt+B or ESC".to_string(),
+            key_shortcut_desc: "Ctrl+Alt+B or Ctrl+Alt+K".to_string(),
             status_message: "Boss key armed. Press shortcut to instantly conceal player.".to_string(),
         }
     }
@@ -75,13 +75,15 @@ impl BossKeyDialog {
 
     pub fn render(&mut self, ctx: &egui::Context) {
         if !self.is_open { return; }
-        let mut open = self.is_open;
-        egui::Window::new("🛡️ Boss Key & Privacy Disguise")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(520.0, 340.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_boss_key_window",
+            "🛡️ Boss Key & Privacy Disguise",
+            &mut open,
+            [520.0, 360.0],
+            [400.0, 280.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Boss Key Privacy & Panic Concealer").strong().size(15.0).color(Color32::from_rgb(255, 120, 120)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -119,7 +121,8 @@ impl BossKeyDialog {
                 ui.horizontal(|ui| {
                     if ui.button("Close").clicked() { self.is_open = false; }
                 });
-            });
+            },
+        );
         self.is_open = open;
     }
 }

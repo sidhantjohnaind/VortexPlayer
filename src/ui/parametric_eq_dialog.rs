@@ -33,12 +33,26 @@ impl ParametricEqDialog {
             return None;
         }
 
-        let resp = egui::Window::new("Parametric Equalizer (PEQ)")
-            .open(is_open)
-            .resizable(false)
-            .default_width(620.0)
-            .default_height(480.0)
-            .show(ctx, |ui| {
+        let mut should_close = false;
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_parametric_eq_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Parametric Equalizer (PEQ)")
+            .with_inner_size([680.0, 520.0])
+            .with_min_inner_size([560.0, 420.0])
+            .with_resizable(true)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                should_close = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let mut en = config.enabled;
                     if ui.checkbox(&mut en, "Enable Parametric EQ").changed() {
@@ -188,6 +202,12 @@ impl ParametricEqDialog {
                 }
             }
         }
-        resp.map(|r| r.response.rect)
+        });
+
+        if should_close {
+            *is_open = false;
+        }
+
+        None
     }
 }

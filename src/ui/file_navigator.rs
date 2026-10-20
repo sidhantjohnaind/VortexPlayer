@@ -46,13 +46,31 @@ impl FileNavigatorSidebar {
         if !self.is_open {
             return;
         }
+        if self.current_dir.as_os_str().is_empty() {
+            self.current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            self.refresh();
+        }
 
         let mut open_flag = self.is_open;
-        egui::Window::new("📁 File Explorer Navigator")
-            .open(&mut open_flag)
-            .default_width(320.0)
-            .default_height(480.0)
-            .show(ctx, |ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_file_navigator_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("File Explorer Navigator")
+            .with_inner_size([420.0, 560.0])
+            .with_min_inner_size([320.0, 400.0])
+            .with_resizable(true)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                open_flag = false;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     if ui.button("⬆ Parent").clicked() {
                         if let Some(parent) = self.current_dir.parent() {
@@ -73,6 +91,7 @@ impl FileNavigatorSidebar {
                     }
                 });
             });
+        });
         self.is_open = open_flag;
     }
 }

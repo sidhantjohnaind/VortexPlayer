@@ -85,13 +85,15 @@ impl LoudnessRadarDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
-        let mut open = self.is_open;
-        egui::Window::new("📊 EBU R128 & LUFS Loudness Radar")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(640.0, 440.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_loudness_radar_window",
+            "📊 EBU R128 & LUFS Loudness Radar",
+            &mut open,
+            [620.0, 460.0],
+            [480.0, 360.0],
+            |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("ITU-R BS.1770 & EBU R128 Loudness Radar").strong().size(15.0).color(Color32::from_rgb(180, 220, 100)));
@@ -178,7 +180,8 @@ impl LoudnessRadarDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+            },
+        );
         self.is_open = open;
     }
 }

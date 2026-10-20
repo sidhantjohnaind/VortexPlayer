@@ -69,13 +69,15 @@ impl AmbilightDialog {
             return;
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("💡 Ambilight & Razer Chroma RGB Lighting Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(700.0, 500.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_ambilight_window",
+            "💡 Ambilight & Razer Chroma RGB Studio",
+            &mut open,
+            [600.0, 440.0],
+            [460.0, 340.0],
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -183,8 +185,8 @@ impl AmbilightDialog {
                         });
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 }

@@ -1,4 +1,4 @@
-#![allow(unused_imports)]
+﻿#![allow(unused_imports)]
 
 pub mod music_view;
 pub use music_view::MusicBackgroundView;
@@ -220,3 +220,48 @@ pub use surround_eq_dialog::{SurroundEqDialog, SurroundTab};
 pub mod stats_for_nerds;
 pub use stats_for_nerds::StatsForNerdsDialog;
 
+/// Helper to show an independent, top-level native OS window (immediate viewport)
+pub fn show_dialog_viewport<R>(
+    ctx: &eframe::egui::Context,
+    viewport_id_str: &str,
+    title: &str,
+    is_open: &mut bool,
+    default_size: [f32; 2],
+    min_size: [f32; 2],
+    mut add_contents: impl FnMut(&mut eframe::egui::Ui) -> R,
+) -> Option<R> {
+    if !*is_open {
+        return None;
+    }
+    let viewport_id = eframe::egui::ViewportId::from_hash_of(viewport_id_str);
+    let builder = eframe::egui::ViewportBuilder::default()
+        .with_title(title)
+        .with_inner_size(default_size)
+        .with_min_inner_size(min_size)
+        .with_resizable(true)
+        .with_decorations(true);
+
+    let mut closed = false;
+    let mut result = None;
+
+    ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+        if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(eframe::egui::Key::Escape)) {
+            closed = true;
+        }
+        eframe::egui::CentralPanel::default()
+            .frame(
+                eframe::egui::Frame::new()
+                    .fill(eframe::egui::Color32::from_rgb(14, 16, 22))
+                    .inner_margin(eframe::egui::Margin::same(12)),
+            )
+            .show(ctx, |ui| {
+                result = Some(add_contents(ui));
+            });
+    });
+
+    if closed {
+        *is_open = false;
+    }
+
+    result
+}

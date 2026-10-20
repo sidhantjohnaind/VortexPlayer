@@ -119,13 +119,15 @@ impl AiSubtitleDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
-        let mut open = self.is_open;
-        egui::Window::new("🧠 AI Live Subtitle Transcriber & Translator (Whisper)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(680.0, 480.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_ai_subtitle_window",
+            "🧠 AI Live Subtitle Transcriber (Whisper)",
+            &mut open,
+            [680.0, 520.0],
+            [520.0, 380.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("AI Speech-to-Text & Real-Time Subtitle Translation").strong().size(15.0).color(Color32::from_rgb(140, 200, 255)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -239,7 +241,8 @@ impl AiSubtitleDialog {
                 ui.horizontal(|ui| {
                     if ui.button("Close").clicked() { self.is_open = false; }
                 });
-            });
+            },
+        );
         self.is_open = open;
     }
 }

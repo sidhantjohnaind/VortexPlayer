@@ -60,13 +60,14 @@ impl ChannelMatrixDialog {
 
         let mut open = self.is_open;
         let mut should_close = false;
-        egui::Window::new("7.1 Surround Channel Matrix Router")
-            .open(&mut open)
-            .resizable(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_width(640.0)
-            .default_height(480.0)
-            .show(ctx, |ui| {
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_channel_matrix_window",
+            "7.1 Surround Channel Matrix Router",
+            &mut open,
+            [660.0, 480.0],
+            [500.0, 360.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut config.enabled, RichText::new("Enable Custom Channel Matrix").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

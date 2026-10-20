@@ -62,12 +62,15 @@ impl NetworkBrowserDialog {
             return;
         }
 
-        let mut open_flag = self.is_open;
-        egui::Window::new("🌐 Network Media Browser & Cloud Streaming (Ctrl+N)")
-            .open(&mut open_flag)
-            .default_width(560.0)
-            .default_height(460.0)
-            .show(ctx, |ui| {
+        let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_network_browser_window",
+            "🌐 Network & UPnP / DLNA Browser",
+            &mut open,
+            [640.0, 480.0],
+            [480.0, 360.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("NETWORK STREAMING & STORAGE SERVERS").strong().color(VortexTheme::current_skin().accent_primary));
                 });
@@ -197,6 +200,6 @@ impl NetworkBrowserDialog {
                     }
                 });
             });
-        self.is_open = open_flag;
+        self.is_open = open;
     }
 }

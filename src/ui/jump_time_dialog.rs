@@ -55,20 +55,27 @@ impl JumpTimeDialog {
         let mut do_close = false;
         let mut target_time: Option<f64> = None;
 
-        let resp = Window::new("Jump to Specific Time (G)")
-            .open(is_open)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(380.0, 310.0))
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(0, 0, 0))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(Margin::same(14)),
-            )
-            .show(ctx, |ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_jump_time_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Jump to Specific Time (G)")
+            .with_inner_size([380.0, 310.0])
+            .with_min_inner_size([340.0, 260.0])
+            .with_resizable(false)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                do_close = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
+                        .corner_radius(CornerRadius::same(6))
+                        .inner_margin(Margin::same(14)),
+                )
+                .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Status
                     ui.horizontal(|ui| {
@@ -245,12 +252,14 @@ impl JumpTimeDialog {
             player.seek_absolute(t);
         }
 
-        if do_close {
+        });
+
+        if do_close || !*is_open {
             *is_open = false;
             self.initialized = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 
     fn parse_time_str(input: &str) -> Option<f64> {

@@ -17,13 +17,14 @@ impl BookmarkOverlay {
             return None;
         }
 
-        let resp = egui::Window::new("Bookmarks & PBF Manager (Ctrl+Shift+B)")
-            .open(is_open)
-            .resizable(true)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_width(450.0)
-            .default_height(350.0)
-            .show(ctx, |ui| {
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_bookmark_manager_window",
+            "Bookmarks & PBF Manager (Ctrl+Shift+B)",
+            is_open,
+            [660.0, 480.0],
+            [500.0, 360.0],
+            |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 6.0);
 
                 ui.horizontal(|ui| {
@@ -105,7 +106,8 @@ impl BookmarkOverlay {
                         }
                     });
                 });
-            });
-        resp.map(|r| r.response.rect)
+            },
+        );
+        None
     }
 }

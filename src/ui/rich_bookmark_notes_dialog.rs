@@ -71,13 +71,15 @@ impl RichBookmarkNotesDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
-        let mut open = self.is_open;
-        egui::Window::new("📝 Rich Thumbnail Bookmarks & Study Notes")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(680.0, 460.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_rich_bookmark_notes_window",
+            "📝 Rich Video Study Notes & Cards",
+            &mut open,
+            [680.0, 520.0],
+            [520.0, 380.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Rich Bookmarks & Study Annotations").strong().size(15.0).color(Color32::from_rgb(255, 220, 120)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -158,7 +160,8 @@ impl RichBookmarkNotesDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+            },
+        );
         self.is_open = open;
     }
 }

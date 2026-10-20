@@ -87,13 +87,15 @@ impl AiUpscalingDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
-        let mut open = self.is_open;
-        egui::Window::new("✨ AI Super Resolution & Neural Upscaling")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(650.0, 440.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_ai_upscaling_window",
+            "✨ AI Super Resolution & Neural Upscaling",
+            &mut open,
+            [540.0, 420.0],
+            [420.0, 320.0],
+            |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("AI Video Super Resolution & Tensor Core Enhancer").strong().size(15.0).color(Color32::from_rgb(100, 240, 180)));
@@ -173,7 +175,8 @@ impl AiUpscalingDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+            },
+        );
         self.is_open = open;
     }
 }

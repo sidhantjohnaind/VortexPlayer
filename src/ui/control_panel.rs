@@ -95,29 +95,32 @@ impl ControlPanel {
             return None;
         }
 
-        let anchor_offset = self.drag_offset.unwrap_or(Vec2::ZERO);
         let mut close_requested = false;
-        let mut drag_delta = Vec2::ZERO;
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_control_panel_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Vortex Control Panel (F6)")
+            .with_inner_size([580.0, 520.0])
+            .with_min_inner_size([520.0, 440.0])
+            .with_resizable(true)
+            .with_decorations(true);
 
-        let resp = egui::Window::new("vortex_control_panel_win")
-            .title_bar(false)
-            .collapsible(false)
-            .resizable(true)
-            .default_width(580.0)
-            .min_width(550.0)
-            .anchor(egui::Align2::CENTER_CENTER, anchor_offset)
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgb(16, 18, 25))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(42, 47, 64)))
-                    .corner_radius(CornerRadius::same(10))
-                    .inner_margin(egui::Margin::symmetric(14, 12)),
-            )
-            .show(ctx, |ui| {
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                close_requested = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(16, 18, 25))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(42, 47, 64)))
+                        .corner_radius(CornerRadius::same(10))
+                        .inner_margin(egui::Margin::symmetric(14, 12)),
+                )
+                .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 9.0);
 
                 // ── 0. Custom Sleek Titlebar (Draggable) ─────────────────────
-                let title_resp = ui.horizontal(|ui| {
+                let _title_resp = ui.horizontal(|ui| {
                     ui.label(RichText::new("Vortex Control Panel").size(13.0).strong().color(Color32::WHITE));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let close_btn = ui.add(
@@ -131,10 +134,7 @@ impl ControlPanel {
                     });
                 });
 
-                let drag_interact = ui.interact(title_resp.response.rect, ui.id().with("cp_title_bar_drag"), egui::Sense::drag());
-                if drag_interact.dragged() {
-                    drag_delta = drag_interact.drag_delta();
-                }
+
 
                 // ── 1. Modern Segmented Tab Bar ──────────────────────────────
                 egui::Frame::new()
@@ -359,7 +359,7 @@ impl ControlPanel {
                     // 2. AUDIO TAB: 18-BAND GRAPHIC EQUALIZER, PRESETS, NORMALIZER, DELAY
                     // =========================================================================
                     ControlPanelTab::Audio => {
-                        let current_time = ctx.input(|i| i.time);
+                        let current_time = ui.input(|i| i.time);
                         let is_recently_saved = current_time - self.save_feedback_time < 2.0;
 
                         // Card 1: Equalizer Mode, Presets & Management
@@ -938,16 +938,13 @@ impl ControlPanel {
                 }
             });
 
-        if drag_delta != Vec2::ZERO {
-            let cur = self.drag_offset.unwrap_or(Vec2::ZERO);
-            self.drag_offset = Some(cur + drag_delta);
-        }
+        });
 
         if close_requested {
             *is_open = false;
             self.drag_offset = None;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

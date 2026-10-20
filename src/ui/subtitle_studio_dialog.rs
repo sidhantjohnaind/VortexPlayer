@@ -110,13 +110,15 @@ impl SubtitleStudioDialog {
             return;
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("📝 Subtitle Studio & Timeline Editor (Ctrl+T)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(760.0, 520.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_subtitle_studio_window",
+            "📝 Subtitle Studio & Timing Editor",
+            &mut open,
+            [720.0, 520.0],
+            [540.0, 380.0],
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -158,8 +160,8 @@ impl SubtitleStudioDialog {
                         });
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 

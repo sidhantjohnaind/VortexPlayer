@@ -50,13 +50,15 @@ impl ScreenCaptureDialog {
             return;
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("🖥️ Screen & Desktop Live Capture (Ctrl+Shift+S)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(450.0, 380.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_screen_capture_window",
+            "🖥️ Screen Capture Studio",
+            &mut open,
+            [600.0, 440.0],
+            [460.0, 340.0],
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Live Desktop & Window Screen Grabber")
@@ -147,8 +149,8 @@ impl ScreenCaptureDialog {
                         }
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 

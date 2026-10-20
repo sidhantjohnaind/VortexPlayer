@@ -87,13 +87,15 @@ impl AbRepeatDialog {
 
         self.check_and_seek(player, stats.time_pos);
 
-        let mut open = self.is_open;
-        egui::Window::new("🔁 A-B Repeat & Section Looper")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(560.0, 360.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_ab_repeat_window",
+            "🔁 A-B Repeat & Section Looper",
+            &mut open,
+            [560.0, 360.0],
+            [440.0, 280.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("A-B Repeat Interval Looper").strong().size(15.0).color(Color32::from_rgb(140, 220, 180)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -182,7 +184,8 @@ impl AbRepeatDialog {
 
                 ui.add_space(4.0);
                 ui.label(RichText::new(&self.status_message).small().color(Color32::from_rgb(140, 190, 220)));
-            });
+            },
+        );
         self.is_open = open;
     }
 }

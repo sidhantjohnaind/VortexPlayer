@@ -75,13 +75,15 @@ impl ChapterMarkerDialog {
             }
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("📑 Chapter Timeline Manager & Scene Title Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(740.0, 500.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_chapter_marker_window",
+            "📑 Chapter Timeline Manager",
+            &mut open,
+            [640.0, 480.0],
+            [500.0, 360.0],
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -211,8 +213,8 @@ impl ChapterMarkerDialog {
                         });
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 }

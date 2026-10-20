@@ -142,14 +142,14 @@ impl PlaybackHistoryDialog {
             return None;
         }
         let mut open = self.is_open;
-        let window_resp = egui::Window::new("📜 Playback History & Watch Statistics")
-            .id(egui::Id::new("playback_history_window"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_size(Vec2::new(750.0, 460.0))
-            .show(ctx, |ui| {
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_playback_history_window",
+            "🕒 Playback History & Resume Manager",
+            &mut open,
+            [700.0, 500.0],
+            [520.0, 360.0],
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Playback History Log")
@@ -276,8 +276,9 @@ impl PlaybackHistoryDialog {
                         .small()
                         .color(Color32::from_rgb(140, 190, 220)),
                 );
-            });
+            },
+        );
         self.is_open = open;
-        window_resp.map(|r| r.response.rect)
+        None
     }
 }

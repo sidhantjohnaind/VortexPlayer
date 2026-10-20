@@ -1,6 +1,6 @@
 use super::theme::VortexTheme;
 use crate::engine::Player;
-use eframe::egui::{self, Align, Layout, Rect, RichText, Vec2};
+use eframe::egui::{self, Align, Color32, Layout, Rect, RichText, Vec2};
 
 pub struct StreamUrlDialog {
     pub url: String,
@@ -37,11 +37,25 @@ impl StreamUrlDialog {
 
         let mut should_close = false;
 
-        let resp = egui::Window::new("Open Network Stream / URL (Ctrl+U)")
-            .open(is_open)
-            .resizable(false)
-            .default_width(450.0)
-            .show(ctx, |ui| {
+        let viewport_id = egui::ViewportId::from_hash_of("vortex_stream_url_window");
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Open Network Stream / URL (Ctrl+U)")
+            .with_inner_size([460.0, 240.0])
+            .with_min_inner_size([380.0, 180.0])
+            .with_resizable(true)
+            .with_decorations(true);
+
+        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
+            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
+                should_close = true;
+            }
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(14, 16, 22))
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 8.0);
 
                 ui.label(RichText::new("Enter direct URL, HLS, DASH, RTSP, or Online Stream:").color(VortexTheme::current_skin().text_secondary));
@@ -86,10 +100,12 @@ impl StreamUrlDialog {
                 });
             });
 
+        });
+
         if should_close {
             *is_open = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

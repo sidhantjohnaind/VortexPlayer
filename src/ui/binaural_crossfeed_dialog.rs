@@ -84,12 +84,14 @@ impl BinauralCrossfeedDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎧 Audiophile Headphone Crossfeed & HRTF (MPC-BE Style)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(680.0, 480.0))
-            .show(ctx, |ui| {
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_binaural_crossfeed_window",
+            "🎧 Audiophile Headphone Crossfeed & HRTF",
+            &mut open,
+            [680.0, 480.0],
+            [500.0, 360.0],
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -209,8 +211,8 @@ impl BinauralCrossfeedDialog {
                         });
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 }

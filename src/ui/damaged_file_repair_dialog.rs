@@ -52,13 +52,15 @@ impl DamagedFileRepairDialog {
             self.file_path = stats.file_path.clone();
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("🔧 Damaged Media Index Repair & Codec Diagnostic (GOM Style)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(720.0, 500.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_damaged_file_repair_window",
+            "🔧 Damaged Media Index Repair",
+            &mut open,
+            [640.0, 480.0],
+            [500.0, 360.0],
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -198,8 +200,8 @@ impl DamagedFileRepairDialog {
                         });
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 }

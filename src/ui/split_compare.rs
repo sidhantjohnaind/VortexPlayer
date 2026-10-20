@@ -78,8 +78,12 @@ impl SplitCompareView {
             VortexTheme::current_skin().accent_primary,
         );
 
-        // Interaction for dragging divider
-        let response = ui.interact(video_rect, ui.id().with("split_slider"), Sense::click_and_drag());
+        // Interaction for dragging divider: only near the divider line/handle
+        let grab_rect = Rect::from_center_size(
+            Pos2::new(split_x, video_rect.center().y),
+            Vec2::new(36.0, video_rect.height()),
+        );
+        let response = ui.interact(grab_rect, ui.id().with("split_slider"), Sense::click_and_drag());
         if response.dragged() {
             if let Some(mouse_pos) = response.interact_pointer_pos() {
                 self.split_pos = ((mouse_pos.x - video_rect.left()) / video_rect.width()).clamp(0.05, 0.95);

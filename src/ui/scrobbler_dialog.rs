@@ -87,13 +87,15 @@ impl ScrobblerDialog {
             return;
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("🎬 Trakt.tv, AniList & Last.fm Scrobbler Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(740.0, 520.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_scrobbler_window",
+            "🎬 Trakt.tv & Simkl Media Scrobbler",
+            &mut open,
+            [560.0, 420.0],
+            [440.0, 320.0],
+            |ui| {
                 ui.vertical(|ui| {
                     // Header
                     ui.label(
@@ -203,8 +205,8 @@ impl ScrobblerDialog {
                         });
                     });
                 });
-            });
-
+            },
+        );
         self.is_open = open;
     }
 }

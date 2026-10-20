@@ -28,13 +28,15 @@ impl DeviceCaptureDialog {
             return;
         }
 
-        let mut open = self.is_open;
-        egui::Window::new("📹 Device Capture / Webcam / HDMI (Ctrl+W)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_size(Vec2::new(380.0, 200.0))
-            .show(ctx, |ui| {
+                let mut open = self.is_open;
+        crate::ui::show_dialog_viewport(
+            ctx,
+            "vortex_device_capture_window",
+            "📹 Device Capture / Webcam (Ctrl+W)",
+            &mut open,
+            [520.0, 380.0],
+            [400.0, 280.0],
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("DirectShow HDMI Capture & Webcam Stream").strong().color(Color32::from_rgb(180, 140, 255)));
                     ui.add_space(8.0);
@@ -56,7 +58,8 @@ impl DeviceCaptureDialog {
                         self.is_open = false;
                     }
                 });
-            });
+            },
+        );
         self.is_open = open;
     }
 }

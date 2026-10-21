@@ -63,8 +63,8 @@ impl JumpTimeDialog {
             .fixed_size(Vec2::new(380.0, 310.0))
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(0, 0, 0))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
+                    .fill(VortexTheme::current_skin().bg_panel)
+                    .stroke(Stroke::new(1.0, VortexTheme::current_skin().border_light))
                     .corner_radius(CornerRadius::same(6))
                     .inner_margin(Margin::same(14)),
             )

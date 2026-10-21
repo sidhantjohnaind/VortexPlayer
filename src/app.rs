@@ -7003,10 +7003,11 @@ impl eframe::App for VortexApp {
                 .open(&mut self.show_about_dialog)
                 .resizable(false)
                 .collapsible(false)
+                .default_size(Vec2::new(460.0, 360.0))
                 .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(0, 0, 0))
+                        .fill(VortexTheme::current_skin().bg_panel)
                         .stroke(Stroke::new(1.0, VortexTheme::current_skin().accent_primary))
                         .corner_radius(CornerRadius::same(8)),
                 )
@@ -7111,7 +7112,7 @@ impl eframe::App for VortexApp {
                 egui::CentralPanel::default()
                     .frame(
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(0, 0, 0))
+                            .fill(VortexTheme::current_skin().bg_panel)
                             .inner_margin(Margin::same(6)),
                     )
                     .show(ctx, |ui| {

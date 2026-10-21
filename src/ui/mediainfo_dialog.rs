@@ -103,7 +103,7 @@ impl MediaInfoDialog {
                 .exact_size(32.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(0, 0, 0))
+                        .fill(VortexTheme::current_skin().bg_panel)
                         .inner_margin(Margin::ZERO),
                 )
                 .show(ctx, |ui| {
@@ -140,7 +140,7 @@ impl MediaInfoDialog {
                             } else if hover {
                                 Color32::from_rgb(16, 18, 24)
                             } else {
-                                Color32::from_rgb(0, 0, 0)
+                                VortexTheme::current_skin().bg_canvas
                             };
 
                             painter.rect_filled(
@@ -208,7 +208,7 @@ impl MediaInfoDialog {
                 .exact_size(44.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(0, 0, 0))
+                        .fill(VortexTheme::current_skin().bg_panel)
                         .inner_margin(Margin::same(6)),
                 )
                 .show(ctx, |ui| {
@@ -336,7 +336,7 @@ impl MediaInfoDialog {
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(0, 0, 0))
+                        .fill(VortexTheme::current_skin().bg_panel)
                         .inner_margin(Margin::same(6)),
                 )
                 .show(ctx, |ui| {
@@ -577,7 +577,7 @@ impl MediaInfoDialog {
 
                         // ── 1. Video Info Group Box ──────────────────────────────────────────────
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(0, 0, 0))
+                            .fill(VortexTheme::current_skin().bg_canvas)
                             .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
@@ -631,7 +631,7 @@ impl MediaInfoDialog {
                         // ── 2. Audio Info Group Box ──────────────────────────────────────────────
                         let is_ex = stats.is_wasapi_exclusive;
                         egui::Frame::new()
-                            .fill(if is_ex { Color32::from_rgb(20, 16, 8) } else { Color32::from_rgb(0, 0, 0) })
+                            .fill(if is_ex { Color32::from_rgb(20, 16, 8) } else { VortexTheme::current_skin().bg_canvas })
                             .stroke(Stroke::new(1.0, if is_ex { Color32::from_rgb(145, 105, 28) } else { Color32::from_rgb(35, 38, 48) }))
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
@@ -696,7 +696,7 @@ impl MediaInfoDialog {
                         // ── 3. Detail Info Group Box ─────────────────────────────────────────────
                         let detail_text = Self::generate_detailed_raw_info(stats);
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(0, 0, 0))
+                            .fill(VortexTheme::current_skin().bg_canvas)
                             .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
@@ -705,7 +705,7 @@ impl MediaInfoDialog {
                                 ui.add_space(3.0);
 
                                 egui::Frame::new()
-                                    .fill(Color32::from_rgb(0, 0, 0))
+                                    .fill(VortexTheme::current_skin().bg_canvas)
                                     .stroke(Stroke::new(1.0, Color32::from_rgb(28, 30, 40)))
                                     .corner_radius(CornerRadius::same(2))
                                     .inner_margin(Margin::same(6))
@@ -749,7 +749,7 @@ impl MediaInfoDialog {
         let file_info_text = Self::generate_file_info_text(stats);
 
         egui::Frame::new()
-            .fill(Color32::from_rgb(0, 0, 0))
+            .fill(VortexTheme::current_skin().bg_panel)
             .stroke(Stroke::new(1.0, Color32::from_rgb(28, 30, 40)))
             .corner_radius(CornerRadius::same(3))
             .inner_margin(Margin::same(8))
@@ -784,7 +784,7 @@ impl MediaInfoDialog {
         let system_info_text = Self::generate_system_info_text(stats);
 
         egui::Frame::new()
-            .fill(Color32::from_rgb(0, 0, 0))
+            .fill(VortexTheme::current_skin().bg_panel)
             .stroke(Stroke::new(1.0, Color32::from_rgb(28, 30, 40)))
             .corner_radius(CornerRadius::same(3))
             .inner_margin(Margin::same(8))

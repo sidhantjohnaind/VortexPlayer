@@ -108,9 +108,9 @@ impl ControlPanel {
             .anchor(egui::Align2::CENTER_CENTER, anchor_offset)
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(16, 18, 25))
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(42, 47, 64)))
-                    .corner_radius(CornerRadius::same(10))
+                    .fill(VortexTheme::current_skin().bg_panel)
+                    .stroke(Stroke::new(1.0, VortexTheme::current_skin().border_light))
+                    .corner_radius(CornerRadius::same(6))
                     .inner_margin(egui::Margin::symmetric(14, 12)),
             )
             .show(ctx, |ui| {

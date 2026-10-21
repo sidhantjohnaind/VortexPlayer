@@ -11,22 +11,10 @@ impl TelemetryHudView {
         }
 
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("telemetry_hud")));
-        let hud_rect = Rect::from_min_size(Pos2::new(16.0, 48.0), Vec2::new(340.0, 240.0));
-
-        // Background
-        painter.rect_filled(hud_rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(10, 10, 16, 235));
-        painter.rect_stroke(hud_rect, CornerRadius::same(6), Stroke::new(1.0, VortexTheme::current_skin().accent_primary), egui::StrokeKind::Outside);
 
         let font_title = FontId::proportional(13.0);
         let font_mono = FontId::monospace(11.5);
-
-        painter.text(
-            Pos2::new(26.0, 58.0),
-            Align2::LEFT_TOP,
-            "[ ADVANCED PLAYBACK TELEMETRY ]",
-            font_title,
-            VortexTheme::current_skin().accent_primary,
-        );
+        let title = "[ ADVANCED PLAYBACK TELEMETRY ]";
 
         let avsync_ms = stats.avsync_drift * 1000.0;
         let (drop_text, drop_color) = if stats.dropped_frames > 0 {
@@ -52,9 +40,44 @@ impl TelemetryHudView {
             (format!("Current Speed: {:.2}x | Vol: {:.0}%", stats.speed, stats.volume), Color32::from_rgb(200, 200, 220)),
         ];
 
+        // Size the panel from the real text extents so long codec names grow the
+        // panel instead of spilling over the video.
+        let left = 16.0;
+        let top = 48.0;
+        let pad_x = 10.0;
+        let line_pitch = 18.0;
+        let mut max_width = 300.0_f32;
+        max_width = max_width.max(painter.layout_no_wrap(title.to_string(), font_title.clone(), Color32::WHITE).size().x);
+        for (line, color) in &lines {
+            max_width = max_width.max(painter.layout_no_wrap(line.clone(), font_mono.clone(), *color).size().x);
+        }
+
+        let viewport_w = ctx
+            .input(|i| i.viewport().inner_rect.or(i.raw.screen_rect))
+            .map(|r| r.size().x)
+            .unwrap_or(1280.0_f32);
+        let max_panel_w = (viewport_w - 2.0 * left - 2.0).max(220.0);
+        let hud_rect = Rect::from_min_size(
+            Pos2::new(left, top),
+            Vec2::new(
+                (max_width + 2.0 * pad_x).min(max_panel_w),
+                32.0 + ((lines.len() - 1) as f32 * line_pitch) + 16.0 + 8.0,
+            ),
+        );
+
+        // Background
+        painter.rect_filled(hud_rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(10, 10, 16, 235));
+        painter.rect_stroke(hud_rect, CornerRadius::same(6), Stroke::new(1.0, VortexTheme::current_skin().accent_primary), egui::StrokeKind::Outside);
+
+        // Clip every glyph to the panel so even a maximally long line truncates
+        // at the border instead of drawing over the video.
+        let clipped = painter.with_clip_rect(hud_rect.shrink(1.0));
+
+        clipped.text(Pos2::new(left + pad_x, top + 10.0), Align2::LEFT_TOP, title, font_title, VortexTheme::current_skin().accent_primary);
+
         for (i, (line, color)) in lines.iter().enumerate() {
-            painter.text(
-                Pos2::new(26.0, 80.0 + (i as f32 * 18.0)),
+            clipped.text(
+                Pos2::new(left + pad_x, top + 32.0 + (i as f32 * line_pitch)),
                 Align2::LEFT_TOP,
                 line,
                 font_mono.clone(),

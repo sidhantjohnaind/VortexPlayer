@@ -167,7 +167,7 @@ impl OsdEngine {
         if !stats.is_idle && stats.cache_buffering_state < 100 {
             ctx.request_repaint();
             let center = video_rect.center();
-            let font = FontId::proportional(14.0);
+            let font = FontId::proportional(13.0);
             let buf_text = format!("Buffering {}%", stats.cache_buffering_state);
             let galley = painter.layout_no_wrap(buf_text.clone(), font.clone(), Color32::from_rgb(220, 235, 255));
             let padding = Vec2::new(18.0, 10.0);
@@ -188,7 +188,7 @@ impl OsdEngine {
                 let alpha_factor = alpha_in.min(alpha_out);
                 let alpha = (alpha_factor * 255.0) as u8;
 
-                let font = FontId::proportional(13.5);
+                let font = FontId::proportional(13.0);
                 let text_color = Color32::from_rgba_unmultiplied(245, 248, 255, alpha);
                 let galley = painter.layout_no_wrap(msg.clone(), font.clone(), text_color);
                 let text_size = galley.size();

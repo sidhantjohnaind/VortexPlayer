@@ -110,7 +110,7 @@ impl CastRendererDialog {
                         ui.label(
                             RichText::new("Wireless TV Casting (Chromecast / AirPlay / DLNA)")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(100, 200, 255)),
                         );
 

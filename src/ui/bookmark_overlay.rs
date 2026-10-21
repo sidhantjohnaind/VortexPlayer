@@ -45,8 +45,8 @@ impl BookmarkOverlay {
                         if bookmark_mgr.bookmarks.is_empty() {
                             ui.vertical_centered(|ui| {
                                 ui.add_space(30.0);
-                                ui.label(RichText::new("No bookmarks saved for this file").color(VortexTheme::current_skin().text_muted).size(12.0));
-                                ui.label(RichText::new("Press [P] or [Ctrl+B] to bookmark timestamps").color(VortexTheme::current_skin().text_muted).size(11.0));
+                                ui.label(RichText::new("No bookmarks saved for this file").color(VortexTheme::current_skin().text_muted).size(11.5));
+                                ui.label(RichText::new("Press [P] or [Ctrl+B] to bookmark timestamps").color(VortexTheme::current_skin().text_muted).size(11.5));
                             });
                         } else {
                             let mut delete_idx = None;
@@ -70,7 +70,7 @@ impl BookmarkOverlay {
                                     ui.add(egui::TextEdit::singleline(&mut bm.title).desired_width(ui.available_width() - 35.0));
 
                                     // Delete Button
-                                    if ui.button(RichText::new("✕").size(10.0).color(VortexTheme::current_skin().text_muted)).clicked() {
+                                    if ui.button(RichText::new("✕").size(10.5).color(VortexTheme::current_skin().text_muted)).clicked() {
                                         delete_idx = Some(idx);
                                     }
                                 });

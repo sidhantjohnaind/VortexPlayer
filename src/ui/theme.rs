@@ -347,6 +347,31 @@ impl VortexTheme {
             style.spacing.button_padding = Vec2::new(6.0, 3.0);
             style.spacing.tooltip_width  = 380.0;
             style.spacing.icon_spacing   = 4.0;
+
+            // One type scale for the whole app. Every explicit size in the UI
+            // (RichText::size / FontId::proportional) sits on one of these
+            // steps, and the implicit text styles are pinned to the same
+            // scale so an unstyled label matches a styled one:
+            //
+            //   micro   9.5   fixed-size boxes only (EQ bands, HUD cells)
+            //   small  10.5   captions, badges, secondary rows
+            //   body   11.5   compact rows, dialog labels
+            //   base   13.0   default body / buttons / monospace
+            //   sub    15.0   dialog section titles
+            //   head   18.0   dialog titles, large readouts
+            //   disp   24.0   timecode, hero numbers
+            //
+            // egui already defaults Body/Button/Monospace to 13.0 and Heading
+            // to 18.0; only Small (9.0) was off-scale.
+            use egui::FontFamily::Proportional;
+            style.text_styles.insert(egui::TextStyle::Small, egui::FontId::new(10.5, Proportional));
+            style.text_styles.insert(egui::TextStyle::Body, egui::FontId::new(13.0, Proportional));
+            style.text_styles.insert(egui::TextStyle::Button, egui::FontId::new(13.0, Proportional));
+            style.text_styles.insert(egui::TextStyle::Heading, egui::FontId::new(18.0, Proportional));
+            style.text_styles.insert(
+                egui::TextStyle::Monospace,
+                egui::FontId::new(13.0, egui::FontFamily::Monospace),
+            );
         });
     }
 }

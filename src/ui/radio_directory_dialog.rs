@@ -123,7 +123,7 @@ impl RadioDirectoryDialog {
                         ui.label(
                             RichText::new("Online Internet Radio & Podcast Explorer")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 120, 180)),
                         );
 

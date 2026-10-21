@@ -193,7 +193,7 @@ impl UpdateDialog {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.label(
                                 RichText::new(format!("Installed: {}", CURRENT_VERSION))
-                                    .font(egui::FontId::monospace(11.0))
+                                    .font(egui::FontId::monospace(11.5))
                                     .color(Color32::from_rgb(150, 160, 180)),
                             );
                         });
@@ -252,7 +252,7 @@ impl UpdateDialog {
                                     ui.label(RichText::new(&rel.name).strong().color(accent));
                                     ui.add_space(4.0);
                                     ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
-                                        ui.label(RichText::new(&rel.body).color(Color32::from_rgb(190, 200, 220)).font(egui::FontId::proportional(11.0)));
+                                        ui.label(RichText::new(&rel.body).color(Color32::from_rgb(190, 200, 220)).font(egui::FontId::proportional(11.5)));
                                     });
                                 }
                             });
@@ -264,7 +264,7 @@ impl UpdateDialog {
                                     ui.label(RichText::new("⚠").color(Color32::from_rgb(255, 120, 120)));
                                     ui.label(RichText::new("Update Check Failed").strong().color(Color32::WHITE));
                                 });
-                                ui.label(RichText::new(err).color(Color32::from_rgb(255, 160, 160)).font(egui::FontId::proportional(11.0)));
+                                ui.label(RichText::new(err).color(Color32::from_rgb(255, 160, 160)).font(egui::FontId::proportional(11.5)));
                             });
                         }
                     }

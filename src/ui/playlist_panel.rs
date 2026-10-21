@@ -99,13 +99,13 @@ fn render_search_input(ui: &mut egui::Ui, query: &mut String, hint: &str) {
                         Vec2::new(ui.available_width(), 18.0),
                         egui::TextEdit::singleline(query)
                             .hint_text(hint)
-                            .font(FontId::proportional(11.0))
+                            .font(FontId::proportional(11.5))
                             .frame(egui::Frame::NONE),
                     );
                 });
             });
         if has_query {
-            let clr_btn = egui::Button::new(egui::RichText::new("✕").size(10.0).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
+            let clr_btn = egui::Button::new(egui::RichText::new("✕").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                 .min_size(Vec2::new(20.0, 24.0));
             if ui.add(clr_btn).on_hover_text("Clear filter").clicked() {
                 query.clear();
@@ -173,7 +173,7 @@ impl PlaylistPanel {
                     let bg = if is_default { Color32::from_rgb(26, 28, 35) } else { Color32::from_rgb(8, 9, 12) };
                     ui.painter().rect_filled(r, CornerRadius::same(3), bg);
                     ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, if is_default { Color32::from_rgb(55, 60, 75) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel }), StrokeKind::Inside);
-                    ui.painter().text(r.center(), Align2::CENTER_CENTER, tab_txt, FontId::proportional(11.0), if is_default { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary });
+                    ui.painter().text(r.center(), Align2::CENTER_CENTER, tab_txt, FontId::proportional(11.5), if is_default { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary });
                     if resp.clicked() {
                         playlist.active_tab = PlaylistTab::DefaultPlaylist;
                     }
@@ -190,14 +190,14 @@ impl PlaylistPanel {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Close button (✕)
-                        let close_btn = egui::Button::new(egui::RichText::new("✕").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
+                        let close_btn = egui::Button::new(egui::RichText::new("✕").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                             .frame(false);
                         if ui.add(close_btn).on_hover_text("Close Playlist").clicked() {
                             actions.close_playlist = true;
                         }
 
                         // Dock button
-                        let detach_btn = egui::Button::new(egui::RichText::new("Dock").size(10.0));
+                        let detach_btn = egui::Button::new(egui::RichText::new("Dock").size(10.5));
                         if ui.add(detach_btn).on_hover_text("Dock back into player sidebar").clicked() {
                             actions.toggle_detach = true;
                         }
@@ -275,7 +275,7 @@ impl PlaylistPanel {
                             Pos2::new(r.center().x, r.center().y - if is_active { 1.0 } else { 0.0 }),
                             Align2::CENTER_CENTER,
                             label,
-                            FontId::proportional(11.0),
+                            FontId::proportional(11.5),
                             text_color,
                         );
 
@@ -296,7 +296,7 @@ impl PlaylistPanel {
                         det_r.center(),
                         Align2::CENTER_CENTER,
                         "⤢",
-                        FontId::proportional(12.0),
+                        FontId::proportional(11.5),
                         if det_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(165, 172, 190) },
                     );
                     if det_resp.on_hover_text("Pop out into floating window").clicked() {
@@ -313,7 +313,7 @@ impl PlaylistPanel {
                         cls_r.center(),
                         Align2::CENTER_CENTER,
                         "✕",
-                        FontId::proportional(11.0),
+                        FontId::proportional(11.5),
                         if cls_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(165, 172, 190) },
                     );
                     if cls_resp.on_hover_text("Close Drawer (F8)").clicked() {
@@ -518,7 +518,7 @@ impl PlaylistPanel {
                                     Pos2::new(rect.left() + 30.0, rect.center().y),
                                     Align2::LEFT_CENTER,
                                     truncated,
-                                    FontId::proportional(11.0),
+                                    FontId::proportional(11.5),
                                     text_col,
                                 );
 
@@ -526,7 +526,7 @@ impl PlaylistPanel {
                                     Pos2::new(rect.right() - 8.0, rect.center().y),
                                     Align2::RIGHT_CENTER,
                                     item_duration_str,
-                                    FontId::monospace(10.0),
+                                    FontId::monospace(10.5),
                                     if is_current { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
                                 );
 
@@ -648,7 +648,7 @@ impl PlaylistPanel {
                                     let is_rep_active = playlist.repeat_mode != crate::playlist::RepeatMode::Off;
                                     let rep_btn = egui::Button::new(
                                         egui::RichText::new(rep_label)
-                                            .size(10.0)
+                                            .size(10.5)
                                             .color(if is_rep_active { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(160, 165, 175) })
                                     );
                                     if ui.add(rep_btn).on_hover_text("Cycle Repeat Mode").clicked() {
@@ -659,7 +659,7 @@ impl PlaylistPanel {
                                     let is_shuf_active = playlist.is_shuffle();
                                     let shuf_btn = egui::Button::new(
                                         egui::RichText::new("Shuf")
-                                            .size(10.0)
+                                            .size(10.5)
                                             .color(if is_shuf_active { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(160, 165, 175) })
                                     );
                                     if ui.add(shuf_btn).on_hover_text("Toggle Shuffle Playback").clicked() {
@@ -669,7 +669,7 @@ impl PlaylistPanel {
 
                                     let restore_btn = egui::Button::new(
                                         egui::RichText::new(if restore_prev { "Prev: ON" } else { "Prev: OFF" })
-                                            .size(10.0)
+                                            .size(10.5)
                                             .color(if restore_prev { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(140, 145, 155) })
                                     );
                                     if ui.add(restore_btn).on_hover_text("Toggle restoring previous playlist on direct launch (switched OFF by default)").clicked() {
@@ -677,7 +677,7 @@ impl PlaylistPanel {
                                     }
 
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        if ui.button(egui::RichText::new("Clear").size(10.0)).on_hover_text("Remove missing files").clicked() {
+                                        if ui.button(egui::RichText::new("Clear").size(10.5)).on_hover_text("Remove missing files").clicked() {
                                             playlist.remove_missing_files();
                                         }
                                     });
@@ -702,7 +702,7 @@ impl PlaylistPanel {
 
                         for (name, path) in quick_locations {
                             if path.exists() {
-                                if ui.button(egui::RichText::new(name).size(10.0)).clicked() {
+                                if ui.button(egui::RichText::new(name).size(10.5)).clicked() {
                                     *browser_dir = path;
                                 }
                             }
@@ -914,7 +914,7 @@ impl PlaylistPanel {
                                         count += 1;
                                         let time_str = format_time(*start);
                                         ui.horizontal(|ui| {
-                                            if ui.button(egui::RichText::new(&time_str).monospace().size(10.0).color(VortexTheme::current_skin().accent_primary)).clicked() {
+                                            if ui.button(egui::RichText::new(&time_str).monospace().size(10.5).color(VortexTheme::current_skin().accent_primary)).clicked() {
                                                 actions.seek_to = Some(*start);
                                             }
                                             if ui.selectable_label(false, text).clicked() {

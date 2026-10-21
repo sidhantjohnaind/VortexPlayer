@@ -62,7 +62,7 @@ impl DetachedWindowsController {
                     ui.label(
                         RichText::new("Multi-Monitor Detached Panels & Video Wall Sync")
                             .strong()
-                            .size(16.0)
+                            .size(15.0)
                             .color(Color32::from_rgb(120, 220, 180)),
                     );
 

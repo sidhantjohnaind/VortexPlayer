@@ -47,7 +47,7 @@ impl SplitCompareView {
             handle_rect.center(),
             Align2::CENTER_CENTER,
             "◀▶",
-            FontId::proportional(11.0),
+            FontId::proportional(11.5),
             VortexTheme::current_skin().accent_primary,
         );
 
@@ -61,7 +61,7 @@ impl SplitCompareView {
             left_label_rect.center(),
             Align2::CENTER_CENTER,
             "ORIGINAL (RAW)",
-            FontId::proportional(11.0),
+            FontId::proportional(11.5),
             Color32::from_rgb(200, 200, 210),
         );
 
@@ -74,7 +74,7 @@ impl SplitCompareView {
             right_label_rect.center(),
             Align2::CENTER_CENTER,
             "PROCESSED (SHADERS)",
-            FontId::proportional(11.0),
+            FontId::proportional(11.5),
             VortexTheme::current_skin().accent_primary,
         );
 

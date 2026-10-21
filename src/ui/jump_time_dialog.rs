@@ -74,7 +74,7 @@ impl JumpTimeDialog {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new("Current Position:")
-                                .size(11.0)
+                                .size(11.5)
                                 .color(crate::ui::theme::VortexTheme::current_skin().text_secondary),
                         );
                         ui.label(
@@ -97,7 +97,7 @@ impl JumpTimeDialog {
                         ui.set_width(ui.available_width());
                         ui.label(
                             RichText::new("Enter Target Time (HH:MM:SS or MM:SS or seconds):")
-                                .size(11.0)
+                                .size(11.5)
                                 .color(Color32::from_rgb(200, 205, 220)),
                         );
                         ui.add_space(4.0);
@@ -141,7 +141,7 @@ impl JumpTimeDialog {
                         ui.set_width(ui.available_width());
                         ui.label(
                             RichText::new("Jump by Percentage (%):")
-                                .size(11.0)
+                                .size(11.5)
                                 .color(Color32::from_rgb(200, 205, 220)),
                         );
                         ui.add_space(2.0);

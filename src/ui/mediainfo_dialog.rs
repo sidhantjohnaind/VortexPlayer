@@ -191,7 +191,7 @@ impl MediaInfoDialog {
                             pin_rect.center(),
                             Align2::CENTER_CENTER,
                             if is_pinned { "📌" } else { "📍" },
-                            FontId::proportional(12.0),
+                            FontId::proportional(11.5),
                             if is_pinned { VortexTheme::current_skin().accent_primary } else if pin_hover { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
                         );
                     }
@@ -286,7 +286,7 @@ impl MediaInfoDialog {
                             copy_rect.center(),
                             Align2::CENTER_CENTER,
                             if is_copied { "✓ Copied!" } else { "Copy to the clipboard" },
-                            FontId::proportional(11.0),
+                            FontId::proportional(11.5),
                             if is_copied { Color32::from_rgb(140, 245, 165) } else if copy_hover { Color32::WHITE } else { Color32::from_rgb(210, 215, 225) },
                         );
 
@@ -306,7 +306,7 @@ impl MediaInfoDialog {
                             wrap_btn_rect.center(),
                             Align2::CENTER_CENTER,
                             if is_word_wrap { "↩ Word Wrap: ON" } else { "↩ Word Wrap: OFF" },
-                            FontId::proportional(11.0),
+                            FontId::proportional(11.5),
                             if is_word_wrap { Color32::from_rgb(170, 215, 255) } else if wrap_hover { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
                         );
 
@@ -326,7 +326,7 @@ impl MediaInfoDialog {
                             close_btn_rect.center(),
                             Align2::CENTER_CENTER,
                             "Close",
-                            FontId::proportional(11.0),
+                            FontId::proportional(11.5),
                             if cb_hover { Color32::WHITE } else { Color32::from_rgb(210, 215, 225) },
                         );
                     }
@@ -582,7 +582,7 @@ impl MediaInfoDialog {
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
-                                ui.label(RichText::new("Video Info").size(11.0).strong().color(Color32::from_rgb(225, 230, 240)));
+                                ui.label(RichText::new("Video Info").size(11.5).strong().color(Color32::from_rgb(225, 230, 240)));
                                 ui.add_space(4.0);
 
                                 // Decoder Row
@@ -637,11 +637,11 @@ impl MediaInfoDialog {
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Audio Info").size(11.0).strong().color(Color32::from_rgb(225, 230, 240)));
+                                    ui.label(RichText::new("Audio Info").size(11.5).strong().color(Color32::from_rgb(225, 230, 240)));
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         let btn_txt = if is_ex { "⚡ WASAPI Exclusive: ON (Bit-Perfect)" } else { "WASAPI Shared (Click to Toggle)" };
                                         let btn_col = if is_ex { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(150, 155, 175) };
-                                        if ui.button(RichText::new(btn_txt).size(10.0).strong().color(btn_col))
+                                        if ui.button(RichText::new(btn_txt).size(10.5).strong().color(btn_col))
                                             .on_hover_text("Click to toggle Bit-Perfect Direct WASAPI Exclusive Output")
                                             .clicked()
                                         {
@@ -701,7 +701,7 @@ impl MediaInfoDialog {
                             .corner_radius(CornerRadius::same(3))
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
-                                ui.label(RichText::new("Detail Info").size(11.0).strong().color(Color32::from_rgb(225, 230, 240)));
+                                ui.label(RichText::new("Detail Info").size(11.5).strong().color(Color32::from_rgb(225, 230, 240)));
                                 ui.add_space(3.0);
 
                                 egui::Frame::new()
@@ -718,7 +718,7 @@ impl MediaInfoDialog {
                                                 ui.label(
                                                     RichText::new(&detail_text)
                                                         .monospace()
-                                                        .size(10.0)
+                                                        .size(10.5)
                                                         .color(Color32::from_rgb(215, 225, 240)),
                                                 );
                                             });

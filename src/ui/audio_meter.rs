@@ -45,7 +45,7 @@ impl AudioMeterWidget {
 
         // ── Header Bar with Codec & Channel Config ───────────────────────────
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Multi-Channel Audio Meter").size(12.0).strong().color(Color32::from_rgb(220, 225, 235)));
+            ui.label(RichText::new("Multi-Channel Audio Meter").size(11.5).strong().color(Color32::from_rgb(220, 225, 235)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     RichText::new(format!("{} {}", layout_str, codec_str))
@@ -359,7 +359,7 @@ impl AudioMeterWidget {
                 Pos2::new(rect.right() - 8.0, y + row_h * 0.5),
                 Align2::RIGHT_CENTER,
                 db_txt,
-                FontId::monospace(9.0),
+                FontId::monospace(9.5),
                 Color32::from_rgb(160, 170, 190),
             );
         }

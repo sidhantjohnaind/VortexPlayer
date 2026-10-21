@@ -291,7 +291,7 @@ impl AutoSkipDialog {
                                             let label_text = format!(" {} ", tag.keyword);
                                             let btn = egui::Button::new(
                                                 RichText::new(&label_text)
-                                                    .size(11.0)
+                                                    .size(11.5)
                                                     .color(fg),
                                             )
                                             .fill(bg)
@@ -474,14 +474,14 @@ impl AutoSkipDialog {
                                                 .color(Color32::from_rgb(
                                                     120, 125, 135,
                                                 ))
-                                                .size(11.0),
+                                                .size(11.5),
                                         );
                                         ui.label(
                                             RichText::new(
                                                 "Click [Add...] below to create a custom skip interval.",
                                             )
                                             .color(Color32::from_rgb(90, 95, 105))
-                                            .size(10.0),
+                                            .size(10.5),
                                         );
                                     });
                                     ui.add_space(35.0);
@@ -542,7 +542,7 @@ impl AutoSkipDialog {
                                                     interval.start,
                                                 ))
                                                 .monospace()
-                                                .size(11.0)
+                                                .size(11.5)
                                                 .color(text_col),
                                             ));
                                             ui.add_space(col_start_w - 55.0);
@@ -552,7 +552,7 @@ impl AutoSkipDialog {
                                                     interval.length,
                                                 ))
                                                 .monospace()
-                                                .size(11.0)
+                                                .size(11.5)
                                                 .color(text_col),
                                             ));
                                             ui.add_space(col_len_w - 55.0);
@@ -566,7 +566,7 @@ impl AutoSkipDialog {
                                                     format_time_hms(end_pos)
                                                 ))
                                                 .monospace()
-                                                .size(11.0)
+                                                .size(11.5)
                                                 .color(text_col),
                                             ));
                                             ui.add_space(col_int_w - 128.0);
@@ -575,7 +575,7 @@ impl AutoSkipDialog {
                                                 RichText::new(
                                                     &interval.interval_type,
                                                 )
-                                                .size(11.0)
+                                                .size(11.5)
                                                 .color(if is_selected {
                                                     Color32::WHITE
                                                 } else {

@@ -181,7 +181,7 @@ impl NotificationNavBar {
                         ui.allocate_ui(Vec2::new(max_title_w, 18.0), |ui| {
                             let label = ui.label(
                                 egui::RichText::new(title_text)
-                                    .size(12.0)
+                                    .size(11.5)
                                     .color(Color32::from_rgb(230, 230, 245))
                                     .strong(),
                             );
@@ -194,7 +194,7 @@ impl NotificationNavBar {
                         let time_str = format!("{} / {}", format_time(stats.time_pos), format_time(stats.duration));
                         ui.label(
                             egui::RichText::new(time_str)
-                                .size(10.0)
+                                .size(10.5)
                                 .color(Color32::from_rgb(140, 140, 170))
                                 .monospace(),
                         );
@@ -209,7 +209,7 @@ impl NotificationNavBar {
                         } else {
                             Color32::from_rgb(120, 120, 140)
                         };
-                        if ui.add(egui::Button::new(egui::RichText::new(if self.is_pinned { "📌" } else { "📍" }).size(11.0).color(pin_color)).frame(false)).clicked() {
+                        if ui.add(egui::Button::new(egui::RichText::new(if self.is_pinned { "📌" } else { "📍" }).size(11.5).color(pin_color)).frame(false)).clicked() {
                             self.is_pinned = !self.is_pinned;
                             actions.toggle_pin = true;
                         }
@@ -218,7 +218,7 @@ impl NotificationNavBar {
 
                         // Transport Buttons: Next Track
                         let next_btn = ui.add(
-                            egui::Button::new(egui::RichText::new("⏭").size(14.0).color(Color32::from_rgb(210, 210, 230)))
+                            egui::Button::new(egui::RichText::new("⏭").size(13.0).color(Color32::from_rgb(210, 210, 230)))
                                 .frame(false)
                         );
                         if next_btn.clicked() {
@@ -250,7 +250,7 @@ impl NotificationNavBar {
 
                         // Transport Buttons: Prev Track
                         let prev_btn = ui.add(
-                            egui::Button::new(egui::RichText::new("⏮").size(14.0).color(Color32::from_rgb(210, 210, 230)))
+                            egui::Button::new(egui::RichText::new("⏮").size(13.0).color(Color32::from_rgb(210, 210, 230)))
                                 .frame(false)
                         );
                         if prev_btn.clicked() {

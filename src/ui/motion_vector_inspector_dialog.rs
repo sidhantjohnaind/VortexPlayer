@@ -127,20 +127,20 @@ impl MotionVectorInspectorDialog {
                     ui.columns(4, |cols| {
                         cols[0].group(|ui| {
                             ui.label(RichText::new("Frame Type").small().color(Color32::GRAY));
-                            ui.label(RichText::new(self.current_frame_type).strong().size(16.0).color(Color32::from_rgb(255, 200, 100)));
+                            ui.label(RichText::new(self.current_frame_type).strong().size(15.0).color(Color32::from_rgb(255, 200, 100)));
                         });
                         cols[1].group(|ui| {
                             ui.label(RichText::new("Avg Quant (QP)").small().color(Color32::GRAY));
-                            ui.label(RichText::new(format!("{:.1}", self.current_qp_average)).strong().size(16.0).color(Color32::from_rgb(140, 220, 180)));
+                            ui.label(RichText::new(format!("{:.1}", self.current_qp_average)).strong().size(15.0).color(Color32::from_rgb(140, 220, 180)));
                         });
                         cols[2].group(|ui| {
                             ui.label(RichText::new("Motion Energy").small().color(Color32::GRAY));
-                            ui.label(RichText::new(format!("{:.1}", self.motion_energy)).strong().size(16.0).color(Color32::from_rgb(100, 200, 255)));
+                            ui.label(RichText::new(format!("{:.1}", self.motion_energy)).strong().size(15.0).color(Color32::from_rgb(100, 200, 255)));
                         });
                         cols[3].group(|ui| {
                             ui.label(RichText::new("Codec").small().color(Color32::GRAY));
                             let codec = if stats.video_codec.is_empty() { "H.264 / HEVC" } else { &stats.video_codec };
-                            ui.label(RichText::new(codec).strong().size(14.0).color(Color32::WHITE));
+                            ui.label(RichText::new(codec).strong().size(13.0).color(Color32::WHITE));
                         });
                     });
                 });

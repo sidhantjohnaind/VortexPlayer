@@ -107,7 +107,7 @@ impl BdjDialog {
                         ui.label(
                             RichText::new("Java (BD-J) Interactive Disc Menus")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 170, 70)),
                         );
 

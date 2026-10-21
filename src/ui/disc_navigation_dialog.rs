@@ -98,7 +98,7 @@ impl DiscNavigationDialog {
                         ui.label(
                             RichText::new("Disc Title Navigation & Angle Control")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(100, 200, 255)),
                         );
 

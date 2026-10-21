@@ -68,7 +68,7 @@ impl ZoomMagnifierDialog {
                         ui.label(
                             RichText::new("Real-Time Detail Zoom Lens & Locator")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(120, 220, 255)),
                         );
 

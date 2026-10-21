@@ -85,7 +85,7 @@ impl TitleBar {
             Pos2::new(brand_rect.left() + 22.0, brand_rect.center().y),
             Align2::LEFT_CENTER,
             "VortexPlayer",
-            FontId::proportional(12.0),
+            FontId::proportional(11.5),
             if brand_resp.hovered() {
                 Color32::WHITE
             } else {
@@ -175,7 +175,7 @@ impl TitleBar {
                         Pos2::new(cursor_left, rect.center().y),
                         Align2::LEFT_CENTER,
                         badge_text,
-                        FontId::monospace(11.0),
+                        FontId::monospace(11.5),
                         skin.accent_primary,
                     );
                     cursor_left += badge_w + 8.0;
@@ -205,7 +205,7 @@ impl TitleBar {
                 Pos2::new(cursor_left, rect.center().y),
                 Align2::LEFT_CENTER,
                 clipped_title,
-                FontId::proportional(12.0),
+                FontId::proportional(11.5),
                 skin.text_primary,
             );
         }

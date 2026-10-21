@@ -93,7 +93,7 @@ vec4 hook() {
                     egui::ScrollArea::vertical().id_salt("shader_code_scroll").max_height(260.0).show(ui, |ui| {
                         ui.add(
                             egui::TextEdit::multiline(&mut self.shader_code)
-                                .font(FontId::monospace(11.0))
+                                .font(FontId::monospace(11.5))
                                 .code_editor()
                                 .desired_width(f32::INFINITY)
                         );

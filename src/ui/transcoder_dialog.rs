@@ -111,7 +111,7 @@ impl TranscoderDialog {
                         ui.label(
                             RichText::new("Batch Audio & Video Converter (VLC Convert/Save)")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 180, 80)),
                         );
 

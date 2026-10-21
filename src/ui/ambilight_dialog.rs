@@ -84,7 +84,7 @@ impl AmbilightDialog {
                         ui.label(
                             RichText::new("Smart Ambilight & RGB Peripheral Sync")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 140, 220)),
                         );
 

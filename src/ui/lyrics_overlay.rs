@@ -252,14 +252,14 @@ impl LyricsOverlay {
                 ui.label(
                     egui::RichText::new("🎙️ Synchronized Lyrics")
                         .strong()
-                        .size(14.0)
+                        .size(13.0)
                         .color(skin.accent_primary),
                 );
 
                 if let Some(ref title) = lrc.title {
                     ui.label(
                         egui::RichText::new(format!("• {}", title))
-                            .size(12.0)
+                            .size(11.5)
                             .color(Color32::from_rgb(200, 205, 220)),
                     );
                 }
@@ -295,7 +295,7 @@ impl LyricsOverlay {
                         };
                         ui.label(
                             egui::RichText::new(offset_text)
-                                .size(11.0)
+                                .size(11.5)
                                 .color(Color32::from_rgb(140, 145, 160)),
                         );
                     });
@@ -323,19 +323,19 @@ impl LyricsOverlay {
                                 };
                                 ui.label(
                                     egui::RichText::new(time_badge)
-                                        .size(11.0)
+                                        .size(11.5)
                                         .monospace()
                                         .color(badge_col),
                                 );
 
                                 let text_style = if is_current {
                                     egui::RichText::new(&line.text)
-                                        .size(16.0)
+                                        .size(15.0)
                                         .strong()
                                         .color(skin.accent_primary)
                                 } else {
                                     egui::RichText::new(&line.text)
-                                        .size(13.5)
+                                        .size(13.0)
                                         .color(Color32::from_rgb(180, 185, 200))
                                 };
 
@@ -420,14 +420,14 @@ impl LyricsOverlay {
                     Pos2::new(center_x + 1.0, line_y + 1.0),
                     Align2::CENTER_CENTER,
                     &active_line.text,
-                    FontId::proportional(18.5),
+                    FontId::proportional(18.0),
                     Color32::from_rgba_unmultiplied(0, 0, 0, 180),
                 );
                 painter.text(
                     Pos2::new(center_x, line_y),
                     Align2::CENTER_CENTER,
                     &active_line.text,
-                    FontId::proportional(18.5),
+                    FontId::proportional(18.0),
                     skin.accent_primary,
                 );
             }
@@ -476,7 +476,7 @@ impl LyricsOverlay {
                 close_rect.center(),
                 Align2::CENTER_CENTER,
                 "❌",
-                FontId::proportional(9.0),
+                FontId::proportional(9.5),
                 if close_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
             );
             if close_resp.clicked() {
@@ -492,7 +492,7 @@ impl LyricsOverlay {
                 exp_rect.center(),
                 Align2::CENTER_CENTER,
                 "↕",
-                FontId::proportional(11.0),
+                FontId::proportional(11.5),
                 if exp_resp.hovered() { skin.accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
             );
             if exp_resp.clicked() {

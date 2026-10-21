@@ -137,19 +137,19 @@ impl LoudnessRadarDialog {
                     ui.columns(4, |cols| {
                         cols[0].group(|ui| {
                             ui.label(RichText::new("Momentary (M)").small().color(Color32::GRAY));
-                            ui.label(RichText::new(format!("{:.1} LUFS", self.momentary_lufs)).strong().size(16.0).color(Color32::from_rgb(100, 200, 255)));
+                            ui.label(RichText::new(format!("{:.1} LUFS", self.momentary_lufs)).strong().size(15.0).color(Color32::from_rgb(100, 200, 255)));
                         });
                         cols[1].group(|ui| {
                             ui.label(RichText::new("Short-Term (S)").small().color(Color32::GRAY));
-                            ui.label(RichText::new(format!("{:.1} LUFS", self.short_term_lufs)).strong().size(16.0).color(Color32::from_rgb(140, 220, 180)));
+                            ui.label(RichText::new(format!("{:.1} LUFS", self.short_term_lufs)).strong().size(15.0).color(Color32::from_rgb(140, 220, 180)));
                         });
                         cols[2].group(|ui| {
                             ui.label(RichText::new("Integrated (I)").small().color(Color32::GRAY));
-                            ui.label(RichText::new(format!("{:.1} LUFS", self.integrated_lufs)).strong().size(16.0).color(Color32::from_rgb(255, 200, 100)));
+                            ui.label(RichText::new(format!("{:.1} LUFS", self.integrated_lufs)).strong().size(15.0).color(Color32::from_rgb(255, 200, 100)));
                         });
                         cols[3].group(|ui| {
                             ui.label(RichText::new("True Peak (TP)").small().color(Color32::GRAY));
-                            ui.label(RichText::new(format!("{:.1} dBTP", self.true_peak_db)).strong().size(16.0).color(Color32::from_rgb(255, 120, 120)));
+                            ui.label(RichText::new(format!("{:.1} dBTP", self.true_peak_db)).strong().size(15.0).color(Color32::from_rgb(255, 120, 120)));
                         });
                     });
                 });

@@ -94,7 +94,7 @@ impl CdRipperDialog {
                         ui.label(
                             RichText::new("Audio CD (CDDA) FreeDB & Studio Extraction")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 190, 80)),
                         );
 

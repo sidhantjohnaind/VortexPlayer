@@ -74,7 +74,7 @@ impl DiscordRpcDialog {
                         ui.label(
                             RichText::new("Discord Rich Presence Status Broadcasting")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(114, 137, 218)), // Discord Blurple
                         );
 
@@ -126,7 +126,7 @@ impl DiscordRpcDialog {
                                     ui.label(RichText::new("🎬").size(32.0));
                                     ui.vertical(|ui| {
                                         ui.label(RichText::new("Playing a Game").small().color(Color32::GRAY));
-                                        ui.label(RichText::new("VortexPlayer").strong().size(14.0).color(Color32::WHITE));
+                                        ui.label(RichText::new("VortexPlayer").strong().size(13.0).color(Color32::WHITE));
 
                                         let current_title = if stats.file_path.is_empty() {
                                             "Interstellar (2014) [4K HDR Dolby Atmos]".to_string()

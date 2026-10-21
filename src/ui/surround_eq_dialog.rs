@@ -87,7 +87,7 @@ impl SurroundEqDialog {
                     let is_en = config.enabled;
                     let mut en = is_en;
                     let label = RichText::new("Enable 7.1 Surround EQ")
-                        .font(FontId::proportional(14.0))
+                        .font(FontId::proportional(13.0))
                         .strong()
                         .color(if is_en { accent } else { crate::ui::theme::VortexTheme::current_skin().text_secondary });
                     if ui.checkbox(&mut en, label).changed() {
@@ -228,21 +228,21 @@ impl SurroundEqDialog {
                     Pos2::new(canvas_rect.left() + 14.0, zero_y - step_y * 2.0 + 8.0),
                     Align2::CENTER_CENTER,
                     "+12dB",
-                    FontId::proportional(8.5),
+                    FontId::proportional(9.5),
                     Color32::from_rgb(85, 92, 110),
                 );
                 painter.text(
                     Pos2::new(canvas_rect.left() + 14.0, zero_y),
                     Align2::CENTER_CENTER,
                     "0dB",
-                    FontId::proportional(8.5),
+                    FontId::proportional(9.5),
                     Color32::from_rgb(110, 120, 140),
                 );
                 painter.text(
                     Pos2::new(canvas_rect.left() + 14.0, zero_y + step_y * 2.0 - 8.0),
                     Align2::CENTER_CENTER,
                     "-12dB",
-                    FontId::proportional(8.5),
+                    FontId::proportional(9.5),
                     Color32::from_rgb(85, 92, 110),
                 );
 
@@ -388,7 +388,7 @@ impl SurroundEqDialog {
 
                                     ui.label(
                                         RichText::new(format!("{:+.1}", gain_val))
-                                            .font(FontId::monospace(10.0))
+                                            .font(FontId::monospace(10.5))
                                             .strong()
                                             .color(gain_col),
                                     );
@@ -439,7 +439,7 @@ impl SurroundEqDialog {
                     SurroundTab::OverviewGraph => {
                         ui.label(
                             RichText::new("7.1 Channel Equalization Matrix Balance")
-                                .font(FontId::proportional(14.0))
+                                .font(FontId::proportional(13.0))
                                 .strong()
                                 .color(Color32::WHITE),
                         );
@@ -462,7 +462,7 @@ impl SurroundEqDialog {
 
                                     ui.label(
                                         RichText::new(ch.display_name())
-                                            .font(FontId::proportional(12.0))
+                                            .font(FontId::proportional(11.5))
                                             .strong()
                                             .color(col),
                                     );

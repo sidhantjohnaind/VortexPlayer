@@ -205,7 +205,7 @@ impl ToastManager {
                 rect.left_center() + Vec2::new(30.0, 0.0),
                 Align2::LEFT_CENTER,
                 &toast.message,
-                FontId::proportional(12.0),
+                FontId::proportional(11.5),
                 Color32::from_rgba_premultiplied(235, 238, 245, alpha),
             );
         }

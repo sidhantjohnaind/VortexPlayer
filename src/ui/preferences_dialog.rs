@@ -64,7 +64,7 @@ pub fn settings_row<R>(
 ) -> R {
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(RichText::new(title).size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+            ui.label(RichText::new(title).size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
             if !description.is_empty() {
                 ui.label(RichText::new(description).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
             }
@@ -91,10 +91,10 @@ pub fn settings_row_resettable<R>(
                     let (resp, painter) = ui.allocate_painter(Vec2::new(7.0, 7.0), Sense::hover());
                     painter.circle_filled(resp.rect.center(), 2.5, VortexTheme::current_skin().accent_primary);
                 }
-                ui.label(RichText::new(title).size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                ui.label(RichText::new(title).size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                 if is_modified {
                     let reset_btn = ui.add(
-                        egui::Button::new(RichText::new("↺").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted))
+                        egui::Button::new(RichText::new("↺").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted))
                             .fill(Color32::TRANSPARENT)
                             .stroke(Stroke::NONE)
                     );
@@ -116,7 +116,7 @@ pub fn settings_row_resettable<R>(
 pub fn recommended_badge(ui: &mut egui::Ui) {
     ui.label(
         RichText::new(" RECOMMENDED ")
-            .size(9.0)
+            .size(9.5)
             .strong()
             .color(Color32::from_rgb(40, 210, 120))
             .background_color(Color32::from_rgb(16, 42, 28))
@@ -124,7 +124,7 @@ pub fn recommended_badge(ui: &mut egui::Ui) {
 }
 
 pub fn info_tooltip(ui: &mut egui::Ui, text: &str) {
-    ui.label(RichText::new("ℹ").size(11.0).color(Color32::from_rgb(140, 150, 180)))
+    ui.label(RichText::new("ℹ").size(11.5).color(Color32::from_rgb(140, 150, 180)))
         .on_hover_text(text);
 }
 
@@ -132,9 +132,9 @@ pub fn info_tooltip(ui: &mut egui::Ui, text: &str) {
 pub fn section_header(ui: &mut egui::Ui, breadcrumb: &str, title: &str, description: &str) {
     ui.label(RichText::new(breadcrumb).size(10.5).color(Color32::from_rgb(130, 136, 155)));
     ui.add_space(1.0);
-    ui.label(RichText::new(title).size(17.0).strong().color(Color32::WHITE));
+    ui.label(RichText::new(title).size(18.0).strong().color(Color32::WHITE));
     if !description.is_empty() {
-        ui.label(RichText::new(description).size(11.0).color(Color32::from_rgb(145, 152, 172)));
+        ui.label(RichText::new(description).size(11.5).color(Color32::from_rgb(145, 152, 172)));
     }
     ui.add_space(8.0);
 }
@@ -183,7 +183,7 @@ pub fn render_subtitle_preview(ui: &mut egui::Ui, config: &AppConfig) {
     ui.add_space(2.0);
     settings_card(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Live Subtitle Preview").size(12.0).strong().color(Color32::from_rgb(215, 220, 235)));
+            ui.label(RichText::new("Live Subtitle Preview").size(11.5).strong().color(Color32::from_rgb(215, 220, 235)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(RichText::new("Real-time rendering sample").size(10.5).color(Color32::from_rgb(130, 136, 155)));
             });
@@ -261,7 +261,7 @@ pub fn render_osd_preview(ui: &mut egui::Ui, config: &AppConfig) {
     ui.add_space(2.0);
     settings_card(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Live On-Screen Display (OSD) Preview").size(12.0).strong().color(Color32::from_rgb(215, 220, 235)));
+            ui.label(RichText::new("Live On-Screen Display (OSD) Preview").size(11.5).strong().color(Color32::from_rgb(215, 220, 235)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(RichText::new("y = 48px below Top Bar").size(10.5).color(Color32::from_rgb(130, 136, 155)));
             });
@@ -280,7 +280,7 @@ pub fn render_osd_preview(ui: &mut egui::Ui, config: &AppConfig) {
         // Top bar mock line
         let bar_rect = Rect::from_min_size(rect.left_top(), Vec2::new(preview_w, 16.0));
         painter.rect_filled(bar_rect, CornerRadius::ZERO, Color32::from_rgb(20, 22, 30));
-        painter.text(bar_rect.left_center() + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, "▶ VortexPlayer - BigBuckBunny_4K.mkv", FontId::proportional(9.0), Color32::from_rgb(160, 165, 185));
+        painter.text(bar_rect.left_center() + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, "▶ VortexPlayer - BigBuckBunny_4K.mkv", FontId::proportional(9.5), Color32::from_rgb(160, 165, 185));
 
         // OSD Pill positioned below the top bar
         let font_sz = (config.osd_font_size * 0.75).clamp(11.0, 20.0);
@@ -300,7 +300,7 @@ pub fn render_color_tuning_preview(ui: &mut egui::Ui, config: &AppConfig) {
     ui.add_space(2.0);
     settings_card(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Live Video Tone & Color Calibration Preview").size(12.0).strong().color(Color32::from_rgb(215, 220, 235)));
+            ui.label(RichText::new("Live Video Tone & Color Calibration Preview").size(11.5).strong().color(Color32::from_rgb(215, 220, 235)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(RichText::new("Real-time shader emulation").size(10.5).color(Color32::from_rgb(130, 136, 155)));
             });
@@ -553,7 +553,7 @@ impl PreferencesDialog {
                         .inner_margin(Margin::symmetric(10, 5))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("⚡ Quick Profiles:").size(11.0).strong().color(Color32::from_rgb(160, 166, 185)));
+                                ui.label(RichText::new("⚡ Quick Profiles:").size(11.5).strong().color(Color32::from_rgb(160, 166, 185)));
                                 ui.add_space(2.0);
 
                                 let prof_high = ui.add(
@@ -709,7 +709,7 @@ impl PreferencesDialog {
 
                                         ui.add_space(8.0);
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(*icon).size(12.0).color(if is_section_active { VortexTheme::current_skin().accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_muted }));
+                                            ui.label(RichText::new(*icon).size(11.5).color(if is_section_active { VortexTheme::current_skin().accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_muted }));
                                             ui.label(
                                                 RichText::new(*section)
                                                     .strong()
@@ -717,7 +717,7 @@ impl PreferencesDialog {
                                                     .color(if is_section_active { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(180, 186, 205) }),
                                             );
                                             if mod_cnt > 0 {
-                                                ui.label(RichText::new(format!("● {}", mod_cnt)).size(9.0).color(VortexTheme::current_skin().accent_primary).strong());
+                                                ui.label(RichText::new(format!("● {}", mod_cnt)).size(9.5).color(VortexTheme::current_skin().accent_primary).strong());
                                             }
                                         });
                                         ui.add_space(2.0);
@@ -738,7 +738,7 @@ impl PreferencesDialog {
                                             let btn_resp = ui.add(
                                                 egui::Button::new(
                                                     RichText::new(format!("  {}", sub))
-                                                        .size(11.0)
+                                                        .size(11.5)
                                                         .color(text_color)
                                                 )
                                                 .fill(bg)
@@ -802,13 +802,13 @@ impl PreferencesDialog {
                                                 settings_card(ui, |ui| {
                                                     ui.horizontal(|ui| {
                                                         ui.vertical(|ui| {
-                                                            ui.label(RichText::new(format!("{}  ›  {}", item.category, item.sub_category)).size(10.0).color(Color32::from_rgb(130, 136, 155)));
-                                                            ui.label(RichText::new(item.title).size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                                            ui.label(RichText::new(format!("{}  ›  {}", item.category, item.sub_category)).size(10.5).color(Color32::from_rgb(130, 136, 155)));
+                                                            ui.label(RichText::new(item.title).size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                                             ui.label(RichText::new(item.description).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                         });
                                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                             let jump_btn = ui.add(
-                                                                egui::Button::new(RichText::new("Jump to Setting →").size(11.0).color(VortexTheme::current_skin().accent_primary))
+                                                                egui::Button::new(RichText::new("Jump to Setting →").size(11.5).color(VortexTheme::current_skin().accent_primary))
                                                                     .fill(Color32::from_rgb(32, 36, 48))
                                                                     .stroke(Stroke::new(1.0, Color32::from_rgb(55, 60, 80)))
                                                                     .corner_radius(CornerRadius::same(5))
@@ -827,7 +827,7 @@ impl PreferencesDialog {
 
                                         if match_count == 0 {
                                             settings_card(ui, |ui| {
-                                                ui.label(RichText::new(format!("No settings matched \"{}\". Try searching for 'decoder', 'subtitles', 'cache', 'audio', or 'hotkeys'.", query)).color(crate::ui::theme::VortexTheme::current_skin().text_secondary).size(11.0));
+                                                ui.label(RichText::new(format!("No settings matched \"{}\". Try searching for 'decoder', 'subtitles', 'cache', 'audio', or 'hotkeys'.", query)).color(crate::ui::theme::VortexTheme::current_skin().text_secondary).size(11.5));
                                             });
                                         }
                                         ui.add_space(8.0);
@@ -1283,11 +1283,11 @@ impl PreferencesDialog {
                                         });
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("3D LUT Color Grading & Display Calibration (.cube)").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("3D LUT Color Grading & Display Calibration (.cube)").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                             ui.add_space(4.0);
                                             ui.horizontal(|ui| {
                                                 let lut_display = config.lut_file.as_deref().unwrap_or("(None / Disabled)");
-                                                ui.label(RichText::new(format!("File: {}", lut_display)).size(11.0).color(Color32::from_rgb(160, 166, 185)));
+                                                ui.label(RichText::new(format!("File: {}", lut_display)).size(11.5).color(Color32::from_rgb(160, 166, 185)));
                                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                     if config.lut_file.is_some() && ui.button("Clear").clicked() {
                                                         config.lut_file = None;
@@ -1699,7 +1699,7 @@ impl PreferencesDialog {
                                                     egui::ComboBox::from_id_salt("pref_eq_preset_sel")
                                                         .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::current_skin().accent_primary).strong())
                                                         .show_ui(ui, |ui| {
-                                                            ui.label(RichText::new("── Built-in Presets ──").size(10.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                            ui.label(RichText::new("── Built-in Presets ──").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                             for preset in VORTEX_EQ_PRESETS {
                                                                 if ui.selectable_label(config.eq_preset == preset.name, preset.name).clicked() {
                                                                     config.eq_preset = preset.name.to_string();
@@ -1713,7 +1713,7 @@ impl PreferencesDialog {
 
                                                             if !config.custom_eq_presets.is_empty() {
                                                                 ui.separator();
-                                                                ui.label(RichText::new("── Custom Presets ──").size(10.0).color(VortexTheme::current_skin().accent_primary));
+                                                                ui.label(RichText::new("── Custom Presets ──").size(10.5).color(VortexTheme::current_skin().accent_primary));
                                                                 let mut to_delete: Option<String> = None;
                                                                 let custom_names: Vec<String> = config.custom_eq_presets.keys().cloned().collect();
                                                                 for c_name in custom_names {
@@ -1756,7 +1756,7 @@ impl PreferencesDialog {
                                                     .inner_margin(Margin::symmetric(10, 6))
                                                     .show(ui, |ui| {
                                                         ui.horizontal(|ui| {
-                                                            ui.label(RichText::new("New Custom Preset Name:").size(11.0).color(VortexTheme::current_skin().accent_primary).strong());
+                                                            ui.label(RichText::new("New Custom Preset Name:").size(11.5).color(VortexTheme::current_skin().accent_primary).strong());
                                                             let text_resp = ui.add(
                                                                 egui::TextEdit::singleline(&mut self.new_preset_name)
                                                                     .desired_width(200.0)
@@ -1810,7 +1810,7 @@ impl PreferencesDialog {
                                                                 } else {
                                                                     crate::ui::theme::VortexTheme::current_skin().text_muted
                                                                 };
-                                                                ui.label(RichText::new(format!("{:+.0}", gain)).size(8.5).monospace().color(gain_col));
+                                                                ui.label(RichText::new(format!("{:+.0}", gain)).size(9.5).monospace().color(gain_col));
 
                                                                 let slider = ui.add(
                                                                     egui::Slider::new(&mut gain, -12.0..=12.0)
@@ -1826,7 +1826,7 @@ impl PreferencesDialog {
                                                                     let _ = config.save();
                                                                 }
 
-                                                                ui.label(RichText::new(freqs[i]).size(8.5).monospace().color(Color32::from_rgb(140, 145, 160)));
+                                                                ui.label(RichText::new(freqs[i]).size(9.5).monospace().color(Color32::from_rgb(140, 145, 160)));
                                                             });
                                                         }
                                                     });
@@ -1835,7 +1835,7 @@ impl PreferencesDialog {
 
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Saved Custom Presets Library").size(12.5).strong().color(VortexTheme::current_skin().accent_primary));
+                                            ui.label(RichText::new("Saved Custom Presets Library").size(13.0).strong().color(VortexTheme::current_skin().accent_primary));
                                             if config.custom_eq_presets.is_empty() {
                                                 ui.label(RichText::new("No custom EQ presets created yet. Adjust the sliders above and click \"➕ Save As Custom Preset...\" to save your personalized sound curve.").size(10.5).color(Color32::from_rgb(140, 145, 160)));
                                             } else {
@@ -1950,8 +1950,8 @@ impl PreferencesDialog {
                                     ("Audio", "Language & Track Priority") => {
                                         section_header(ui, "Audio  ›  Language & Track Priority", "Audio Language & Track Priority", "Configure preferred spoken languages, surround track prioritization, and commentary filtering.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Language Priority Sequence").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("VortexPlayer automatically picks the highest priority matching audio stream. Enter ISO-639 codes separated by commas (e.g. 'en,eng,ja,jpn').").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Language Priority Sequence").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("VortexPlayer automatically picks the highest priority matching audio stream. Enter ISO-639 codes separated by commas (e.g. 'en,eng,ja,jpn').").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                             ui.add_space(4.0);
 
                                             let prev_alang = config.audio_languages.clone();
@@ -1966,7 +1966,7 @@ impl PreferencesDialog {
 
                                             ui.separator();
                                             ui.horizontal_wrapped(|ui| {
-                                                ui.label(RichText::new("Quick Presets:").size(11.0).color(Color32::from_rgb(160, 166, 185)).strong());
+                                                ui.label(RichText::new("Quick Presets:").size(11.5).color(Color32::from_rgb(160, 166, 185)).strong());
                                                 let presets = [
                                                     ("Default (EN / JA / HI)", "en,eng,ja,jpn,hi,hin"),
                                                     ("English Only", "en,eng,mul"),
@@ -1991,7 +1991,7 @@ impl PreferencesDialog {
 
                                             ui.add_space(2.0);
                                             ui.horizontal_wrapped(|ui| {
-                                                ui.label(RichText::new("Add Tag:").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                ui.label(RichText::new("Add Tag:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                 let tags = [
                                                     ("English (+en)", "en,eng"),
                                                     ("Japanese (+ja)", "ja,jpn"),
@@ -2024,7 +2024,7 @@ impl PreferencesDialog {
 
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Smart Track Prioritization & Filters").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("Smart Track Prioritization & Filters").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                             ui.add_space(4.0);
 
                                             settings_row(ui, "Prefer Surround Sound Streams", "Prioritize multi-channel 7.1 / 5.1 / Atmos audio streams over stereo tracks within the preferred language", |ui| {
@@ -2049,7 +2049,7 @@ impl PreferencesDialog {
                                                 ui.add(egui::TextEdit::singleline(&mut config.subtitle_sub_font).hint_text("e.g. Segoe UI, Arial, Trebuchet MS"));
                                             });
                                             ui.horizontal(|ui| {
-                                                ui.label(RichText::new("Quick Fonts:").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                ui.label(RichText::new("Quick Fonts:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                 for font in &["Segoe UI", "Arial", "Trebuchet MS", "Verdana", "Inter", "Roboto", "Consolas", "Georgia"] {
                                                     let is_sel = config.subtitle_sub_font == *font;
                                                     if ui.selectable_label(is_sel, *font).clicked() {
@@ -2107,7 +2107,7 @@ impl PreferencesDialog {
                                                 });
                                             });
                                             ui.horizontal(|ui| {
-                                                ui.label(RichText::new("Preset Colors:").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                ui.label(RichText::new("Preset Colors:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                 let swatches = [
                                                     ("White", "#FFFFFF"),
                                                     ("Vortex Gold", "#FFE600"),
@@ -2187,7 +2187,7 @@ impl PreferencesDialog {
                                                     });
                                                 });
                                                 ui.horizontal(|ui| {
-                                                    ui.label(RichText::new("Quick Opacity:").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                    ui.label(RichText::new("Quick Opacity:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                     if ui.button("40% Tint").clicked() { config.subtitle_background_color = "#66000000".to_string(); }
                                                     if ui.button("60% Standard").clicked() { config.subtitle_background_color = "#99000000".to_string(); }
                                                     if ui.button("80% Heavy").clicked() { config.subtitle_background_color = "#CC000000".to_string(); }
@@ -2286,15 +2286,15 @@ impl PreferencesDialog {
                                         });
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Multi-Track Subtitle Engine & Dual Playback").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("• Primary Subtitle: Rendered cleanly along the bottom of the video viewport\n• 2nd Dual Subtitle: Rendered along the top of the viewport for simultaneous language acquisition\n• Format Support: ASS, SSA, SRT, VTT, SUB, SAMI with full embedded font attachment rendering").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Multi-Track Subtitle Engine & Dual Playback").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("• Primary Subtitle: Rendered cleanly along the bottom of the video viewport\n• 2nd Dual Subtitle: Rendered along the top of the viewport for simultaneous language acquisition\n• Format Support: ASS, SSA, SRT, VTT, SUB, SAMI with full embedded font attachment rendering").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                         });
                                     }
                                     ("Subtitles", "Language Priority & Download") => {
                                         section_header(ui, "Subtitles  ›  Language Priority & Download", "Subtitle Language Priority & Downloader", "Configure preferred subtitle languages, forced track matching, and OpenSubtitles integration.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Language Priority Sequence").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("VortexPlayer automatically scans embedded and external subtitles in priority order. Enter comma-separated language tags (or 'no' to disable by default).").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Language Priority Sequence").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("VortexPlayer automatically scans embedded and external subtitles in priority order. Enter comma-separated language tags (or 'no' to disable by default).").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                             ui.add_space(4.0);
 
                                             let prev_slang = config.subtitle_languages.clone();
@@ -2309,7 +2309,7 @@ impl PreferencesDialog {
 
                                             ui.separator();
                                             ui.horizontal_wrapped(|ui| {
-                                                ui.label(RichText::new("Quick Presets:").size(11.0).color(Color32::from_rgb(160, 166, 185)).strong());
+                                                ui.label(RichText::new("Quick Presets:").size(11.5).color(Color32::from_rgb(160, 166, 185)).strong());
                                                 let presets = [
                                                     ("Default (EN / HI / JA)", "en,eng,hi,hin,ja,jpn"),
                                                     ("English Only", "en,eng,enUS"),
@@ -2334,7 +2334,7 @@ impl PreferencesDialog {
 
                                             ui.add_space(2.0);
                                             ui.horizontal_wrapped(|ui| {
-                                                ui.label(RichText::new("Add Tag:").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                ui.label(RichText::new("Add Tag:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                 let tags = [
                                                     ("English (+en)", "en,eng"),
                                                     ("Hindi (+hi)", "hi,hin"),
@@ -2367,7 +2367,7 @@ impl PreferencesDialog {
 
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Subtitle Selection & Auto-Matching Rules").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("Subtitle Selection & Auto-Matching Rules").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                             ui.add_space(4.0);
 
                                             settings_row(ui, "Prefer Forced & Signs / Songs Subtitles", "Prioritize forced subtitle tracks for foreign dialogue and translations when audio is in original language", |ui| {
@@ -2403,8 +2403,8 @@ impl PreferencesDialog {
                                             ui.horizontal(|ui| {
                                                 ui.label(RichText::new("🌐").size(18.0));
                                                 ui.vertical(|ui| {
-                                                    ui.label(RichText::new("OpenSubtitles Integration").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                                    ui.label(RichText::new("VortexPlayer includes an integrated OpenSubtitles studio. Press Ctrl + L at any time during playback to search, preview, and download synchronized subtitles in any language.").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                    ui.label(RichText::new("OpenSubtitles Integration").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                                    ui.label(RichText::new("VortexPlayer includes an integrated OpenSubtitles studio. Press Ctrl + L at any time during playback to search, preview, and download synchronized subtitles in any language.").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                 });
                                             });
                                         });
@@ -2416,15 +2416,15 @@ impl PreferencesDialog {
                                     ("Input & Hotkeys", "Keyboard & Global Hotkeys") => {
                                         section_header(ui, "Input & Hotkeys  ›  Keyboard & Global Hotkeys", "Keyboard & Global Hotkeys", "Global Windows multimedia hotkeys and background control.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Registered System Multimedia Shortcuts").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("✓ Hardware Multimedia Keys: Play / Pause, Next, Prev, Stop, Mute\n✓ Ctrl + Alt + Space : Play / Pause in background\n✓ Ctrl + Alt + Right / Left : Next / Prev file in background\n✓ Ctrl + Alt + Up / Down : Volume Up / Down in background\n✓ Ctrl + Alt + V : Focus and bring VortexPlayer to foreground").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Registered System Multimedia Shortcuts").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("✓ Hardware Multimedia Keys: Play / Pause, Next, Prev, Stop, Mute\n✓ Ctrl + Alt + Space : Play / Pause in background\n✓ Ctrl + Alt + Right / Left : Next / Prev file in background\n✓ Ctrl + Alt + Up / Down : Volume Up / Down in background\n✓ Ctrl + Alt + V : Focus and bring VortexPlayer to foreground").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                         });
                                     }
                                     ("Input & Hotkeys", "Gamepad & Controller") => {
                                         section_header(ui, "Input & Hotkeys  ›  Gamepad & Controller", "Gamepad & Controller", "DirectInput and XInput controller support.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Gamepad Controls Mapping").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("✓ A Button / Cross : Play / Pause\n✓ D-Pad Left / Right : Seek Timeline ±10s\n✓ Left / Right Triggers (LT / RT) : Volume Down / Up\n✓ Start Button : Toggle Fullscreen").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Gamepad Controls Mapping").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("✓ A Button / Cross : Play / Pause\n✓ D-Pad Left / Right : Seek Timeline ±10s\n✓ Left / Right Triggers (LT / RT) : Volume Down / Up\n✓ Start Button : Toggle Fullscreen").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                         });
                                     }
 
@@ -2434,8 +2434,8 @@ impl PreferencesDialog {
                                     ("Network & Cloud", "Stream Buffering & Protocols") => {
                                         section_header(ui, "Network & Cloud  ›  Stream Buffering & Protocols", "Stream Buffering & Protocols", "Direct stream caching, network shares, and media protocols.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Streaming Protocols Supported").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("✓ Network Shares: SMB (Windows Share), WebDAV, FTP, DLNA, UNC Share paths\n✓ Direct Web Streams: HLS (.m3u8), DASH, RTSP, YouTube / yt-dlp\n✓ Press Ctrl + N to launch the Network Media Browser Studio").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Streaming Protocols Supported").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("✓ Network Shares: SMB (Windows Share), WebDAV, FTP, DLNA, UNC Share paths\n✓ Direct Web Streams: HLS (.m3u8), DASH, RTSP, YouTube / yt-dlp\n✓ Press Ctrl + N to launch the Network Media Browser Studio").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                         });
                                     }
 
@@ -2445,8 +2445,8 @@ impl PreferencesDialog {
                                     ("Integration", "Windows SMTC & Shell") => {
                                         section_header(ui, "Integration  ›  Windows SMTC & Shell", "Windows Shell Integration", "System Media Transport Controls, taskbar controls, and shell associations.");
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Windows Desktop Integration Features").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
-                                            ui.label(RichText::new("✓ Windows System Media Transport Controls (SMTC overlay)\n✓ Windows Taskbar Live Scrubbing Progress and Thumbnail Toolbar Buttons\n✓ Registered File Associations: .mkv, .mp4, .avi, .webm, .ts, .mov, .flac, .mp3, .aac, .srt, .ass").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("Windows Desktop Integration Features").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("✓ Windows System Media Transport Controls (SMTC overlay)\n✓ Windows Taskbar Live Scrubbing Progress and Thumbnail Toolbar Buttons\n✓ Registered File Associations: .mkv, .mp4, .avi, .webm, .ts, .mov, .flac, .mp3, .aac, .srt, .ass").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                         });
                                     }
 
@@ -2466,7 +2466,7 @@ impl PreferencesDialog {
                                         });
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Custom mpv.conf Parameters & Engine Direct Overrides").size(12.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
+                                            ui.label(RichText::new("Custom mpv.conf Parameters & Engine Direct Overrides").size(13.0).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                             ui.label(RichText::new("Inject arbitrary key=value parameters directly into the underlying media engine pipeline:").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                             ui.add(
                                                 egui::TextEdit::multiline(&mut config.custom_mpv_options)
@@ -2479,7 +2479,7 @@ impl PreferencesDialog {
                                         ui.add_space(8.0);
                                         settings_card(ui, |ui| {
                                             settings_row(ui, "Configuration File", "Active config path in user AppData", |ui| {
-                                                ui.label(RichText::new("%APPDATA%/vortex-player/config.json").size(11.0).color(Color32::from_rgb(160, 165, 185)));
+                                                ui.label(RichText::new("%APPDATA%/vortex-player/config.json").size(11.5).color(Color32::from_rgb(160, 165, 185)));
                                             });
                                             ui.separator();
                                             ui.horizontal(|ui| {
@@ -2521,7 +2521,7 @@ impl PreferencesDialog {
                                     }
                                 } else {
                                     ui.add_space(8.0);
-                                    ui.label(RichText::new("💡 Click 'Jump to Setting →' on any search result above to navigate directly to its controls.").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                    ui.label(RichText::new("💡 Click 'Jump to Setting →' on any search result above to navigate directly to its controls.").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                 }
                             });
                     });
@@ -2533,8 +2533,8 @@ impl PreferencesDialog {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
                     // Left status pill
-                    ui.label(RichText::new("●").color(Color32::from_rgb(80, 220, 120)).size(10.0));
-                    ui.label(RichText::new("Direct3D 11 Active  •  Settings auto-saved").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                    ui.label(RichText::new("●").color(Color32::from_rgb(80, 220, 120)).size(10.5));
+                    ui.label(RichText::new("Direct3D 11 Active  •  Settings auto-saved").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let apply_to_player = |cfg: &AppConfig| {

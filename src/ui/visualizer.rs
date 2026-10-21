@@ -159,7 +159,7 @@ impl VisualizerSuite {
                 tab_rect.center(),
                 Align2::CENTER_CENTER,
                 m.short_name(),
-                FontId::proportional(11.0),
+                FontId::proportional(11.5),
                 if active { Color32::WHITE } else { Color32::from_rgb(170, 180, 200) },
             );
 
@@ -185,7 +185,7 @@ impl VisualizerSuite {
             self.is_visible = false;
         }
         let close_color = if close_resp.hovered() { Color32::from_rgb(255, 90, 90) } else { Color32::from_rgb(140, 150, 170) };
-        painter.text(close_rect.center(), Align2::CENTER_CENTER, "✕", FontId::proportional(12.0), close_color);
+        painter.text(close_rect.center(), Align2::CENTER_CENTER, "✕", FontId::proportional(11.5), close_color);
 
         // Content Area
         let content_rect = Rect::from_min_max(
@@ -306,8 +306,8 @@ impl VisualizerSuite {
                     Stroke::new(1.0, Color32::from_rgba_unmultiplied(80, 95, 120, 100)),
                 );
 
-                painter.text(Pos2::new(center.x - diag - 10.0, center.y - diag), Align2::RIGHT_CENTER, "L", FontId::proportional(10.0), Color32::from_rgb(140, 160, 190));
-                painter.text(Pos2::new(center.x + diag + 10.0, center.y - diag), Align2::LEFT_CENTER, "R", FontId::proportional(10.0), Color32::from_rgb(140, 160, 190));
+                painter.text(Pos2::new(center.x - diag - 10.0, center.y - diag), Align2::RIGHT_CENTER, "L", FontId::proportional(10.5), Color32::from_rgb(140, 160, 190));
+                painter.text(Pos2::new(center.x + diag + 10.0, center.y - diag), Align2::LEFT_CENTER, "R", FontId::proportional(10.5), Color32::from_rgb(140, 160, 190));
 
                 if is_playing {
                     let dot_count = 72;
@@ -332,7 +332,7 @@ impl VisualizerSuite {
                         Pos2::new(content_rect.right() - 14.0, center.y),
                         Align2::RIGHT_CENTER,
                         "Correlation: +0.86 (Stereo In-Phase)",
-                        FontId::monospace(11.0),
+                        FontId::monospace(11.5),
                         Color32::from_rgb(160, 210, 255),
                     );
                 } else {

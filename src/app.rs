@@ -2560,7 +2560,7 @@ impl VortexApp {
                         .show(ui, |ui| {
                             ui.vertical(|ui| {
                                 ui.colored_label(skin.text_muted, "A/V SYNC DRIFT");
-                                ui.colored_label(drift_color, egui::RichText::new(format!("{:+.2} ms", drift_ms)).strong().size(16.0));
+                                ui.colored_label(drift_color, egui::RichText::new(format!("{:+.2} ms", drift_ms)).strong().size(15.0));
                             });
                         });
 
@@ -2585,7 +2585,7 @@ impl VortexApp {
 
                 // Toolbar Controls
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(format!("Logged Events: {}", self.debug_log_entries.len())).size(12.0).color(skin.text_muted));
+                    ui.label(egui::RichText::new(format!("Logged Events: {}", self.debug_log_entries.len())).size(11.5).color(skin.text_muted));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("✕ Close").clicked() {
@@ -2644,7 +2644,7 @@ impl VortexApp {
                                     (skin.text_primary, false)
                                 };
 
-                                let mut text = egui::RichText::new(entry).monospace().size(12.0).color(color);
+                                let mut text = egui::RichText::new(entry).monospace().size(11.5).color(color);
                                 if bold {
                                     text = text.strong();
                                 }
@@ -4818,7 +4818,7 @@ impl eframe::App for VortexApp {
                                 Pos2::new(usable_center.x, logo_center_y + 48.0),
                                 Align2::CENTER_CENTER,
                                 "VORTEX PLAYER",
-                                FontId::proportional(22.0),
+                                FontId::proportional(24.0),
                                 Color32::from_rgb(245, 248, 255),
                             );
 
@@ -4826,7 +4826,7 @@ impl eframe::App for VortexApp {
                                 Pos2::new(usable_center.x, logo_center_y + 72.0),
                                 Align2::CENTER_CENTER,
                                 "Ultra High-Fidelity Hardware Accelerated Media Engine",
-                                FontId::proportional(12.0),
+                                FontId::proportional(11.5),
                                 Color32::from_rgb(150, 160, 185),
                             );
                         }
@@ -4844,28 +4844,28 @@ impl eframe::App for VortexApp {
 
                             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(shelf_rect.shrink(8.0)));
                             child_ui.horizontal(|ui| {
-                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(12.0).strong().color(VortexTheme::current_skin().accent_primary));
+                                ui.label(RichText::new("🕒 RECENTLY PLAYED").size(11.5).strong().color(VortexTheme::current_skin().accent_primary));
                                 let total_items = if !self.playback_history.entries.is_empty() {
                                     self.playback_history.entries.len()
                                 } else {
                                     self.config.recent_files.len()
                                 };
                                 if total_items > 0 {
-                                    ui.label(RichText::new(format!("({} items)", total_items)).size(11.0).color(Color32::from_rgb(140, 148, 170)));
+                                    ui.label(RichText::new(format!("({} items)", total_items)).size(11.5).color(Color32::from_rgb(140, 148, 170)));
                                 }
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if ui.button(RichText::new("🗑 Clear History").size(11.0)).clicked() {
+                                    if ui.button(RichText::new("🗑 Clear History").size(11.5)).clicked() {
                                         self.config.recent_files.clear();
                                         let _ = self.config.save();
                                         self.playback_history.entries.clear();
                                         self.playback_history.save();
                                     }
-                                    if ui.button(RichText::new("📂 Open File (Ctrl+O)").size(11.0).strong().color(Color32::from_rgb(255, 215, 80))).clicked() {
+                                    if ui.button(RichText::new("📂 Open File (Ctrl+O)").size(11.5).strong().color(Color32::from_rgb(255, 215, 80))).clicked() {
                                         if let Some(file) = rfd::FileDialog::new().pick_file() {
                                             file_to_open = Some(file);
                                         }
                                     }
-                                    if ui.button(RichText::new("🌐 Stream URL (Ctrl+U)").size(11.0)).clicked() {
+                                    if ui.button(RichText::new("🌐 Stream URL (Ctrl+U)").size(11.5)).clicked() {
                                         self.show_stream_url_dialog = true;
                                     }
                                 });
@@ -4894,7 +4894,7 @@ impl eframe::App for VortexApp {
                                                     if entry.completed {
                                                         ui.label(RichText::new("✓").size(13.0).color(Color32::from_rgb(60, 200, 100)));
                                                     } else if pct > 0 {
-                                                        ui.label(RichText::new(format!("{:2}%", pct)).size(11.0).strong().color(VortexTheme::current_skin().accent_primary));
+                                                        ui.label(RichText::new(format!("{:2}%", pct)).size(11.5).strong().color(VortexTheme::current_skin().accent_primary));
                                                     } else {
                                                         ui.label(RichText::new("•").size(15.0).color(Color32::from_rgb(140, 145, 165)));
                                                     }
@@ -4920,7 +4920,7 @@ impl eframe::App for VortexApp {
                                                         } else {
                                                             file_name.clone()
                                                         };
-                                                        ui.label(RichText::new(short_name).strong().size(12.5).color(Color32::from_rgb(235, 238, 248)));
+                                                        ui.label(RichText::new(short_name).strong().size(13.0).color(Color32::from_rgb(235, 238, 248)));
 
                                                         if !dir_str.is_empty() {
                                                             let max_dir_chars = (text_w / 6.5) as usize;
@@ -4950,7 +4950,7 @@ impl eframe::App for VortexApp {
                                                             ui.label(RichText::new(format!("×{}", entry.watch_count)).small().color(Color32::from_rgb(180, 140, 255)));
                                                         }
                                                         if !entry.last_played.is_empty() {
-                                                            ui.label(RichText::new(&entry.last_played).size(10.0).color(Color32::from_rgb(115, 122, 140)));
+                                                            ui.label(RichText::new(&entry.last_played).size(10.5).color(Color32::from_rgb(115, 122, 140)));
                                                         }
                                                     });
                                                 });
@@ -4994,7 +4994,7 @@ impl eframe::App for VortexApp {
                                                         } else {
                                                             file_name.clone()
                                                         };
-                                                        ui.label(RichText::new(short_name).strong().size(12.5).color(Color32::from_rgb(235, 238, 248)));
+                                                        ui.label(RichText::new(short_name).strong().size(13.0).color(Color32::from_rgb(235, 238, 248)));
 
                                                         if !dir_str.is_empty() {
                                                             let max_dir_chars = (text_w / 6.5) as usize;
@@ -5041,7 +5041,7 @@ impl eframe::App for VortexApp {
                                 cols[0].vertical_centered(|ui| {
                                     if ui.add_sized(
                                         Vec2::new(ui.available_width(), 58.0),
-                                        egui::Button::new(RichText::new("Open Media File\nCtrl + O").strong().size(12.5).color(Color32::from_rgb(255, 215, 80))),
+                                        egui::Button::new(RichText::new("Open Media File\nCtrl + O").strong().size(13.0).color(Color32::from_rgb(255, 215, 80))),
                                     ).clicked() {
                                         if let Some(file) = rfd::FileDialog::new().pick_file() {
                                             file_to_open = Some(file);
@@ -5050,7 +5050,7 @@ impl eframe::App for VortexApp {
                                     ui.add_space(8.0);
                                     if ui.add_sized(
                                         Vec2::new(ui.available_width(), 58.0),
-                                        egui::Button::new(RichText::new("Playlist Manager\nF8 Key").strong().size(12.0).color(Color32::from_rgb(220, 225, 240))),
+                                        egui::Button::new(RichText::new("Playlist Manager\nF8 Key").strong().size(11.5).color(Color32::from_rgb(220, 225, 240))),
                                     ).clicked() {
                                         self.show_playlist = true;
                                     }
@@ -5060,14 +5060,14 @@ impl eframe::App for VortexApp {
                                 cols[1].vertical_centered(|ui| {
                                     if ui.add_sized(
                                         Vec2::new(ui.available_width(), 58.0),
-                                        egui::Button::new(RichText::new("Stream URL / Web\nCtrl + U").strong().size(12.5).color(Color32::from_rgb(100, 190, 255))),
+                                        egui::Button::new(RichText::new("Stream URL / Web\nCtrl + U").strong().size(13.0).color(Color32::from_rgb(100, 190, 255))),
                                     ).clicked() {
                                         self.show_stream_url_dialog = true;
                                     }
                                     ui.add_space(8.0);
                                     if ui.add_sized(
                                         Vec2::new(ui.available_width(), 58.0),
-                                        egui::Button::new(RichText::new("DSP Equalizer Studio\nF7 Key").strong().size(12.0).color(Color32::from_rgb(220, 225, 240))),
+                                        egui::Button::new(RichText::new("DSP Equalizer Studio\nF7 Key").strong().size(11.5).color(Color32::from_rgb(220, 225, 240))),
                                     ).clicked() {
                                         self.show_control_panel = true;
                                     }
@@ -5153,7 +5153,7 @@ impl eframe::App for VortexApp {
                             hud_center,
                             Align2::CENTER_CENTER,
                             "▶▶  2.0× Speed",
-                            FontId::proportional(14.0),
+                            FontId::proportional(13.0),
                             Color32::from_rgb(240, 245, 255),
                         );
                     }
@@ -5229,7 +5229,7 @@ impl eframe::App for VortexApp {
                             };
 
                             let title_rect = Rect::from_min_size(pip_top_rect.left_top() + Vec2::new(10.0, 0.0), Vec2::new(pip_top_rect.width() - 75.0, pip_top_rect.height()));
-                            let title_galley = painter.layout_no_wrap(display_title, FontId::proportional(11.0), Color32::from_rgb(220, 225, 240));
+                            let title_galley = painter.layout_no_wrap(display_title, FontId::proportional(11.5), Color32::from_rgb(220, 225, 240));
                             painter.galley(Pos2::new(title_rect.left(), title_rect.center().y - title_galley.size().y * 0.5), title_galley, Color32::from_rgb(220, 225, 240));
 
                             // Restore Button
@@ -5269,7 +5269,7 @@ impl eframe::App for VortexApp {
                                 btn_close.center(),
                                 Align2::CENTER_CENTER,
                                 "✕",
-                                FontId::proportional(11.0),
+                                FontId::proportional(11.5),
                                 Color32::WHITE,
                             );
                             if close_resp.clicked() {
@@ -5285,7 +5285,7 @@ impl eframe::App for VortexApp {
                                 CornerRadius::same(16),
                                 if rew_resp.hovered() { Color32::from_rgba_unmultiplied(40, 45, 65, 230) } else { Color32::from_rgba_unmultiplied(20, 24, 35, 200) },
                             );
-                            painter.text(btn_pip_rew.center(), Align2::CENTER_CENTER, "⏪", FontId::proportional(11.0), Color32::WHITE);
+                            painter.text(btn_pip_rew.center(), Align2::CENTER_CENTER, "⏪", FontId::proportional(11.5), Color32::WHITE);
                             if rew_resp.clicked() {
                                 if let Ok(ref player) = self.player {
                                     player.seek_relative(-5.0);
@@ -5304,7 +5304,7 @@ impl eframe::App for VortexApp {
                                 btn_pip_play.center(),
                                 Align2::CENTER_CENTER,
                                 if stats.is_paused { "▶" } else { "⏸" },
-                                FontId::proportional(14.0),
+                                FontId::proportional(13.0),
                                 Color32::BLACK,
                             );
                             if play_resp.clicked() {
@@ -5321,7 +5321,7 @@ impl eframe::App for VortexApp {
                                 CornerRadius::same(16),
                                 if fwd_resp.hovered() { Color32::from_rgba_unmultiplied(40, 45, 65, 230) } else { Color32::from_rgba_unmultiplied(20, 24, 35, 200) },
                             );
-                            painter.text(btn_pip_fwd.center(), Align2::CENTER_CENTER, "⏩", FontId::proportional(11.0), Color32::WHITE);
+                            painter.text(btn_pip_fwd.center(), Align2::CENTER_CENTER, "⏩", FontId::proportional(11.5), Color32::WHITE);
                             if fwd_resp.clicked() {
                                 if let Ok(ref player) = self.player {
                                     player.seek_relative(5.0);
@@ -5890,7 +5890,7 @@ impl eframe::App for VortexApp {
                                 btn_rect.center(),
                                 Align2::CENTER_CENTER,
                                 "⏭ Skip Intro (S)",
-                                FontId::proportional(12.0),
+                                FontId::proportional(11.5),
                                 text_col,
                             );
 
@@ -6565,7 +6565,7 @@ impl eframe::App for VortexApp {
                                 let (icon_r, _) = ui.allocate_exact_size(Vec2::new(14.0, 14.0), Sense::hover());
                                 Icons::draw_volume(ui.painter(), icon_r, VortexTheme::current_skin().accent_primary, false, 100.0);
                                 ui.add_space(2.0);
-                                ui.label(egui::RichText::new("Audio Channel Configuration").size(12.0).color(Color32::WHITE).strong());
+                                ui.label(egui::RichText::new("Audio Channel Configuration").size(11.5).color(Color32::WHITE).strong());
                             });
                             ui.add_space(2.0);
                             ui.separator();
@@ -6597,7 +6597,7 @@ impl eframe::App for VortexApp {
                                         Pos2::new(text_x, rect.center().y),
                                         Align2::LEFT_CENTER,
                                         icon,
-                                        FontId::proportional(11.0),
+                                        FontId::proportional(11.5),
                                         if is_sel { VortexTheme::current_skin().accent_primary } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
                                     );
                                     text_x += 16.0;
@@ -6771,11 +6771,11 @@ impl eframe::App for VortexApp {
                             ui.horizontal(|ui| {
                                 ui.label(egui::RichText::new("⚡").color(VortexTheme::current_skin().accent_primary).size(13.0));
                                 ui.add_space(2.0);
-                                ui.label(egui::RichText::new("Playback Speed").size(12.0).color(Color32::WHITE).strong());
+                                ui.label(egui::RichText::new("Playback Speed").size(11.5).color(Color32::WHITE).strong());
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     let is_custom = (stats.speed - 1.0).abs() > 0.03;
                                     let badge_col = if is_custom { VortexTheme::current_skin().accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
-                                    ui.label(egui::RichText::new(format!("{:.2}x", stats.speed)).monospace().size(11.0).color(badge_col).strong());
+                                    ui.label(egui::RichText::new(format!("{:.2}x", stats.speed)).monospace().size(11.5).color(badge_col).strong());
                                 });
                             });
                             ui.add_space(3.0);
@@ -6820,7 +6820,7 @@ impl eframe::App for VortexApp {
                                         Pos2::new(text_x, rect.center().y),
                                         Align2::LEFT_CENTER,
                                         icon,
-                                        FontId::proportional(11.0),
+                                        FontId::proportional(11.5),
                                         if is_sel { VortexTheme::current_skin().accent_primary } else if is_hovered { Color32::WHITE } else { Color32::from_rgb(160, 165, 185) },
                                     );
                                     text_x += 16.0;
@@ -6846,7 +6846,7 @@ impl eframe::App for VortexApp {
                                         Pos2::new(rect.right() - 6.0, rect.center().y),
                                         Align2::RIGHT_CENTER,
                                         subtext,
-                                        FontId::proportional(10.0),
+                                        FontId::proportional(10.5),
                                         if is_sel { Color32::from_rgb(175, 195, 235) } else { Color32::from_rgb(130, 136, 155) },
                                     );
                                 }
@@ -7018,7 +7018,7 @@ impl eframe::App for VortexApp {
                         Icons::draw_vertex_logo(ui.painter(), logo_rect.center(), 24.0);
 
                         ui.add_space(8.0);
-                        ui.label(RichText::new("VortexPlayer v1.1.0").size(16.0).strong().color(VortexTheme::VORTEX_CYAN));
+                        ui.label(RichText::new("VortexPlayer v1.1.0").size(15.0).strong().color(VortexTheme::VORTEX_CYAN));
                         ui.label(RichText::new("High-Quality Hardware Accelerated Media Player").size(11.5).color(Color32::from_rgb(170, 160, 200)));
 
                         ui.add_space(10.0);
@@ -7026,12 +7026,12 @@ impl eframe::App for VortexApp {
                         ui.add_space(6.0);
 
                         ui.label(RichText::new("Built with Rust, eframe/egui & libmpv").size(10.5).color(Color32::from_rgb(140, 130, 170)));
-                        ui.label(RichText::new("AV1, HEVC 10-bit/12-bit D3D11 Acceleration").size(10.0).color(Color32::from_rgb(120, 110, 150)));
-                        ui.label(RichText::new("18-Band Parametric Equalizer & Audio DSP").size(10.0).color(Color32::from_rgb(120, 110, 150)));
-                        ui.label(RichText::new("Multi-Theme Engine (Dark / Midnight / Slate)").size(10.0).color(Color32::from_rgb(120, 110, 150)));
+                        ui.label(RichText::new("AV1, HEVC 10-bit/12-bit D3D11 Acceleration").size(10.5).color(Color32::from_rgb(120, 110, 150)));
+                        ui.label(RichText::new("18-Band Parametric Equalizer & Audio DSP").size(10.5).color(Color32::from_rgb(120, 110, 150)));
+                        ui.label(RichText::new("Multi-Theme Engine (Dark / Midnight / Slate)").size(10.5).color(Color32::from_rgb(120, 110, 150)));
 
                         ui.add_space(12.0);
-                        if ui.button(RichText::new("  Close  ").size(11.0)).clicked() {
+                        if ui.button(RichText::new("  Close  ").size(11.5)).clicked() {
                             close_about = true;
                         }
                         ui.add_space(4.0);

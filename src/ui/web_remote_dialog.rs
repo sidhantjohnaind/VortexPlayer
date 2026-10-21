@@ -59,7 +59,7 @@ impl WebRemoteDialog {
                         ui.label(
                             RichText::new("Couch Mobile Phone Wi-Fi Web Remote")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(60, 220, 160)),
                         );
 

@@ -83,7 +83,7 @@ impl ChannelMatrixDialog {
 
                 // Presets row
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Routing Presets:").size(11.0).strong());
+                    ui.label(RichText::new("Routing Presets:").size(11.5).strong());
                     if ui.small_button("Stereo → 7.1").clicked() {
                         config.enabled = true;
                         config.matrix = [[0.0; 8]; 8];

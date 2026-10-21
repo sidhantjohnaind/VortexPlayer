@@ -151,7 +151,7 @@ impl BdaTunerDialog {
                         ui.label(
                             RichText::new("Physical Broadcast Tuner (DVB / ATSC / ISDB-T)")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(100, 220, 255)),
                         );
 

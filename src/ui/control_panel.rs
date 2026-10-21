@@ -68,7 +68,7 @@ fn pill_button(ui: &mut egui::Ui, label: &str, is_selected: bool) -> egui::Respo
     };
 
     ui.add(
-        egui::Button::new(RichText::new(label).color(text_col).size(11.0).strong())
+        egui::Button::new(RichText::new(label).color(text_col).size(11.5).strong())
             .fill(bg_col)
             .stroke(Stroke::new(1.0, stroke_col))
             .corner_radius(CornerRadius::same(4)),
@@ -121,7 +121,7 @@ impl ControlPanel {
                     ui.label(RichText::new("Vortex Control Panel").size(13.0).strong().color(Color32::WHITE));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let close_btn = ui.add(
-                            egui::Button::new(RichText::new("✕").size(12.0).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
+                            egui::Button::new(RichText::new("✕").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                                 .fill(Color32::TRANSPARENT)
                                 .stroke(Stroke::NONE)
                         );
@@ -189,7 +189,7 @@ impl ControlPanel {
                                     ui.add_space(8.0);
                                     ui.separator();
                                     ui.add_space(8.0);
-                                    ui.label(RichText::new(format!("{} × {}  ·  {:.2} fps", stats.video_width, stats.video_height, stats.video_fps)).size(11.0).color(Color32::from_rgb(155, 195, 255)));
+                                    ui.label(RichText::new(format!("{} × {}  ·  {:.2} fps", stats.video_width, stats.video_height, stats.video_fps)).size(11.5).color(Color32::from_rgb(155, 195, 255)));
                                 }
                                 if stats.is_hdr {
                                     ui.add_space(8.0);
@@ -203,11 +203,11 @@ impl ControlPanel {
                         // Card 2: Color Adjustments with Precision Grid Alignment
                         card_frame().show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Color Adjustments").strong().size(12.5).color(Color32::WHITE));
+                                ui.label(RichText::new("Color Adjustments").strong().size(13.0).color(Color32::WHITE));
                                 ui.label(RichText::new("(Default: 100% Neutral)").size(10.5).color(Color32::from_rgb(120, 126, 142)));
 
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    if ui.button(RichText::new("↺ Reset Colors (Q)").size(11.0).strong().color(VortexTheme::current_skin().accent_primary)).clicked() {
+                                    if ui.button(RichText::new("↺ Reset Colors (Q)").size(11.5).strong().color(VortexTheme::current_skin().accent_primary)).clicked() {
                                         config.video_brightness = 100.0;
                                         config.video_contrast = 100.0;
                                         config.video_saturation = 100.0;
@@ -393,7 +393,7 @@ impl ControlPanel {
                                     egui::ComboBox::from_id_salt("cp_eq_preset")
                                         .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::current_skin().accent_primary).strong())
                                         .show_ui(ui, |ui| {
-                                            ui.label(RichText::new("── Built-in Presets ──").size(10.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                            ui.label(RichText::new("── Built-in Presets ──").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                             for preset in VORTEX_EQ_PRESETS {
                                                 if ui.selectable_label(config.eq_preset == preset.name, preset.name).clicked() {
                                                     config.eq_preset = preset.name.to_string();
@@ -405,7 +405,7 @@ impl ControlPanel {
 
                                             if !config.custom_eq_presets.is_empty() {
                                                 ui.separator();
-                                                ui.label(RichText::new("── Custom Presets ──").size(10.0).color(VortexTheme::current_skin().accent_primary));
+                                                ui.label(RichText::new("── Custom Presets ──").size(10.5).color(VortexTheme::current_skin().accent_primary));
                                                 let mut to_delete: Option<String> = None;
                                                 let custom_names: Vec<String> = config.custom_eq_presets.keys().cloned().collect();
                                                 for c_name in custom_names {
@@ -480,7 +480,7 @@ impl ControlPanel {
                                     .inner_margin(egui::Margin::symmetric(10, 6))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new("Preset Name:").size(11.0).color(VortexTheme::current_skin().accent_primary).strong());
+                                            ui.label(RichText::new("Preset Name:").size(11.5).color(VortexTheme::current_skin().accent_primary).strong());
                                             let text_resp = ui.add(
                                                 egui::TextEdit::singleline(&mut self.new_preset_name)
                                                     .desired_width(180.0)
@@ -507,7 +507,7 @@ impl ControlPanel {
                         // Card 2: 18-Band Precision Graphic Equalizer Faders
                         card_frame().show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("18-Band Precision Graphic Equalizer").strong().size(12.0).color(Color32::WHITE));
+                                ui.label(RichText::new("18-Band Precision Graphic Equalizer").strong().size(11.5).color(Color32::WHITE));
                                 ui.label(RichText::new("  (±12 dB range)").size(10.5).color(Color32::from_rgb(130, 136, 155)));
                             });
                             ui.add_space(4.0);
@@ -531,7 +531,7 @@ impl ControlPanel {
                                         } else {
                                             crate::ui::theme::VortexTheme::current_skin().text_muted
                                         };
-                                        ui.label(RichText::new(format!("{:+.0}", gain)).size(8.5).monospace().color(gain_col));
+                                        ui.label(RichText::new(format!("{:+.0}", gain)).size(9.5).monospace().color(gain_col));
 
                                         let slider = ui.add_sized(
                                             Vec2::new(23.0, 110.0),
@@ -546,7 +546,7 @@ impl ControlPanel {
                                             let _ = config.save();
                                         }
 
-                                        ui.label(RichText::new(freqs[i]).size(8.0).monospace().color(Color32::from_rgb(140, 145, 160)));
+                                        ui.label(RichText::new(freqs[i]).size(9.5).monospace().color(Color32::from_rgb(140, 145, 160)));
                                     });
                                 }
                             });
@@ -608,9 +608,9 @@ impl ControlPanel {
                         // Card 1: Speed Multiplier & Presets
                         card_frame().show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Playback Rate & Transport").strong().size(12.5).color(Color32::WHITE));
+                                ui.label(RichText::new("Playback Rate & Transport").strong().size(13.0).color(Color32::WHITE));
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    if ui.button(RichText::new("1.0x (Normal)").color(VortexTheme::current_skin().accent_primary).size(11.0).strong()).clicked() {
+                                    if ui.button(RichText::new("1.0x (Normal)").color(VortexTheme::current_skin().accent_primary).size(11.5).strong()).clicked() {
                                         player.set_speed(1.0);
                                     }
                                 });
@@ -668,7 +668,7 @@ impl ControlPanel {
 
                         // Card 2: Sequence & Order
                         card_frame().show(ui, |ui| {
-                            ui.label(RichText::new("Playlist Sequence & Order").strong().size(12.5).color(Color32::WHITE));
+                            ui.label(RichText::new("Playlist Sequence & Order").strong().size(13.0).color(Color32::WHITE));
                             ui.add_space(6.0);
 
                             ui.horizontal(|ui| {
@@ -706,7 +706,7 @@ impl ControlPanel {
                         // Card 3: A-B Repeat Loop Segment
                         card_frame().show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("A-B Segment Loop").strong().size(12.5).color(Color32::WHITE));
+                                ui.label(RichText::new("A-B Segment Loop").strong().size(13.0).color(Color32::WHITE));
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let has_loop = bookmark_mgr.ab_loop.point_a.is_some() && bookmark_mgr.ab_loop.point_b.is_some();
                                     if has_loop {
@@ -756,7 +756,7 @@ impl ControlPanel {
                         // Card 1: Subtitle Synchronization & Visibility
                         card_frame().show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Subtitle Synchronization").strong().size(12.5).color(Color32::WHITE));
+                                ui.label(RichText::new("Subtitle Synchronization").strong().size(13.0).color(Color32::WHITE));
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     let mut sub_vis = stats.subtitles_visible;
                                     if ui.checkbox(&mut sub_vis, RichText::new("Show Subtitles (Alt+H)").size(11.5)).changed() {
@@ -799,7 +799,7 @@ impl ControlPanel {
 
                         // Card 2: Typography & Sizing
                         card_frame().show(ui, |ui| {
-                            ui.label(RichText::new("Typography & Placement").strong().size(12.5).color(Color32::WHITE));
+                            ui.label(RichText::new("Typography & Placement").strong().size(13.0).color(Color32::WHITE));
                             ui.add_space(6.0);
 
                             // Font Size
@@ -895,7 +895,7 @@ impl ControlPanel {
 
                         // Card 3: Advanced Rendering & ASS Override
                         card_frame().show(ui, |ui| {
-                            ui.label(RichText::new("Subtitle Rendering Engine").strong().size(12.5).color(Color32::WHITE));
+                            ui.label(RichText::new("Subtitle Rendering Engine").strong().size(13.0).color(Color32::WHITE));
                             ui.add_space(6.0);
 
                             ui.horizontal(|ui| {

@@ -67,7 +67,7 @@ impl DamagedFileRepairDialog {
                         ui.label(
                             RichText::new("Damaged File Index Rebuilder & Codec Doctor")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 140, 60)),
                         );
 

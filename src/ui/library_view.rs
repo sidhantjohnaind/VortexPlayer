@@ -68,7 +68,7 @@ impl LibraryView {
                 if filtered.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(60.0);
-                        ui.label(RichText::new("No media in library").color(VortexTheme::current_skin().text_muted).size(14.0));
+                        ui.label(RichText::new("No media in library").color(VortexTheme::current_skin().text_muted).size(13.0));
                         ui.label(RichText::new("Click 'Add Watch Folder' above to scan your movies and series.").color(VortexTheme::current_skin().text_secondary));
                     });
                 } else {
@@ -99,7 +99,7 @@ impl LibraryView {
                                     // Movie/TV Emblem
                                     let icon_center = poster_r.center();
                                     painter.circle_filled(icon_center, 18.0, Color32::from_rgb(26, 28, 38));
-                                    painter.text(icon_center, Align2::CENTER_CENTER, if item.is_tv_show { "📺" } else { "🎬" }, FontId::proportional(14.0), Color32::WHITE);
+                                    painter.text(icon_center, Align2::CENTER_CENTER, if item.is_tv_show { "📺" } else { "🎬" }, FontId::proportional(13.0), Color32::WHITE);
 
                                     // Title & Episode metadata (bottom 50px)
                                     let text_y = card_rect.top() + 144.0;

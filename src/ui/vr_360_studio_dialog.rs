@@ -93,7 +93,7 @@ impl Vr360StudioDialog {
                         ui.label(
                             RichText::new("360° VR / 180° 3D Spherical Head-Tracking")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(140, 220, 255)),
                         );
 

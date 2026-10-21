@@ -161,7 +161,7 @@ impl StatsForNerdsDialog {
                 ui.label(
                     egui::RichText::new("Stats for Nerds")
                         .strong()
-                        .size(14.0)
+                        .size(13.0)
                         .color(skin.accent_bright),
                 );
                 ui.colored_label(skin.text_muted, "• Vortex Engine");
@@ -242,7 +242,7 @@ impl StatsForNerdsDialog {
                     ui.label(
                         egui::RichText::new(file_disp)
                             .monospace()
-                            .size(11.0)
+                            .size(11.5)
                             .color(Color32::from_rgb(240, 240, 245)),
                     ).on_hover_text(&stats.file_path);
                     ui.end_row();
@@ -257,13 +257,13 @@ impl StatsForNerdsDialog {
                         ui.label(
                             egui::RichText::new(format!("{:.0}x{:.0}*{:.1} / ", viewport_w, viewport_h, ppp))
                                 .monospace()
-                                .size(11.0)
+                                .size(11.5)
                                 .color(Color32::from_rgb(240, 240, 245)),
                         );
                         ui.label(
                             egui::RichText::new(format!("{} dropped of {} ({:.2}%)", stats.dropped_frames, stats.total_frames_estimated, drop_pct))
                                 .monospace()
-                                .size(11.0)
+                                .size(11.5)
                                 .color(drop_color),
                         );
                     });
@@ -276,7 +276,7 @@ impl StatsForNerdsDialog {
                             stats.video_width, stats.video_height, stats.video_fps, stats.display_fps
                         ))
                         .monospace()
-                        .size(11.0)
+                        .size(11.5)
                         .color(Color32::from_rgb(240, 240, 245)),
                     );
                     ui.end_row();
@@ -285,7 +285,7 @@ impl StatsForNerdsDialog {
                     ui.label(
                         egui::RichText::new(format!("{} ({}) / {} ({}ch @ {}Hz)", v_codec, hw_desc, a_codec, stats.audio_channels, stats.audio_sample_rate))
                             .monospace()
-                            .size(11.0)
+                            .size(11.5)
                             .color(Color32::from_rgb(240, 240, 245)),
                     );
                     ui.end_row();
@@ -294,7 +294,7 @@ impl StatsForNerdsDialog {
                     ui.label(
                         egui::RichText::new(color_desc)
                             .monospace()
-                            .size(11.0)
+                            .size(11.5)
                             .color(Color32::from_rgb(240, 240, 245)),
                     );
                     ui.end_row();
@@ -303,7 +303,7 @@ impl StatsForNerdsDialog {
                     ui.label(
                         egui::RichText::new(host_desc)
                             .monospace()
-                            .size(11.0)
+                            .size(11.5)
                             .color(Color32::from_rgb(140, 210, 255)),
                     );
                     ui.end_row();
@@ -330,7 +330,7 @@ impl StatsForNerdsDialog {
                         .color(Color32::from_rgb(140, 210, 255)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.colored_label(Color32::from_rgb(90, 200, 255), egui::RichText::new(&speed_badge).monospace().strong().size(12.0));
+                    ui.colored_label(Color32::from_rgb(90, 200, 255), egui::RichText::new(&speed_badge).monospace().strong().size(11.5));
                     ui.colored_label(skin.text_muted, format!("Peak: {:.1} Kbps", peak_speed));
                 });
             });
@@ -368,7 +368,7 @@ impl StatsForNerdsDialog {
                         .color(Color32::from_rgb(110, 235, 150)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.colored_label(health_color, egui::RichText::new(format!("{:.2} s", latest_buf_sec)).monospace().strong().size(12.0));
+                    ui.colored_label(health_color, egui::RichText::new(format!("{:.2} s", latest_buf_sec)).monospace().strong().size(11.5));
                     ui.colored_label(skin.text_muted, format!("{:.1} MB ({:.1}%)", latest_buf_mb, stats.cache_buffer_percent));
                 });
             });
@@ -404,7 +404,7 @@ impl StatsForNerdsDialog {
                         .color(Color32::from_rgb(255, 190, 80)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.colored_label(drops_label_color, egui::RichText::new(format!("{:.2} FPS (Drops: {})", latest_fps, drops_count)).monospace().strong().size(12.0));
+                    ui.colored_label(drops_label_color, egui::RichText::new(format!("{:.2} FPS (Drops: {})", latest_fps, drops_count)).monospace().strong().size(11.5));
                     ui.colored_label(skin.text_muted, format!("Jitter: {:.2}ms | VO:{} Dec:{}", stats.vsync_jitter * 1000.0, stats.vo_drop_frame_count, stats.decoder_frame_drop_count));
                 });
             });
@@ -529,7 +529,7 @@ impl StatsForNerdsDialog {
                 Pos2::new(rect.right() - 4.0, y - 2.0),
                 egui::Align2::RIGHT_BOTTOM,
                 format!("{:.0} {}", target, unit),
-                FontId::monospace(8.5),
+                FontId::monospace(9.5),
                 Color32::from_rgba_premultiplied(200, 200, 255, 80),
             );
         }
@@ -590,14 +590,14 @@ impl StatsForNerdsDialog {
             Pos2::new(rect.left() + 4.0, rect.top() + 2.0),
             egui::Align2::LEFT_TOP,
             format!("{:.1} {}", max_val, unit),
-            FontId::monospace(9.0),
+            FontId::monospace(9.5),
             Color32::from_white_alpha(100),
         );
         painter.text(
             Pos2::new(rect.left() + 4.0, rect.bottom() - 2.0),
             egui::Align2::LEFT_BOTTOM,
             format!("0.0 {}", unit),
-            FontId::monospace(9.0),
+            FontId::monospace(9.5),
             Color32::from_white_alpha(70),
         );
 

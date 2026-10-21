@@ -90,7 +90,7 @@ impl ChapterMarkerDialog {
                         ui.label(
                             RichText::new("Interactive Chapter Browser & Scene Indexer")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 200, 100)),
                         );
 
@@ -162,7 +162,7 @@ impl ChapterMarkerDialog {
                                             }
 
                                             if is_skip {
-                                                ui.label(RichText::new("⏭ AUTO-SKIP").size(10.0).color(Color32::from_rgb(255, 120, 80)).strong());
+                                                ui.label(RichText::new("⏭ AUTO-SKIP").size(10.5).color(Color32::from_rgb(255, 120, 80)).strong());
                                             }
 
                                             let start_str = crate::bookmark::format_time(ch.start_time);
@@ -178,7 +178,7 @@ impl ChapterMarkerDialog {
                                                 }
                                                 if is_skip {
                                                     if ui.add(
-                                                        egui::Button::new(RichText::new("⏭ Skip").size(11.0).color(Color32::WHITE))
+                                                        egui::Button::new(RichText::new("⏭ Skip").size(11.5).color(Color32::WHITE))
                                                             .fill(Color32::from_rgb(160, 60, 50)),
                                                     ).clicked() {
                                                         player.seek_absolute(ch.end_time);

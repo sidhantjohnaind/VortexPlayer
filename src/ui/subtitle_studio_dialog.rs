@@ -125,7 +125,7 @@ impl SubtitleStudioDialog {
                         ui.label(
                             RichText::new("Subtitle Studio & AI Translation Engine")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 215, 100)),
                         );
 

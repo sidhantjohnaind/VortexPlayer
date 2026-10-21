@@ -101,7 +101,7 @@ impl ScrobblerDialog {
                     ui.label(
                         RichText::new("Automatic Cloud Scrobbling & Watch Progress Sync")
                             .strong()
-                            .size(16.0)
+                            .size(15.0)
                             .color(Color32::from_rgb(240, 100, 100)),
                     );
 

@@ -98,7 +98,7 @@ impl BinauralCrossfeedDialog {
                         ui.label(
                             RichText::new("Bauer BS2B Crossfeed & Binaural HRTF")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(180, 220, 100)),
                         );
 

@@ -210,7 +210,7 @@ impl ControlBar {
                     Pos2::new(cur_x, dash_rect.top() + 5.0),
                     Align2::LEFT_TOP,
                     &cur_time_str,
-                    FontId::proportional(25.0),
+                    FontId::proportional(24.0),
                     Color32::WHITE,
                 );
 
@@ -218,7 +218,7 @@ impl ControlBar {
                     Pos2::new(cur_x + 1.0, dash_rect.top() + 34.0),
                     Align2::LEFT_TOP,
                     &tot_time_str,
-                    FontId::proportional(12.0),
+                    FontId::proportional(11.5),
                     Color32::from_rgb(120, 135, 155),
                 );
 
@@ -258,7 +258,7 @@ impl ControlBar {
                     Pos2::new(cur_x, dash_rect.top() + 8.0),
                     Align2::LEFT_TOP,
                     &title_label,
-                    FontId::proportional(13.5),
+                    FontId::proportional(13.0),
                     Color32::from_rgb(245, 248, 255),
                 );
 
@@ -267,7 +267,7 @@ impl ControlBar {
                     Pos2::new(cur_x, dash_rect.top() + 34.0),
                     Align2::LEFT_TOP,
                     &spec_line,
-                    FontId::proportional(11.0),
+                    FontId::proportional(11.5),
                     Color32::from_rgb(120, 128, 142),
                 );
             } else {
@@ -752,7 +752,7 @@ impl ControlBar {
                             img_rect.center(),
                             Align2::CENTER_CENTER,
                             "🎬 Loading...",
-                            FontId::proportional(11.0),
+                            FontId::proportional(11.5),
                             Color32::from_rgb(140, 145, 165),
                         );
                     }
@@ -1190,7 +1190,7 @@ impl ControlBar {
                 Pos2::new(lcd_r.left() + 7.0, time_y),
                 Align2::LEFT_CENTER,
                 &time_str,
-                FontId::monospace(11.0),
+                FontId::monospace(11.5),
                 skin.text_primary,
             );
 
@@ -1199,7 +1199,7 @@ impl ControlBar {
                 Pos2::new(slash_x, time_y),
                 Align2::LEFT_CENTER,
                 "/",
-                FontId::monospace(11.0),
+                FontId::monospace(11.5),
                 skin.text_muted,
             );
 
@@ -1207,7 +1207,7 @@ impl ControlBar {
                 Pos2::new(slash_x + 9.0, time_y),
                 Align2::LEFT_CENTER,
                 &total_str,
-                FontId::monospace(11.0),
+                FontId::monospace(11.5),
                 skin.text_secondary,
             );
 
@@ -1421,7 +1421,7 @@ impl ControlBar {
 
             let text_col = if is_non_standard { skin.accent_primary } else if spd_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
             let speed_str = format!("{:.1}x", stats.speed);
-            painter.text(pill_r.center(), Align2::CENTER_CENTER, speed_str, FontId::monospace(10.0), text_col);
+            painter.text(pill_r.center(), Align2::CENTER_CENTER, speed_str, FontId::monospace(10.5), text_col);
 
             if spd_resp.hovered() {
                 hovered_tooltip = Some((pill_r, format!("Speed: {:.2}x (Click to select speed, Right-click to reset)", stats.speed)));

@@ -154,7 +154,7 @@ impl IptvGuideDialog {
                         ui.label(
                             RichText::new("IPTV Digital Broadcast & EPG Program Guide")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(120, 220, 180)),
                         );
 
@@ -251,7 +251,7 @@ impl IptvGuideDialog {
                                     // Channel Banner
                                     ui.group(|ui| {
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(&ch.name).strong().size(16.0).color(Color32::WHITE));
+                                            ui.label(RichText::new(&ch.name).strong().size(15.0).color(Color32::WHITE));
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 if ui.add(egui::Button::new(RichText::new("▶ Tune Channel").strong().color(Color32::WHITE)).fill(Color32::from_rgb(30, 130, 80))).clicked() {
                                                     player.load_file(&ch.url);
@@ -271,7 +271,7 @@ impl IptvGuideDialog {
                                             ui.label(RichText::new("🔴 LIVE NOW").strong().color(Color32::from_rgb(255, 90, 90)));
                                             ui.label(format!("{} - {}", ch.epg_now.start_time, ch.epg_now.end_time));
                                         });
-                                        ui.label(RichText::new(&ch.epg_now.title).strong().size(14.0).color(Color32::from_rgb(255, 230, 120)));
+                                        ui.label(RichText::new(&ch.epg_now.title).strong().size(13.0).color(Color32::from_rgb(255, 230, 120)));
                                         ui.label(RichText::new(&ch.epg_now.description).small().color(Color32::from_rgb(180, 180, 190)));
                                         ui.add_space(4.0);
                                         ui.add(ProgressBar::new(ch.epg_now.progress).text("Elapsed"));

@@ -116,7 +116,7 @@ impl MediaServerDialog {
                         ui.label(
                             RichText::new("Media Server Direct DirectPlay Browser")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(180, 140, 255)),
                         );
 

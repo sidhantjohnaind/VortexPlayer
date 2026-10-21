@@ -385,7 +385,7 @@ impl Icons {
         painter.line_segment([Pos2::new(left, bottom - 2.0), Pos2::new(left, top + 1.0)], Stroke::new(1.2, color));
 
         if is_one {
-            painter.text(c, Align2::CENTER_CENTER, "1", FontId::monospace(8.0), color);
+            painter.text(c, Align2::CENTER_CENTER, "1", FontId::monospace(9.5), color);
         }
     }
 

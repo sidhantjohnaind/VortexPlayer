@@ -153,7 +153,7 @@ impl VstWinampDialog {
                         ui.label(
                             RichText::new("Professional VST & Winamp DSP Audio Host")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(140, 220, 255)),
                         );
 

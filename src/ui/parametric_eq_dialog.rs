@@ -84,7 +84,7 @@ impl ParametricEqDialog {
                         [Pos2::new(x, canvas_rect.top()), Pos2::new(x, canvas_rect.bottom())],
                         Stroke::new(1.0, Color32::from_rgb(24, 26, 34)),
                     );
-                    painter.text(Pos2::new(x, canvas_rect.bottom() - 10.0), Align2::CENTER_CENTER, label, FontId::monospace(8.5), Color32::from_rgb(80, 85, 100));
+                    painter.text(Pos2::new(x, canvas_rect.bottom() - 10.0), Align2::CENTER_CENTER, label, FontId::monospace(9.5), Color32::from_rgb(80, 85, 100));
                 }
 
                 // Draw Nodes
@@ -98,7 +98,7 @@ impl ParametricEqDialog {
                     let pt = Pos2::new(node_x, node_y);
                     painter.circle_filled(pt, 5.0, VortexTheme::current_skin().accent_primary);
                     painter.circle_stroke(pt, 5.0, Stroke::new(1.5, Color32::WHITE));
-                    painter.text(pt - Vec2::new(0.0, 9.0), Align2::CENTER_CENTER, format!("#{}", idx + 1), FontId::monospace(9.0), Color32::WHITE);
+                    painter.text(pt - Vec2::new(0.0, 9.0), Align2::CENTER_CENTER, format!("#{}", idx + 1), FontId::monospace(9.5), Color32::WHITE);
                 }
 
                 ui.separator();

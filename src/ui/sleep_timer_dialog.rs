@@ -109,7 +109,7 @@ impl SleepTimerDialog {
                                 ui.label(
                                     RichText::new(format!("Action: {} {}", engine.completion_action.icon(), engine.completion_action.label()))
                                         .color(Color32::from_rgb(180, 190, 210))
-                                        .font(egui::FontId::proportional(12.0)),
+                                        .font(egui::FontId::proportional(11.5)),
                                 );
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     if ui.button(RichText::new("Cancel Timer").color(Color32::from_rgb(255, 100, 100))).clicked() {
@@ -127,7 +127,7 @@ impl SleepTimerDialog {
                         RichText::new("Choose Duration:")
                             .strong()
                             .color(Color32::from_rgb(200, 210, 230))
-                            .font(egui::FontId::proportional(12.5)),
+                            .font(egui::FontId::proportional(13.0)),
                     );
 
                     ui.horizontal_wrapped(|ui| {
@@ -166,7 +166,7 @@ impl SleepTimerDialog {
                         RichText::new("Action when timer finishes:")
                             .strong()
                             .color(Color32::from_rgb(200, 210, 230))
-                            .font(egui::FontId::proportional(12.5)),
+                            .font(egui::FontId::proportional(13.0)),
                     );
 
                     let actions = [

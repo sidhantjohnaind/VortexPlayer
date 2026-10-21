@@ -88,7 +88,7 @@ impl VideoPuzzleDialog {
                         ui.label(
                             RichText::new("Interactive Real-Time Video Puzzle")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(255, 210, 80)),
                         );
 

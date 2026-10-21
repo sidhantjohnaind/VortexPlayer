@@ -196,7 +196,7 @@ fn menu_item(
             Pos2::new(rect.left() + 10.0, cy),
             Align2::CENTER_CENTER,
             icon,
-            FontId::proportional(11.0),
+            FontId::proportional(11.5),
             icon_col,
         );
     }
@@ -251,7 +251,7 @@ fn menu_item(
             skin.text_secondary
         };
 
-        let sc_galley = painter.layout_no_wrap(shortcut.to_string(), FontId::proportional(10.0), sc_col);
+        let sc_galley = painter.layout_no_wrap(shortcut.to_string(), FontId::proportional(10.5), sc_col);
         let sc_w = sc_galley.size().x + 10.0;
         let sc_rect = Rect::from_center_size(
             Pos2::new(rect.right() - 8.0 - sc_w * 0.5, cy),
@@ -348,7 +348,7 @@ fn submenu_item<R>(
             Pos2::new(rect.left() + 10.0, cy),
             Align2::CENTER_CENTER,
             icon,
-            FontId::proportional(11.0),
+            FontId::proportional(11.5),
             icon_col,
         );
     }
@@ -556,7 +556,7 @@ fn audio_track_item(
         Pos2::new(rect.left() + 28.0, cy - 7.0),
         Align2::LEFT_CENTER,
         title,
-        FontId::proportional(12.0),
+        FontId::proportional(11.5),
         if is_hovered || is_active { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_primary },
     );
 
@@ -594,7 +594,7 @@ fn menu_section_header(ui: &mut egui::Ui, title: &str) {
     let cy = rect.center().y;
     let painter = ui.painter();
 
-    let galley = painter.layout_no_wrap(title.to_string(), FontId::proportional(9.0), Color32::from_rgb(130, 140, 165));
+    let galley = painter.layout_no_wrap(title.to_string(), FontId::proportional(9.5), Color32::from_rgb(130, 140, 165));
     let text_x = rect.left() + 10.0;
     painter.galley(Pos2::new(text_x, cy - galley.size().y * 0.5), galley.clone(), Color32::from_rgb(130, 140, 165));
 
@@ -842,7 +842,7 @@ impl VortexMenu {
             submenu_item(ui, &skin, "🕒", "Recent Files", |ui| {
                 ui.set_min_width(260.0);
                 if config.recent_files.is_empty() {
-                    ui.label(RichText::new("  (No recent files)").size(11.0).color(skin.text_muted));
+                    ui.label(RichText::new("  (No recent files)").size(11.5).color(skin.text_muted));
                 } else {
                     let mut chosen_path = None;
                     for path_str in &config.recent_files {
@@ -963,7 +963,7 @@ impl VortexMenu {
                 menu_separator(ui);
 
                 if stats.chapters.is_empty() {
-                    ui.label(RichText::new("  (No chapters)").size(11.0).color(skin.text_muted));
+                    ui.label(RichText::new("  (No chapters)").size(11.5).color(skin.text_muted));
                 } else {
                     for (i, ch) in stats.chapters.iter().enumerate() {
                         let is_current = stats.current_chapter == Some(ch.index)
@@ -1273,7 +1273,7 @@ impl VortexMenu {
             submenu_item(ui, &skin, "💬", "Select Subtitle Track", |ui| {
                 ui.set_min_width(160.0);
                 if stats.subtitle_tracks.is_empty() {
-                    ui.label(RichText::new("  (No subtitle tracks)").size(11.0).color(skin.text_muted));
+                    ui.label(RichText::new("  (No subtitle tracks)").size(11.5).color(skin.text_muted));
                 } else {
                     for track in &stats.subtitle_tracks {
                         let is_sel = track.id == stats.selected_subtitle_track;
@@ -1591,7 +1591,7 @@ impl VortexMenu {
                 ui.set_min_width(175.0);
                 let cur_delay = stats.subtitle_delay;
                 let cur_ms = (cur_delay * 1000.0).round() as i64;
-                ui.label(RichText::new(format!("Current Sync: {:+0} ms ({:+.2}s)", cur_ms, cur_delay)).size(11.0).color(skin.text_muted));
+                ui.label(RichText::new(format!("Current Sync: {:+0} ms ({:+.2}s)", cur_ms, cur_delay)).size(11.5).color(skin.text_muted));
                 menu_separator(ui);
                 if menu_item(ui, &skin, "⏩", "Subtitle 0.5s Faster", "> / .", false, false).clicked() {
                     if let Some(p) = player {
@@ -1934,7 +1934,7 @@ impl VortexMenu {
                 }
 
                 if stats.audio_tracks.is_empty() {
-                    ui.label(RichText::new("  (No audio streams)").size(11.0).color(skin.text_muted));
+                    ui.label(RichText::new("  (No audio streams)").size(11.5).color(skin.text_muted));
                 } else {
                     for track in &stats.audio_tracks {
                         let is_active = track.id == stats.selected_audio_track;

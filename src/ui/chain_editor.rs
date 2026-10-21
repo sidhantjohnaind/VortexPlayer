@@ -64,7 +64,7 @@ impl ChainEditorDialog {
                 ui.separator();
 
                 if self.active_tab == 0 {
-                    ui.label(RichText::new("Ordered Video Processing Pipeline (Top = Executed First):").size(11.0).color(Color32::from_rgb(160, 160, 180)));
+                    ui.label(RichText::new("Ordered Video Processing Pipeline (Top = Executed First):").size(11.5).color(Color32::from_rgb(160, 160, 180)));
                     ui.add_space(4.0);
 
                     let num_stages = video_chain.stages.len();
@@ -98,7 +98,7 @@ impl ChainEditorDialog {
                         });
                     }
                 } else {
-                    ui.label(RichText::new("Ordered Audio DSP Pipeline (Top = Executed First):").size(11.0).color(Color32::from_rgb(160, 160, 180)));
+                    ui.label(RichText::new("Ordered Audio DSP Pipeline (Top = Executed First):").size(11.5).color(Color32::from_rgb(160, 160, 180)));
                     ui.add_space(4.0);
 
                     let num_stages = audio_chain.stages.len();

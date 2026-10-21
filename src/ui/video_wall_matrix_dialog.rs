@@ -72,7 +72,7 @@ impl VideoWallMatrixDialog {
                         ui.label(
                             RichText::new("Video Wall Grid Matrix & Projector Blending")
                                 .strong()
-                                .size(16.0)
+                                .size(15.0)
                                 .color(Color32::from_rgb(100, 220, 200)),
                         );
 

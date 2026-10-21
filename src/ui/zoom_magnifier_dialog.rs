@@ -53,15 +53,13 @@ impl ZoomMagnifierDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_zoom_magnifier_window",
-            "🔍 Interactive Zoom & Magnifier",
-            &mut open,
-            [540.0, 420.0],
-            [420.0, 320.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🔍 Interactive Live Video Zoom Magnifier Lens")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(640.0, 440.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -165,8 +163,8 @@ impl ZoomMagnifierDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

@@ -77,15 +77,13 @@ impl PitchFormantDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_pitch_formant_window",
-            "🎵 Pitch & Formant Shifter",
-            &mut open,
-            [540.0, 420.0],
-            [420.0, 320.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🎵 Pitch Shifter & Formant Studio")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(600.0, 420.0))
+            .show(ctx, |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("High-Precision Musical Pitch & Formant Shifter").strong().size(15.0).color(Color32::from_rgb(180, 200, 255)));
@@ -176,8 +174,7 @@ impl PitchFormantDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            },
-        );
+            });
         self.is_open = open;
     }
 }

@@ -51,15 +51,13 @@ impl LogoWatermarkDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_logo_watermark_window",
-            "🖼️ Custom Logo & Watermark Overlay",
-            &mut open,
-            [580.0, 440.0],
-            [440.0, 340.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🖼️ Custom Logo & Watermark Overlay Studio")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(460.0, 420.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Video Watermark & Idle Screen Customizer")
@@ -179,8 +177,8 @@ impl LogoWatermarkDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 

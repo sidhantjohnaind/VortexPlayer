@@ -83,15 +83,13 @@ impl DiscNavigationDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_disc_navigation_window",
-            "📀 DVD & Blu-ray Title Browser (Ctrl+D)",
-            &mut open,
-            [620.0, 460.0],
-            [480.0, 340.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("📀 DVD & Blu-ray Title Browser / Navigation")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(700.0, 480.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -196,8 +194,8 @@ impl DiscNavigationDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 

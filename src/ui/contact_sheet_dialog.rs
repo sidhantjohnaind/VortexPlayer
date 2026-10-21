@@ -36,15 +36,13 @@ impl ContactSheetDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_contact_sheet_window",
-            "🖼️ Storyboard Contact Sheet Generator",
-            &mut open,
-            [540.0, 400.0],
-            [420.0, 300.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🖼️ Storyboard Contact Sheet Generator")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_size(Vec2::new(380.0, 260.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Export Video Storyboard Grid").strong().color(Color32::from_rgb(180, 140, 255)));
                     ui.add_space(6.0);
@@ -116,8 +114,7 @@ impl ContactSheetDialog {
                         ui.label(RichText::new(&self.status_msg).color(Color32::from_rgb(100, 220, 140)));
                     }
                 });
-            },
-        );
+            });
         self.is_open = open;
     }
 }

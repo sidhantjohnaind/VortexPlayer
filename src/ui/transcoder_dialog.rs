@@ -96,15 +96,13 @@ impl TranscoderDialog {
             self.set_source(&stats.file_path);
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_transcoder_window",
-            "🔄 Media Transcoder Studio",
-            &mut open,
-            [640.0, 480.0],
-            [500.0, 360.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🔄 Built-in Media Transcoder & Format Converter")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(760.0, 540.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -238,8 +236,8 @@ impl TranscoderDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

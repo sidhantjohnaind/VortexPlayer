@@ -79,15 +79,13 @@ impl CdRipperDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_cd_ripper_window",
-            "💿 Audio CD (CDDA) Player & Ripper",
-            &mut open,
-            [640.0, 480.0],
-            [500.0, 360.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("💿 Audio CD (CDDA) Player & Ripper Studio")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(720.0, 520.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -237,8 +235,8 @@ impl CdRipperDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

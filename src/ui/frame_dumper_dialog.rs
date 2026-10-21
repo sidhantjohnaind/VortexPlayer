@@ -61,15 +61,13 @@ impl FrameDumperDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, _player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_frame_dumper_window",
-            "📸 Continuous Burst Frame Dumper",
-            &mut open,
-            [540.0, 400.0],
-            [420.0, 300.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("📸 Continuous Burst Frame Dumper")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(620.0, 440.0))
+            .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Sequential Frame Dumper & Burst Image Extractor").strong().size(15.0).color(Color32::from_rgb(255, 200, 100)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -167,8 +165,7 @@ impl FrameDumperDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            },
-        );
+            });
         self.is_open = open;
     }
 }

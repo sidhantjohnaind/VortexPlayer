@@ -39,15 +39,13 @@ impl GifMakerDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_gif_maker_window",
-            "🎞️ Animated GIF Maker (Ctrl+G)",
-            &mut open,
-            [540.0, 420.0],
-            [420.0, 320.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🎞️ Animated GIF & Video Clip Maker (Ctrl+G)")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_size(Vec2::new(420.0, 320.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Export Animated GIF, WebP, or Lossless Video Cut").strong().color(Color32::from_rgb(180, 140, 255)));
                     ui.add_space(8.0);
@@ -139,8 +137,7 @@ impl GifMakerDialog {
                         ui.label(RichText::new(&self.status).color(Color32::from_rgb(100, 220, 140)));
                     }
                 });
-            },
-        );
+            });
         self.is_open = open;
     }
 }

@@ -71,15 +71,13 @@ impl ColorLutDialog {
 
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_color_lut_window",
-            "🎨 3D LUT Color Studio & Gamut Calibration",
-            &mut open,
-            [560.0, 440.0],
-            [440.0, 320.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🎨 3D LUT Color Studio & Gamut Calibration")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(620.0, 420.0))
+            .show(ctx, |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("3D Look-Up Table (LUT) & Color Calibration").strong().size(15.0).color(Color32::from_rgb(255, 180, 100)));
@@ -167,8 +165,7 @@ impl ColorLutDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            },
-        );
+            });
         self.is_open = open;
     }
 }

@@ -138,15 +138,13 @@ impl VstWinampDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_vst_winamp_window",
-            "🎛️ VST & Winamp DSP Plugin Host (Ctrl+V)",
-            &mut open,
-            [660.0, 500.0],
-            [500.0, 360.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🎛️ VST2 / VST3 & Winamp DSP Plugin Host Studio")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(740.0, 520.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -296,8 +294,8 @@ impl VstWinampDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

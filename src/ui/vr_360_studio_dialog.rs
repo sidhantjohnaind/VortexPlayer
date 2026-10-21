@@ -78,15 +78,13 @@ impl Vr360StudioDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_vr_360_studio_window",
-            "🥽 360° VR Video Studio",
-            &mut open,
-            [560.0, 440.0],
-            [440.0, 340.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🥽 360° VR Spherical Video Studio (KMPlayer 64X)")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(700.0, 520.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -228,8 +226,8 @@ impl Vr360StudioDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

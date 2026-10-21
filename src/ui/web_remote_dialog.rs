@@ -44,15 +44,13 @@ impl WebRemoteDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_web_remote_window",
-            "📱 Mobile Web Remote Controller (Ctrl+W)",
-            &mut open,
-            [600.0, 460.0],
-            [460.0, 340.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("📱 Mobile Web Remote Control Studio")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(720.0, 520.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -187,8 +185,8 @@ impl WebRemoteDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

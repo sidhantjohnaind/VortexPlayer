@@ -59,15 +59,13 @@ impl DiscordRpcDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_discord_rpc_window",
-            "🎮 Discord Rich Presence (RPC)",
-            &mut open,
-            [560.0, 420.0],
-            [440.0, 320.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("🎮 Discord Rich Presence (RPC) Settings")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_size(Vec2::new(680.0, 460.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -176,8 +174,8 @@ impl DiscordRpcDialog {
                         });
                     });
                 });
-            },
-        );
+            });
+
         self.is_open = open;
     }
 }

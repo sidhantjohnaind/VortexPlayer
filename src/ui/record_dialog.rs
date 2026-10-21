@@ -37,15 +37,13 @@ impl StreamRecordDialog {
             return;
         }
 
-                let mut open = self.is_open;
-        crate::ui::show_dialog_viewport(
-            ctx,
-            "vortex_record_window",
-            "📼 Live Stream / Broadcast Recorder",
-            &mut open,
-            [520.0, 360.0],
-            [400.0, 260.0],
-            |ui| {
+        let mut open = self.is_open;
+        crate::ui::popup_window::PopupWindow::new("📼 Live Stream / Video Recorder")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_size(Vec2::new(380.0, 180.0))
+            .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.add_space(4.0);
                     ui.label(RichText::new("Lossless Stream Capture / Video Snipper").strong().color(Color32::from_rgb(180, 140, 255)));
@@ -94,8 +92,7 @@ impl StreamRecordDialog {
                         }
                     }
                 });
-            },
-        );
+            });
         self.is_open = open;
     }
 }

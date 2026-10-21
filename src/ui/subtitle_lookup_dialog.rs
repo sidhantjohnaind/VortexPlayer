@@ -253,7 +253,7 @@ impl SubtitleLookupDialog {
                                 }
 
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    let close_btn = egui::Button::new(RichText::new("✕").size(10.5).color(Color32::from_rgb(160, 165, 180)))
+                                    let close_btn = egui::Button::new(RichText::new("✕").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                                         .fill(Color32::TRANSPARENT)
                                         .stroke(Stroke::NONE);
                                     if ui.add(close_btn).on_hover_text("Close (resumes playback)").clicked() {

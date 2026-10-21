@@ -136,9 +136,9 @@ impl MediaInfoDialog {
                         {
                             let painter = ui.painter();
                             let bg_color = if is_active {
-                                Color32::from_rgb(22, 24, 30)
+                                crate::ui::theme::VortexTheme::current_skin().bg_panel
                             } else if hover {
-                                Color32::from_rgb(16, 18, 24)
+                                crate::ui::theme::VortexTheme::current_skin().bg_panel
                             } else {
                                 VortexTheme::current_skin().bg_canvas
                             };
@@ -192,7 +192,7 @@ impl MediaInfoDialog {
                             Align2::CENTER_CENTER,
                             if is_pinned { "📌" } else { "📍" },
                             FontId::proportional(12.0),
-                            if is_pinned { VortexTheme::current_skin().accent_primary } else if pin_hover { Color32::WHITE } else { Color32::from_rgb(160, 165, 180) },
+                            if is_pinned { VortexTheme::current_skin().accent_primary } else if pin_hover { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
                         );
                     }
 
@@ -274,7 +274,7 @@ impl MediaInfoDialog {
                         painter.rect_filled(
                             copy_rect,
                             CornerRadius::same(3),
-                            if is_copied { Color32::from_rgb(20, 60, 32) } else if copy_hover { Color32::from_rgb(26, 30, 40) } else { Color32::from_rgb(14, 16, 22) },
+                            if is_copied { Color32::from_rgb(20, 60, 32) } else if copy_hover { Color32::from_rgb(26, 30, 40) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
                         );
                         painter.rect_stroke(
                             copy_rect,
@@ -294,7 +294,7 @@ impl MediaInfoDialog {
                         painter.rect_filled(
                             wrap_btn_rect,
                             CornerRadius::same(3),
-                            if is_word_wrap { Color32::from_rgb(20, 36, 56) } else if wrap_hover { Color32::from_rgb(26, 30, 40) } else { Color32::from_rgb(14, 16, 22) },
+                            if is_word_wrap { Color32::from_rgb(20, 36, 56) } else if wrap_hover { Color32::from_rgb(26, 30, 40) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
                         );
                         painter.rect_stroke(
                             wrap_btn_rect,
@@ -307,14 +307,14 @@ impl MediaInfoDialog {
                             Align2::CENTER_CENTER,
                             if is_word_wrap { "↩ Word Wrap: ON" } else { "↩ Word Wrap: OFF" },
                             FontId::proportional(11.0),
-                            if is_word_wrap { Color32::from_rgb(170, 215, 255) } else if wrap_hover { Color32::WHITE } else { Color32::from_rgb(170, 175, 190) },
+                            if is_word_wrap { Color32::from_rgb(170, 215, 255) } else if wrap_hover { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
                         );
 
                         // Render Close Button
                         painter.rect_filled(
                             close_btn_rect,
                             CornerRadius::same(3),
-                            if cb_hover { Color32::from_rgb(35, 38, 50) } else { Color32::from_rgb(18, 20, 26) },
+                            if cb_hover { Color32::from_rgb(35, 38, 50) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
                         );
                         painter.rect_stroke(
                             close_btn_rect,
@@ -587,14 +587,14 @@ impl MediaInfoDialog {
 
                                 // Decoder Row
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Decoder:").size(10.5).color(Color32::from_rgb(160, 165, 180)));
+                                    ui.label(RichText::new("Decoder:").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                     ui.label(RichText::new(&video_decoder_label).size(10.5).strong().color(Color32::from_rgb(220, 225, 240)));
                                 });
                                 ui.add_space(2.0);
 
                                 // Codec Row
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Codec:").size(10.5).color(Color32::from_rgb(160, 165, 180)));
+                                    ui.label(RichText::new("Codec:").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                     ui.label(RichText::new(&video_codec_label).size(10.5).color(Color32::from_rgb(215, 220, 230)));
                                 });
                                 ui.add_space(4.0);
@@ -606,22 +606,22 @@ impl MediaInfoDialog {
                                 ui.horizontal(|ui| {
                                     ui.vertical(|ui| {
                                         ui.set_width(col_w);
-                                        ui.label(RichText::new(format!("Input type: {}", input_type_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Input type: {}", input_type_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("Output type: {}", output_type_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Output type: {}", output_type_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("FPS: {}", fps_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("FPS: {}", fps_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("Bit rate: {}", vbitrate_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Bit rate: {}", vbitrate_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                     });
 
                                     ui.vertical(|ui| {
                                         ui.set_width(col_w);
-                                        ui.label(RichText::new(format!("Input size: {}", input_size_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Input size: {}", input_size_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("Output size: {}", output_size_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Output size: {}", output_size_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("Actual FPS: {}", actual_fps_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Actual FPS: {}", actual_fps_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                     });
                                 });
                             });
@@ -653,14 +653,14 @@ impl MediaInfoDialog {
 
                                 // Decoder Row
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Decoder:").size(10.5).color(Color32::from_rgb(160, 165, 180)));
+                                    ui.label(RichText::new("Decoder:").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                     ui.label(RichText::new(&audio_decoder_label).size(10.5).strong().color(Color32::from_rgb(220, 225, 240)));
                                 });
                                 ui.add_space(2.0);
 
                                 // Codec Row
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Codec:").size(10.5).color(Color32::from_rgb(160, 165, 180)));
+                                    ui.label(RichText::new("Codec:").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                     ui.label(RichText::new(&audio_codec_label).size(10.5).color(Color32::from_rgb(215, 220, 230)));
                                 });
                                 ui.add_space(4.0);
@@ -677,16 +677,16 @@ impl MediaInfoDialog {
                                         } else {
                                             format!("Sample rate: {}", sr_str)
                                         };
-                                        ui.label(RichText::new(sr_display).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(sr_display).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("Bit rate: {}", abitrate_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Bit rate: {}", abitrate_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                     });
 
                                     ui.vertical(|ui| {
                                         ui.set_width(col_w);
-                                        ui.label(RichText::new(format!("Channels: {}", ch_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Channels: {}", ch_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                         ui.add_space(1.0);
-                                        ui.label(RichText::new(format!("Bit depth: {}", bd_str)).size(10.5).color(Color32::from_rgb(205, 210, 225)));
+                                        ui.label(RichText::new(format!("Bit depth: {}", bd_str)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_primary));
                                     });
                                 });
                             });

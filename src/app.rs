@@ -4282,7 +4282,7 @@ impl eframe::App for VortexApp {
                             let tip_rect = Rect::from_min_size(Pos2::new(tip_x, tip_y), tip_size);
                             self.active_popup_rects.push(tip_rect);
 
-                            painter.rect_filled(tip_rect, CornerRadius::same(4), Color32::from_rgb(18, 20, 26));
+                            painter.rect_filled(tip_rect, CornerRadius::same(4), crate::ui::theme::VortexTheme::current_skin().bg_panel);
                             painter.rect_stroke(tip_rect, CornerRadius::same(4), Stroke::new(1.0, Color32::from_rgb(48, 52, 65)), eframe::egui::StrokeKind::Inside);
                             painter.galley(tip_rect.min + pad, galley, Color32::from_rgb(235, 238, 245));
                         }
@@ -4552,9 +4552,9 @@ impl eframe::App for VortexApp {
         let is_song_playback = MusicBackgroundView::is_song(&stats);
         let is_active_video = !stats.is_idle && !stats.file_path.is_empty() && !is_song_playback;
         let central_fill = if is_active_video {
-            Color32::from_rgb(0, 0, 0)
+            crate::ui::theme::VortexTheme::current_skin().bg_canvas
         } else {
-            Color32::from_rgb(10, 11, 14)
+            crate::ui::theme::VortexTheme::current_skin().bg_canvas
         };
 
         egui::CentralPanel::default()
@@ -4839,7 +4839,7 @@ impl eframe::App for VortexApp {
                                 Vec2::new(shelf_w, shelf_h),
                             );
 
-                            ui.painter().rect_filled(shelf_rect, CornerRadius::same(8), Color32::from_rgb(0, 0, 0));
+                            ui.painter().rect_filled(shelf_rect, CornerRadius::same(8), crate::ui::theme::VortexTheme::current_skin().bg_canvas);
                             ui.painter().rect_stroke(shelf_rect, CornerRadius::same(8), Stroke::new(1.0, Color32::from_rgb(38, 42, 56)), egui::StrokeKind::Inside);
 
                             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(shelf_rect.shrink(8.0)));
@@ -4930,7 +4930,7 @@ impl eframe::App for VortexApp {
                                                             } else {
                                                                 dir_str.clone()
                                                             };
-                                                            ui.label(RichText::new(short_dir).size(10.5).color(Color32::from_rgb(130, 135, 150)));
+                                                            ui.label(RichText::new(short_dir).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                         }
                                                     });
 
@@ -5004,7 +5004,7 @@ impl eframe::App for VortexApp {
                                                             } else {
                                                                 dir_str.clone()
                                                             };
-                                                            ui.label(RichText::new(short_dir).size(10.5).color(Color32::from_rgb(130, 135, 150)));
+                                                            ui.label(RichText::new(short_dir).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                                         }
                                                     });
 
@@ -5409,7 +5409,7 @@ impl eframe::App for VortexApp {
                         ui.set_height(pl_h);
                         egui::Frame::new()
                             .fill(Color32::from_rgb(14, 15, 18))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(32, 34, 42)))
+                            .stroke(Stroke::new(1.0, crate::ui::theme::VortexTheme::current_skin().bg_panel))
                             .inner_margin(Margin { left: 6, right: 6, top: 4, bottom: 6 })
                             .show(ui, |ui| {
                                 let pl_actions = PlaylistPanel::render(
@@ -6546,7 +6546,7 @@ impl eframe::App for VortexApp {
                 .fixed_pos(popup_pos)
                 .show(&ctx, |ui| {
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(16, 18, 24))
+                        .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
                         .stroke(Stroke::new(1.0, Color32::from_rgb(44, 48, 60)))
                         .corner_radius(CornerRadius::same(6))
                         .shadow(egui::Shadow {
@@ -6753,7 +6753,7 @@ impl eframe::App for VortexApp {
                 .fixed_pos(popup_pos)
                 .show(&ctx, |ui| {
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(16, 18, 24))
+                        .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
                         .stroke(Stroke::new(1.0, Color32::from_rgb(44, 48, 60)))
                         .corner_radius(CornerRadius::same(6))
                         .shadow(egui::Shadow {
@@ -6774,7 +6774,7 @@ impl eframe::App for VortexApp {
                                 ui.label(egui::RichText::new("Playback Speed").size(12.0).color(Color32::WHITE).strong());
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     let is_custom = (stats.speed - 1.0).abs() > 0.03;
-                                    let badge_col = if is_custom { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(160, 165, 180) };
+                                    let badge_col = if is_custom { VortexTheme::current_skin().accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
                                     ui.label(egui::RichText::new(format!("{:.2}x", stats.speed)).monospace().size(11.0).color(badge_col).strong());
                                 });
                             });

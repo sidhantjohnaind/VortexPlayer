@@ -194,7 +194,7 @@ impl ControlBar {
                 } else {
                     Icons::draw_vertex_logo(painter, thumb_box.center(), 10.0);
                 }
-                painter.rect_stroke(thumb_box, CornerRadius::same(2), Stroke::new(1.0, Color32::from_rgb(26, 28, 36)), StrokeKind::Inside);
+                painter.rect_stroke(thumb_box, CornerRadius::same(2), Stroke::new(1.0, crate::ui::theme::VortexTheme::current_skin().bg_panel), StrokeKind::Inside);
                 cur_x += thumb_size + 12.0;
             } else {
                 cur_x += 4.0;
@@ -339,7 +339,7 @@ impl ControlBar {
             if loop_resp.secondary_clicked() {
                 bookmark_mgr.clear_ab_loop();
             }
-            let loop_col = if loop_active { skin.accent_primary } else if loop_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(130, 135, 150) };
+            let loop_col = if loop_active { skin.accent_primary } else if loop_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_muted };
             let rc = loop_toggle_rect.center();
             let y1 = rc.y - 2.5;
             painter.line_segment([Pos2::new(rc.x - 4.0, y1), Pos2::new(rc.x + 2.5, y1)], Stroke::new(1.1, loop_col));
@@ -376,7 +376,7 @@ impl ControlBar {
             painter.rect_filled(rep_pill_rect, CornerRadius::same(3), rep_bg);
             painter.rect_stroke(rep_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if rep_active { skin.accent_primary } else { skin.border_dark }), StrokeKind::Inside);
 
-            let rep_icon_col = if rep_active { skin.accent_primary } else if rep_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
+            let rep_icon_col = if rep_active { skin.accent_primary } else if rep_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
             let is_one = playlist.repeat_mode == crate::playlist::RepeatMode::RepeatTrack;
             Icons::draw_repeat(painter, rep_pill_rect, rep_icon_col, is_one);
 
@@ -401,7 +401,7 @@ impl ControlBar {
             painter.rect_filled(shuf_pill_rect, CornerRadius::same(3), shuf_bg);
             painter.rect_stroke(shuf_pill_rect, CornerRadius::same(3), Stroke::new(1.0, if shuf_active { skin.accent_primary } else { skin.border_dark }), StrokeKind::Inside);
 
-            let shuf_icon_col = if shuf_active { skin.accent_primary } else if shuf_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(150, 155, 170) };
+            let shuf_icon_col = if shuf_active { skin.accent_primary } else if shuf_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
             Icons::draw_shuffle(painter, shuf_pill_rect, shuf_icon_col);
 
             if shuf_resp.hovered() {
@@ -422,7 +422,7 @@ impl ControlBar {
                 Align2::CENTER_CENTER,
                 "🎙",
                 FontId::proportional(11.5),
-                if lyr_resp.hovered() { skin.accent_primary } else { Color32::from_rgb(150, 155, 170) },
+                if lyr_resp.hovered() { skin.accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
             );
             if lyr_resp.hovered() {
                 hovered_tooltip = Some((lyr_pill_rect, "Synchronized Lyrics / Karaoke (Ctrl+Shift+L)\nRight-click: Full Lyrics Studio".to_string()));
@@ -461,7 +461,7 @@ impl ControlBar {
 
         // Visible slate track groove matching Vortex
         painter.rect_filled(track_rect, CornerRadius::same(1), Color32::from_rgb(52, 56, 68));
-        painter.rect_stroke(track_rect, CornerRadius::same(1), Stroke::new(0.5, Color32::from_rgb(32, 34, 42)), StrokeKind::Inside);
+        painter.rect_stroke(track_rect, CornerRadius::same(1), Stroke::new(0.5, crate::ui::theme::VortexTheme::current_skin().bg_panel), StrokeKind::Inside);
 
         // Buffer bar with smooth corner radius
         if stats.cache_buffer_percent > 0.0 && stats.duration > 0.0 {
@@ -1265,7 +1265,7 @@ impl ControlBar {
                         } else {
                             format!("Audio Stream: {}\nClick to configure Channels", b.text)
                         };
-                        let bg = if r.hovered() { Color32::from_rgb(42, 45, 58) } else { Color32::from_rgb(26, 28, 36) };
+                        let bg = if r.hovered() { Color32::from_rgb(42, 45, 58) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel };
                         let stroke = Color32::from_rgb(45, 48, 58);
                         let text = if r.hovered() { skin.accent_primary } else { Color32::from_rgb(145, 150, 165) };
                         (r, bg, stroke, text, tip)
@@ -1281,7 +1281,7 @@ impl ControlBar {
                     BadgeKind::VideoCodec => {
                         let r = ui.interact(b_rect, ui.id().with(format!("badge_vcodec_{}", idx)), Sense::click());
                         let tip = format!("Video Codec: {} (Click for Media Info)", stats.video_codec);
-                        let bg = if r.hovered() { Color32::from_rgb(36, 40, 52) } else { Color32::from_rgb(26, 28, 36) };
+                        let bg = if r.hovered() { Color32::from_rgb(36, 40, 52) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel };
                         let stroke = if r.hovered() { Color32::from_rgb(60, 90, 140) } else { Color32::from_rgb(45, 48, 58) };
                         let text = if r.hovered() { Color32::WHITE } else { Color32::from_rgb(145, 150, 165) };
                         (r, bg, stroke, text, tip)
@@ -1299,7 +1299,7 @@ impl ControlBar {
                         } else if r.hovered() {
                             (Color32::from_rgb(36, 40, 52), Color32::from_rgb(60, 90, 140), Color32::WHITE)
                         } else {
-                            (Color32::from_rgb(26, 28, 36), Color32::from_rgb(45, 48, 58), Color32::from_rgb(145, 150, 165))
+                            (crate::ui::theme::VortexTheme::current_skin().bg_panel, Color32::from_rgb(45, 48, 58), Color32::from_rgb(145, 150, 165))
                         };
                         (r, bg, stroke, text, tip)
                     }
@@ -1351,7 +1351,7 @@ impl ControlBar {
             let resp = ui.interact(tile_r, ui.id().with(id_str), Sense::click());
 
             if resp.hovered() {
-                painter.rect_filled(tile_r, CornerRadius::ZERO, Color32::from_rgb(32, 34, 42));
+                painter.rect_filled(tile_r, CornerRadius::ZERO, crate::ui::theme::VortexTheme::current_skin().bg_panel);
                 hovered_tooltip = Some((tile_r, tip_text.to_string()));
             }
 
@@ -1419,7 +1419,7 @@ impl ControlBar {
                 StrokeKind::Inside,
             );
 
-            let text_col = if is_non_standard { skin.accent_primary } else if spd_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(175, 180, 195) };
+            let text_col = if is_non_standard { skin.accent_primary } else if spd_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
             let speed_str = format!("{:.1}x", stats.speed);
             painter.text(pill_r.center(), Align2::CENTER_CENTER, speed_str, FontId::monospace(10.0), text_col);
 

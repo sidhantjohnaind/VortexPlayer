@@ -121,7 +121,7 @@ impl ControlPanel {
                     ui.label(RichText::new("Vortex Control Panel").size(13.0).strong().color(Color32::WHITE));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let close_btn = ui.add(
-                            egui::Button::new(RichText::new("✕").size(12.0).color(Color32::from_rgb(175, 180, 195)))
+                            egui::Button::new(RichText::new("✕").size(12.0).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                                 .fill(Color32::TRANSPARENT)
                                 .stroke(Stroke::NONE)
                         );
@@ -138,7 +138,7 @@ impl ControlPanel {
 
                 // ── 1. Modern Segmented Tab Bar ──────────────────────────────
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(11, 12, 18))
+                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
                     .stroke(Stroke::new(1.0, Color32::from_rgb(28, 33, 46)))
                     .corner_radius(CornerRadius::same(6))
                     .inner_margin(egui::Margin::symmetric(4, 4))
@@ -222,10 +222,10 @@ impl ControlPanel {
 
                             // Brightness
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Brightness:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Brightness:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 310.0;
                                 let slider = ui.add(egui::Slider::new(&mut config.video_brightness, 0.0..=200.0).suffix("%").show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.video_brightness)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.video_brightness)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if ui.small_button("↺").on_hover_text("Reset Brightness to default 100%").clicked() {
                                     config.video_brightness = 100.0;
@@ -241,10 +241,10 @@ impl ControlPanel {
 
                             // Contrast
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Contrast:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Contrast:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 310.0;
                                 let slider = ui.add(egui::Slider::new(&mut config.video_contrast, 0.0..=200.0).suffix("%").show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.video_contrast)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.video_contrast)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if ui.small_button("↺").on_hover_text("Reset Contrast to default 100%").clicked() {
                                     config.video_contrast = 100.0;
@@ -260,10 +260,10 @@ impl ControlPanel {
 
                             // Saturation
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Saturation:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Saturation:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 310.0;
                                 let slider = ui.add(egui::Slider::new(&mut config.video_saturation, 0.0..=200.0).suffix("%").show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.video_saturation)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.video_saturation)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if ui.small_button("↺").on_hover_text("Reset Saturation to default 100%").clicked() {
                                     config.video_saturation = 100.0;
@@ -279,10 +279,10 @@ impl ControlPanel {
 
                             // Hue
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Hue:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Hue:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 310.0;
                                 let slider = ui.add(egui::Slider::new(&mut config.video_hue, -180.0..=180.0).suffix("°").show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}°", config.video_hue)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}°", config.video_hue)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if ui.small_button("↺").on_hover_text("Reset Hue to default 0°").clicked() {
                                     config.video_hue = 0.0;
@@ -301,7 +301,7 @@ impl ControlPanel {
                         card_frame().show(ui, |ui| {
                             // Aspect Ratio Row
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Aspect Ratio:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Aspect Ratio:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 let ar_presets = [
                                     ("auto", "Auto"),
                                     ("16:9", "16:9"),
@@ -322,7 +322,7 @@ impl ControlPanel {
 
                             // Rotation Row
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Rotation:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Rotation:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 for &deg in &[0, 90, 180, 270] {
                                     let label = format!("{}°", deg);
                                     if pill_button(ui, &label, config.video_rotation == deg).clicked() {
@@ -345,7 +345,7 @@ impl ControlPanel {
                                 }
 
                                 ui.add_space(16.0);
-                                ui.label(RichText::new("Sharpen:").size(11.5).color(Color32::from_rgb(175, 180, 195)));
+                                ui.label(RichText::new("Sharpen:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                 let slider = ui.add_sized([120.0, 20.0], egui::Slider::new(&mut config.video_sharpen, 0.0..=5.0));
                                 if slider.changed() {
                                     player.set_property_string("vf", &format!("unsharp=5:5:{:.2}:5:5:0.0", config.video_sharpen));
@@ -379,7 +379,7 @@ impl ControlPanel {
                                 if is_eq {
                                     ui.label(RichText::new("● RUNNING").size(9.5).strong().color(VortexTheme::VORTEX_LIME_OSD));
                                 } else {
-                                    ui.label(RichText::new("○ BYPASS").size(9.5).color(Color32::from_rgb(130, 135, 150)));
+                                    ui.label(RichText::new("○ BYPASS").size(9.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                 }
 
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -393,7 +393,7 @@ impl ControlPanel {
                                     egui::ComboBox::from_id_salt("cp_eq_preset")
                                         .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::current_skin().accent_primary).strong())
                                         .show_ui(ui, |ui| {
-                                            ui.label(RichText::new("── Built-in Presets ──").size(10.0).color(Color32::from_rgb(120, 125, 140)));
+                                            ui.label(RichText::new("── Built-in Presets ──").size(10.0).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                             for preset in VORTEX_EQ_PRESETS {
                                                 if ui.selectable_label(config.eq_preset == preset.name, preset.name).clicked() {
                                                     config.eq_preset = preset.name.to_string();
@@ -434,7 +434,7 @@ impl ControlPanel {
                                             }
                                         });
 
-                                    ui.label(RichText::new("Preset:").color(Color32::from_rgb(150, 155, 170)));
+                                    ui.label(RichText::new("Preset:").color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                 });
                             });
 
@@ -529,7 +529,7 @@ impl ControlPanel {
                                         } else if gain < -0.1 {
                                             Color32::from_rgb(100, 180, 255)
                                         } else {
-                                            Color32::from_rgb(120, 125, 140)
+                                            crate::ui::theme::VortexTheme::current_skin().text_muted
                                         };
                                         ui.label(RichText::new(format!("{:+.0}", gain)).size(8.5).monospace().color(gain_col));
 
@@ -556,11 +556,11 @@ impl ControlPanel {
                         card_frame().show(ui, |ui| {
                             // Audio Delay
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Audio Delay:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Audio Delay:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 190.0;
                                 let mut delay = config.audio_delay;
                                 let slider = ui.add(egui::Slider::new(&mut delay, -5.0..=5.0).suffix("s").show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:+.2}s", config.audio_delay)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:+.2}s", config.audio_delay)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if slider.changed() {
                                     config.audio_delay = delay;
@@ -620,11 +620,11 @@ impl ControlPanel {
 
                             // Speed Slider
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Speed:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Speed:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 330.0;
                                 let mut spd = stats.speed;
                                 let slider = ui.add(egui::Slider::new(&mut spd, 0.2..=4.0).show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.2}x", stats.speed)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.2}x", stats.speed)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if slider.changed() {
                                     player.set_speed(spd);
@@ -635,7 +635,7 @@ impl ControlPanel {
 
                             // Speed Presets Row
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Presets:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Presets:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 let speed_presets = [0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0];
                                 for &preset in &speed_presets {
                                     let is_active = (stats.speed - preset).abs() < 0.05;
@@ -650,7 +650,7 @@ impl ControlPanel {
 
                             // Quick Seek Row
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Quick Seek:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Quick Seek:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 if ui.button("⏪ -30s").clicked() {
                                     player.seek_relative(-30.0);
                                 }
@@ -672,7 +672,7 @@ impl ControlPanel {
                             ui.add_space(6.0);
 
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Repeat:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Repeat:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 let r_mode = playlist.repeat_mode;
 
                                 if pill_button(ui, "Off", r_mode == crate::playlist::RepeatMode::Off).clicked() {
@@ -712,7 +712,7 @@ impl ControlPanel {
                                     if has_loop {
                                         ui.label(RichText::new("● LOOP ACTIVE").size(9.5).strong().color(VortexTheme::current_skin().accent_primary));
                                     } else {
-                                        ui.label(RichText::new("○ INACTIVE").size(9.5).color(Color32::from_rgb(130, 135, 150)));
+                                        ui.label(RichText::new("○ INACTIVE").size(9.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                     }
                                 });
                             });
@@ -723,14 +723,14 @@ impl ControlPanel {
                             let b_text = bookmark_mgr.ab_loop.point_b.map(|t| crate::bookmark::format_time(t)).unwrap_or_else(|| "--:--:--".to_string());
 
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Range:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Range:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.label(RichText::new(format!("Point A: [ {} ]    Point B: [ {} ]", a_text, b_text)).size(11.5).monospace().color(Color32::from_rgb(210, 215, 230)));
                             });
 
                             ui.add_space(4.0);
 
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Actions:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("Actions:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
 
                                 let a_is_set = bookmark_mgr.ab_loop.point_a.is_some();
                                 if ui.button(RichText::new("[ Set Point A").color(if a_is_set { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).clicked() {
@@ -769,11 +769,11 @@ impl ControlPanel {
 
                             // Sync Delay Slider & Steppers
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Sync Delay:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Sync Delay:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 175.0;
                                 let mut delay = stats.subtitle_delay;
                                 let slider = ui.add(egui::Slider::new(&mut delay, -10.0..=10.0).suffix("s").show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:+.2}s", stats.subtitle_delay)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:+.2}s", stats.subtitle_delay)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if slider.changed() {
                                     player.set_subtitle_delay(delay);
@@ -804,11 +804,11 @@ impl ControlPanel {
 
                             // Font Size
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Font Size:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Font Size:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 300.0;
                                 let mut sz = config.subtitle_font_size;
                                 let slider = ui.add(egui::Slider::new(&mut sz, 12.0..=72.0).show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0} pt", config.subtitle_font_size)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0} pt", config.subtitle_font_size)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if slider.changed() {
                                     config.subtitle_font_size = sz;
@@ -830,11 +830,11 @@ impl ControlPanel {
 
                             // Vertical Position
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Vertical Pos:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Vertical Pos:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 230.0;
                                 let mut pos = config.subtitle_vertical_pos;
                                 let slider = ui.add(egui::Slider::new(&mut pos, 0.0..=115.0).show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.subtitle_vertical_pos)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.0}%", config.subtitle_vertical_pos)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if slider.changed() {
                                     config.subtitle_vertical_pos = pos;
@@ -861,11 +861,11 @@ impl ControlPanel {
 
                             // Outline Width
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Outline:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Outline:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 ui.spacing_mut().slider_width = 360.0;
                                 let mut ow = config.subtitle_outline_width;
                                 let slider = ui.add(egui::Slider::new(&mut ow, 0.0..=8.0).show_value(false));
-                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.1} px", config.subtitle_outline_width)).size(11.5).strong().color(Color32::from_rgb(220, 225, 238))));
+                                ui.add_sized([52.0, 20.0], egui::Label::new(RichText::new(format!("{:.1} px", config.subtitle_outline_width)).size(11.5).strong().color(crate::ui::theme::VortexTheme::current_skin().text_primary)));
 
                                 if slider.changed() {
                                     config.subtitle_outline_width = ow;
@@ -878,7 +878,7 @@ impl ControlPanel {
 
                             // Font Styles
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Options:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 20.0], egui::Label::new(RichText::new("Options:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 if ui.checkbox(&mut config.subtitle_bold, "Bold Font").changed() {
                                     player.set_subtitle_bold(config.subtitle_bold);
                                     let _ = config.save();
@@ -899,7 +899,7 @@ impl ControlPanel {
                             ui.add_space(6.0);
 
                             ui.horizontal(|ui| {
-                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("ASS Override:").size(11.5).color(Color32::from_rgb(175, 180, 195))));
+                                ui.add_sized([82.0, 22.0], egui::Label::new(RichText::new("ASS Override:").size(11.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary)));
                                 let cur_ov = config.subtitle_ass_override.clone();
                                 egui::ComboBox::from_id_salt("cp_ass_override")
                                     .selected_text(match cur_ov.as_str() {

@@ -9,7 +9,7 @@ impl Icons {
     /// Cinema Aperture Iris Logo — Precision camera lens iris with concentric gold/cyan tracks and play prism core.
     pub fn draw_vertex_logo(painter: &Painter, center: Pos2, radius: f32) {
         // Outer dark titanium lens barrel
-        painter.circle_filled(center, radius, Color32::from_rgb(22, 24, 30));
+        painter.circle_filled(center, radius, crate::ui::theme::VortexTheme::current_skin().bg_panel);
         painter.circle_stroke(center, radius, Stroke::new(1.0, Color32::from_rgb(62, 66, 78)));
 
         // Concentric precision track rings (gold & cyan)
@@ -45,7 +45,7 @@ impl Icons {
         painter.circle_filled(center, radius * 1.45, Color32::from_rgba_unmultiplied(245, 166, 35, 18));
 
         // 2. Knurled outer barrel & titanium rim
-        painter.circle_filled(center, radius * 1.15, Color32::from_rgb(18, 20, 26));
+        painter.circle_filled(center, radius * 1.15, crate::ui::theme::VortexTheme::current_skin().bg_panel);
         painter.circle_stroke(center, radius * 1.15, Stroke::new(2.0, Color32::from_rgb(72, 78, 92)));
         painter.circle_stroke(center, radius * 1.08, Stroke::new(1.0, Color32::from_rgb(42, 46, 56)));
 
@@ -56,7 +56,7 @@ impl Icons {
         painter.circle_stroke(center, radius * 0.72, Stroke::new(1.0, Color32::from_rgb(210, 150, 35)));
 
         // 4. Shutter aperture blades
-        painter.circle_filled(center, radius * 0.65, Color32::from_rgb(14, 16, 22));
+        painter.circle_filled(center, radius * 0.65, crate::ui::theme::VortexTheme::current_skin().bg_panel);
         for i in 0..8 {
             let angle = (i as f32) * (std::f32::consts::PI / 4.0);
             let r1 = radius * 0.35;

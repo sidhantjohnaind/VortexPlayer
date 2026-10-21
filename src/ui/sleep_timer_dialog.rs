@@ -47,7 +47,7 @@ impl SleepTimerDialog {
             .fixed_size(Vec2::new(400.0, 360.0))
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(18, 20, 26))
+                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
                     .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 68)))
                     .corner_radius(CornerRadius::same(8))
                     .inner_margin(Margin::same(16)),

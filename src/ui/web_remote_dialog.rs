@@ -121,7 +121,7 @@ impl WebRemoteDialog {
                     ui.group(|ui| {
                         ui.label(RichText::new("Live Mobile Remote Controller:").strong());
                         egui::Frame::new()
-                            .fill(Color32::from_rgb(20, 22, 28))
+                            .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
                             .inner_margin(egui::Margin::symmetric(12, 10))
                             .show(ui, |ui| {
                                 ui.vertical_centered(|ui| {

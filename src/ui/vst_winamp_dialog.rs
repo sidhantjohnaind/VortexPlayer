@@ -198,9 +198,9 @@ impl VstWinampDialog {
                                 let bg = if is_selected {
                                     Color32::from_rgb(30, 50, 75)
                                 } else if idx % 2 == 0 {
-                                    Color32::from_rgb(22, 24, 30)
+                                    crate::ui::theme::VortexTheme::current_skin().bg_panel
                                 } else {
-                                    Color32::from_rgb(18, 20, 25)
+                                    crate::ui::theme::VortexTheme::current_skin().bg_panel
                                 };
 
                                 egui::Frame::new()

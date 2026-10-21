@@ -175,7 +175,7 @@ impl MediaServerDialog {
                         .show(ui, |ui| {
                             for item in &self.items {
                                 egui::Frame::new()
-                                    .fill(Color32::from_rgb(22, 24, 30))
+                                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
                                     .inner_margin(egui::Margin::symmetric(10, 8))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {

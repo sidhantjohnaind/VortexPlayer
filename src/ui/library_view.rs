@@ -86,7 +86,7 @@ impl LibraryView {
                                     let painter = ui.painter();
 
                                     let is_h = resp.hovered();
-                                    let bg = if is_h { Color32::from_rgb(32, 35, 46) } else { Color32::from_rgb(18, 20, 26) };
+                                    let bg = if is_h { Color32::from_rgb(32, 35, 46) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel };
                                     let border = if is_h { VortexTheme::current_skin().accent_primary } else { Color32::from_rgb(30, 34, 44) };
 
                                     painter.rect_filled(card_rect, CornerRadius::same(4), bg);

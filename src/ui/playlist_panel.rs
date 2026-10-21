@@ -75,7 +75,7 @@ fn get_format_badge_style(ext: &str) -> (Color32, Color32, Color32, &'static str
         "m4a" | "aac" => (Color32::from_rgb(16, 44, 44), Color32::from_rgb(32, 92, 90), Color32::from_rgb(70, 225, 215), "AAC"),
         "ogg" | "opus" => (Color32::from_rgb(40, 20, 48), Color32::from_rgb(85, 40, 100), Color32::from_rgb(210, 120, 245), "OGG"),
         "mp4" | "mkv" | "avi" | "mov" | "webm" => (Color32::from_rgb(20, 28, 48), Color32::from_rgb(45, 65, 110), Color32::from_rgb(130, 170, 255), "VID"),
-        _ => (Color32::from_rgb(26, 28, 36), Color32::from_rgb(48, 52, 64), Color32::from_rgb(160, 165, 180), "AUD"),
+        _ => (crate::ui::theme::VortexTheme::current_skin().bg_panel, Color32::from_rgb(48, 52, 64), crate::ui::theme::VortexTheme::current_skin().text_secondary, "AUD"),
     }
 }
 
@@ -105,7 +105,7 @@ fn render_search_input(ui: &mut egui::Ui, query: &mut String, hint: &str) {
                 });
             });
         if has_query {
-            let clr_btn = egui::Button::new(egui::RichText::new("✕").size(10.0).color(Color32::from_rgb(160, 165, 180)))
+            let clr_btn = egui::Button::new(egui::RichText::new("✕").size(10.0).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                 .min_size(Vec2::new(20.0, 24.0));
             if ui.add(clr_btn).on_hover_text("Clear filter").clicked() {
                 query.clear();
@@ -172,17 +172,17 @@ impl PlaylistPanel {
                     let (r, resp) = ui.allocate_exact_size(Vec2::new(95.0, 22.0), Sense::click());
                     let bg = if is_default { Color32::from_rgb(26, 28, 35) } else { Color32::from_rgb(8, 9, 12) };
                     ui.painter().rect_filled(r, CornerRadius::same(3), bg);
-                    ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, if is_default { Color32::from_rgb(55, 60, 75) } else { Color32::from_rgb(28, 30, 38) }), StrokeKind::Inside);
-                    ui.painter().text(r.center(), Align2::CENTER_CENTER, tab_txt, FontId::proportional(11.0), if is_default { Color32::WHITE } else { Color32::from_rgb(160, 165, 180) });
+                    ui.painter().rect_stroke(r, CornerRadius::same(3), Stroke::new(1.0, if is_default { Color32::from_rgb(55, 60, 75) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel }), StrokeKind::Inside);
+                    ui.painter().text(r.center(), Align2::CENTER_CENTER, tab_txt, FontId::proportional(11.0), if is_default { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary });
                     if resp.clicked() {
                         playlist.active_tab = PlaylistTab::DefaultPlaylist;
                     }
 
                     // "+" Add Tab / Add Files Button
                     let (plus_r, plus_resp) = ui.allocate_exact_size(Vec2::new(24.0, 22.0), Sense::click());
-                    let plus_bg = if plus_resp.hovered() { Color32::from_rgb(30, 32, 40) } else { Color32::from_rgb(8, 9, 12) };
+                    let plus_bg = if plus_resp.hovered() { crate::ui::theme::VortexTheme::current_skin().bg_panel } else { Color32::from_rgb(8, 9, 12) };
                     ui.painter().rect_filled(plus_r, CornerRadius::same(3), plus_bg);
-                    ui.painter().rect_stroke(plus_r, CornerRadius::same(3), Stroke::new(1.0, Color32::from_rgb(28, 30, 38)), StrokeKind::Inside);
+                    ui.painter().rect_stroke(plus_r, CornerRadius::same(3), Stroke::new(1.0, crate::ui::theme::VortexTheme::current_skin().bg_panel), StrokeKind::Inside);
                     ui.painter().text(plus_r.center(), Align2::CENTER_CENTER, "+", FontId::proportional(13.0), Color32::from_rgb(180, 185, 200));
                     if plus_resp.clicked() {
                         actions.add_files = true;
@@ -190,7 +190,7 @@ impl PlaylistPanel {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Close button (✕)
-                        let close_btn = egui::Button::new(egui::RichText::new("✕").size(11.0).color(Color32::from_rgb(170, 175, 190)))
+                        let close_btn = egui::Button::new(egui::RichText::new("✕").size(11.0).color(crate::ui::theme::VortexTheme::current_skin().text_secondary))
                             .frame(false);
                         if ui.add(close_btn).on_hover_text("Close Playlist").clicked() {
                             actions.close_playlist = true;
@@ -288,7 +288,7 @@ impl PlaylistPanel {
 
                     // Refined Pop Out / Detach (⤢) Button
                     let (det_r, det_resp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
-                    let det_bg = if det_resp.hovered() { Color32::from_rgb(34, 38, 50) } else { Color32::from_rgb(16, 18, 24) };
+                    let det_bg = if det_resp.hovered() { Color32::from_rgb(34, 38, 50) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel };
                     let det_stroke = if det_resp.hovered() { Color32::from_rgb(60, 68, 88) } else { Color32::from_rgb(28, 31, 40) };
                     ui.painter().rect_filled(det_r, CornerRadius::same(4), det_bg);
                     ui.painter().rect_stroke(det_r, CornerRadius::same(4), Stroke::new(1.0, det_stroke), StrokeKind::Inside);
@@ -305,7 +305,7 @@ impl PlaylistPanel {
 
                     // Refined Close (✕) Button
                     let (cls_r, cls_resp) = ui.allocate_exact_size(Vec2::new(btn_w, btn_h), Sense::click());
-                    let cls_bg = if cls_resp.hovered() { Color32::from_rgb(130, 32, 32) } else { Color32::from_rgb(16, 18, 24) };
+                    let cls_bg = if cls_resp.hovered() { Color32::from_rgb(130, 32, 32) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel };
                     let cls_stroke = if cls_resp.hovered() { Color32::from_rgb(190, 48, 48) } else { Color32::from_rgb(28, 31, 40) };
                     ui.painter().rect_filled(cls_r, CornerRadius::same(4), cls_bg);
                     ui.painter().rect_stroke(cls_r, CornerRadius::same(4), Stroke::new(1.0, cls_stroke), StrokeKind::Inside);
@@ -349,7 +349,7 @@ impl PlaylistPanel {
                             let bg = if is_active {
                                 Color32::from_rgb(28, 32, 44)
                             } else if resp.hovered() {
-                                Color32::from_rgb(20, 22, 28)
+                                crate::ui::theme::VortexTheme::current_skin().bg_panel
                             } else {
                                 Color32::from_rgb(12, 13, 17)
                             };
@@ -359,7 +359,7 @@ impl PlaylistPanel {
                             } else if resp.hovered() {
                                 Color32::from_rgb(34, 38, 48)
                             } else {
-                                Color32::from_rgb(22, 24, 30)
+                                crate::ui::theme::VortexTheme::current_skin().bg_panel
                             };
 
                             painter.rect_filled(r, CornerRadius::same(3), bg);
@@ -370,7 +370,7 @@ impl PlaylistPanel {
                             } else if resp.hovered() {
                                 Color32::from_rgb(200, 205, 220)
                             } else {
-                                Color32::from_rgb(130, 135, 150)
+                                crate::ui::theme::VortexTheme::current_skin().text_muted
                             };
 
                             painter.text(
@@ -431,7 +431,7 @@ impl PlaylistPanel {
                             if total_rows == 0 {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(30.0);
-                                    ui.label(egui::RichText::new("Playlist is empty").color(Color32::from_rgb(130, 135, 150)));
+                                    ui.label(egui::RichText::new("Playlist is empty").color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                     ui.label(egui::RichText::new("Drag & drop files or click + ADD").size(10.5).color(Color32::from_rgb(90, 95, 110)));
                                 });
                                 return;
@@ -481,11 +481,11 @@ impl PlaylistPanel {
                                 let bg = if is_current {
                                     Color32::from_rgb(24, 27, 35)
                                 } else if resp.hovered() {
-                                    Color32::from_rgb(18, 20, 26)
+                                    crate::ui::theme::VortexTheme::current_skin().bg_panel
                                 } else if row_idx % 2 == 1 {
                                     Color32::from_rgb(6, 7, 10)
                                 } else {
-                                    Color32::from_rgb(0, 0, 0)
+                                    crate::ui::theme::VortexTheme::current_skin().bg_canvas
                                 };
 
                                 painter.rect_filled(rect, CornerRadius::same(2), bg);
@@ -527,7 +527,7 @@ impl PlaylistPanel {
                                     Align2::RIGHT_CENTER,
                                     item_duration_str,
                                     FontId::monospace(10.0),
-                                    if is_current { Color32::WHITE } else { Color32::from_rgb(120, 125, 140) },
+                                    if is_current { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
                                 );
 
                                 if resp.double_clicked() || resp.clicked() {
@@ -776,7 +776,7 @@ impl PlaylistPanel {
                             if filtered_items.is_empty() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(30.0);
-                                    ui.label(egui::RichText::new("No media files or folders found").color(Color32::from_rgb(130, 135, 150)));
+                                    ui.label(egui::RichText::new("No media files or folders found").color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                 });
                                 return;
                             }
@@ -861,8 +861,8 @@ impl PlaylistPanel {
                             if bookmark_mgr.bookmarks.is_empty() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(20.0);
-                                    ui.label(egui::RichText::new("No bookmarks saved for this media.").color(Color32::from_rgb(130, 135, 150)));
-                                    ui.label(egui::RichText::new("Press P or click '+ Add Bookmark'").size(10.5).color(Color32::from_rgb(100, 105, 120)));
+                                    ui.label(egui::RichText::new("No bookmarks saved for this media.").color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                    ui.label(egui::RichText::new("Press P or click '+ Add Bookmark'").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                 });
                             } else {
                                 for (b_idx, bm) in bookmark_mgr.bookmarks.iter().enumerate() {
@@ -903,8 +903,8 @@ impl PlaylistPanel {
                             if sub_lines.is_empty() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(30.0);
-                                    ui.label(egui::RichText::new("No subtitle lines loaded").color(Color32::from_rgb(130, 135, 150)));
-                                    ui.label(egui::RichText::new("Load an external .srt/.vtt or select a text subtitle track").size(10.5).color(Color32::from_rgb(100, 105, 120)));
+                                    ui.label(egui::RichText::new("No subtitle lines loaded").color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                    ui.label(egui::RichText::new("Load an external .srt/.vtt or select a text subtitle track").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                 });
                             } else {
                                 let filter_query = sub_search.trim().to_lowercase();
@@ -924,7 +924,7 @@ impl PlaylistPanel {
                                     }
                                 }
                                 if count == 0 {
-                                    ui.label(egui::RichText::new("No dialogue matches your query").color(Color32::from_rgb(130, 135, 150)));
+                                    ui.label(egui::RichText::new("No dialogue matches your query").color(crate::ui::theme::VortexTheme::current_skin().text_muted));
                                 }
                             }
                         });

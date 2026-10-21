@@ -59,7 +59,7 @@ impl AudioMeterWidget {
 
         // ── 1. INPUT METERS FRAME ────────────────────────────────────────────
         egui::Frame::new()
-            .fill(Color32::from_rgb(0, 0, 0))
+            .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
             .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
             .corner_radius(CornerRadius::same(4))
             .inner_margin(Margin::same(8))
@@ -85,7 +85,7 @@ impl AudioMeterWidget {
 
         // ── 2. OUTPUT METERS FRAME ───────────────────────────────────────────
         egui::Frame::new()
-            .fill(Color32::from_rgb(0, 0, 0))
+            .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
             .stroke(Stroke::new(1.0, Color32::from_rgb(35, 38, 48)))
             .corner_radius(CornerRadius::same(4))
             .inner_margin(Margin::same(8))
@@ -111,7 +111,7 @@ impl AudioMeterWidget {
 
         // ── 3. LOUDNESS & METRICS FOOTER ─────────────────────────────────────
         egui::Frame::new()
-            .fill(Color32::from_rgb(0, 0, 0))
+            .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
             .stroke(Stroke::new(1.0, Color32::from_rgb(30, 34, 44)))
             .corner_radius(CornerRadius::same(4))
             .inner_margin(Margin::symmetric(8, 5))

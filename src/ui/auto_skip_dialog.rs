@@ -283,7 +283,7 @@ impl AutoSkipDialog {
                                             } else {
                                                 (
                                                     Color32::from_rgb(40, 42, 48),
-                                                    Color32::from_rgb(130, 135, 150),
+                                                    crate::ui::theme::VortexTheme::current_skin().text_muted,
                                                     Color32::from_rgb(65, 70, 80),
                                                 )
                                             };

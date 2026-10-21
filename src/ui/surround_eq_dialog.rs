@@ -73,7 +73,7 @@ impl SurroundEqDialog {
             .constrain(true)
             .frame(
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(14, 16, 22))
+                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
                     .stroke(Stroke::new(1.0, Color32::from_rgb(40, 48, 65)))
                     .corner_radius(CornerRadius::same(10))
                     .inner_margin(Margin::same(14)),
@@ -89,7 +89,7 @@ impl SurroundEqDialog {
                     let label = RichText::new("Enable 7.1 Surround EQ")
                         .font(FontId::proportional(14.0))
                         .strong()
-                        .color(if is_en { accent } else { Color32::from_rgb(150, 155, 170) });
+                        .color(if is_en { accent } else { crate::ui::theme::VortexTheme::current_skin().text_secondary });
                     if ui.checkbox(&mut en, label).changed() {
                         config.enabled = en;
                         changed = true;
@@ -350,7 +350,7 @@ impl SurroundEqDialog {
 
                         // Channel Preamp Offset
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Level Trim / Preamp:").color(Color32::from_rgb(170, 175, 190)));
+                            ui.label(RichText::new("Level Trim / Preamp:").color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                             let mut offset = config.channels[ch_idx].gain_offset_db;
                             if ui
                                 .add(
@@ -379,7 +379,7 @@ impl SurroundEqDialog {
                                 col_ui.vertical_centered(|ui| {
                                     let gain_val = config.channels[ch_idx].bands[b_idx];
                                     let gain_col = if gain_val.abs() < 0.05 {
-                                        Color32::from_rgb(130, 135, 150)
+                                        crate::ui::theme::VortexTheme::current_skin().text_muted
                                     } else if gain_val > 0.0 {
                                         Color32::from_rgb(60, 215, 255)
                                     } else {

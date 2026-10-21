@@ -319,7 +319,7 @@ impl LyricsOverlay {
                                 let badge_col = if is_current {
                                     skin.accent_primary
                                 } else {
-                                    Color32::from_rgb(100, 105, 120)
+                                    crate::ui::theme::VortexTheme::current_skin().text_muted
                                 };
                                 ui.label(
                                     egui::RichText::new(time_badge)
@@ -477,7 +477,7 @@ impl LyricsOverlay {
                 Align2::CENTER_CENTER,
                 "❌",
                 FontId::proportional(9.0),
-                if close_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(130, 135, 150) },
+                if close_resp.hovered() { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
             );
             if close_resp.clicked() {
                 self.is_enabled = false;
@@ -493,7 +493,7 @@ impl LyricsOverlay {
                 Align2::CENTER_CENTER,
                 "↕",
                 FontId::proportional(11.0),
-                if exp_resp.hovered() { skin.accent_primary } else { Color32::from_rgb(130, 135, 150) },
+                if exp_resp.hovered() { skin.accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
             );
             if exp_resp.clicked() {
                 self.is_expanded = true;
@@ -508,7 +508,7 @@ impl LyricsOverlay {
                 Align2::CENTER_CENTER,
                 if is_copied { "✓" } else { "📋" },
                 FontId::proportional(9.5),
-                if copy_resp.hovered() || is_copied { skin.accent_primary } else { Color32::from_rgb(130, 135, 150) },
+                if copy_resp.hovered() || is_copied { skin.accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
             );
             if copy_resp.clicked() {
                 let text = lrc.lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");

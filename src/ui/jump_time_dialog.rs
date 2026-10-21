@@ -75,7 +75,7 @@ impl JumpTimeDialog {
                         ui.label(
                             RichText::new("Current Position:")
                                 .size(11.0)
-                                .color(Color32::from_rgb(160, 165, 180)),
+                                .color(crate::ui::theme::VortexTheme::current_skin().text_secondary),
                         );
                         ui.label(
                             RichText::new(format!(
@@ -173,7 +173,7 @@ impl JumpTimeDialog {
                     ui.label(
                         RichText::new("Quick Relative Jump:")
                             .size(10.5)
-                            .color(Color32::from_rgb(160, 165, 180)),
+                            .color(crate::ui::theme::VortexTheme::current_skin().text_secondary),
                     );
                     ui.add_space(2.0);
 
@@ -208,7 +208,7 @@ impl JumpTimeDialog {
                     if !stats.chapters.is_empty() {
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Chapter:").size(10.5).color(Color32::from_rgb(160, 165, 180)));
+                            ui.label(RichText::new("Chapter:").size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                             egui::ComboBox::from_id_salt("jump_dialog_chapters")
                                 .selected_text(
                                     stats
@@ -232,7 +232,7 @@ impl JumpTimeDialog {
 
                     // Footer Dialog Actions
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("Close (Esc)").color(Color32::from_rgb(170, 175, 190))).clicked()
+                        if ui.button(RichText::new("Close (Esc)").color(crate::ui::theme::VortexTheme::current_skin().text_secondary)).clicked()
                             || ui.input(|i| i.key_pressed(egui::Key::Escape))
                         {
                             do_close = true;

@@ -150,7 +150,7 @@ impl DiscNavigationDialog {
                                 let bg = if is_selected {
                                     Color32::from_rgb(35, 55, 75)
                                 } else if title.title_number % 2 == 0 {
-                                    Color32::from_rgb(24, 26, 32)
+                                    crate::ui::theme::VortexTheme::current_skin().bg_panel
                                 } else {
                                     Color32::from_rgb(20, 21, 26)
                                 };

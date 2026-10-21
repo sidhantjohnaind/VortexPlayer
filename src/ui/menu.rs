@@ -203,7 +203,7 @@ fn menu_item(
 
     // 3. Label (Left: 22px)
     let label_col = if is_disabled {
-        Color32::from_rgb(100, 105, 120)
+        crate::ui::theme::VortexTheme::current_skin().text_muted
     } else if is_hovered {
         Color32::WHITE
     } else if is_checked {
@@ -557,7 +557,7 @@ fn audio_track_item(
         Align2::LEFT_CENTER,
         title,
         FontId::proportional(12.0),
-        if is_hovered || is_active { Color32::WHITE } else { Color32::from_rgb(235, 240, 252) },
+        if is_hovered || is_active { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_primary },
     );
 
     // Secondary Text (Technical Specs: FLAC · 2.0 Stereo · 44.1 kHz · 481 kbps)
@@ -566,7 +566,7 @@ fn audio_track_item(
         Align2::LEFT_CENTER,
         metadata_desc,
         FontId::proportional(10.5),
-        if is_active { Color32::from_rgb(160, 200, 255) } else { Color32::from_rgb(130, 135, 150) },
+        if is_active { Color32::from_rgb(160, 200, 255) } else { crate::ui::theme::VortexTheme::current_skin().text_muted },
     );
 
     resp

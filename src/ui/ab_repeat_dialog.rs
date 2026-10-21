@@ -88,7 +88,7 @@ impl AbRepeatDialog {
         self.check_and_seek(player, stats.time_pos);
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🔁 A-B Repeat & Section Looper")
+        egui::Window::new("🔁 A-B Repeat & Section Looper")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

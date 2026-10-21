@@ -71,7 +71,7 @@ impl SubtitleTranslatorDialog {
     pub fn render(&mut self, ctx: &egui::Context, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🌐 Interactive Subtitle Translator & Dictionary")
+        egui::Window::new("🌐 Interactive Subtitle Translator & Dictionary")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

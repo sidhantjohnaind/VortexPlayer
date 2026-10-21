@@ -17,7 +17,7 @@ impl BookmarkOverlay {
             return None;
         }
 
-        let resp = crate::ui::popup_window::PopupWindow::new("Bookmarks & PBF Manager (Ctrl+Shift+B)")
+        let resp = egui::Window::new("Bookmarks & PBF Manager (Ctrl+Shift+B)")
             .open(is_open)
             .resizable(true)
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)

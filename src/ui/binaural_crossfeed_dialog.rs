@@ -84,7 +84,7 @@ impl BinauralCrossfeedDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🎧 Audiophile Headphone Crossfeed & HRTF (MPC-BE Style)")
+        egui::Window::new("🎧 Audiophile Headphone Crossfeed & HRTF (MPC-BE Style)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

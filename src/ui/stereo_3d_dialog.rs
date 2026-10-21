@@ -48,7 +48,7 @@ impl Stereo3dDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🕶️ Stereoscopic 3D & 2D-to-3D Studio (Ctrl+Alt+3)")
+        egui::Window::new("🕶️ Stereoscopic 3D & 2D-to-3D Studio (Ctrl+Alt+3)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

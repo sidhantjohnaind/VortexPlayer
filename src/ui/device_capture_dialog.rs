@@ -29,7 +29,7 @@ impl DeviceCaptureDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📹 Device Capture / Webcam / HDMI (Ctrl+W)")
+        egui::Window::new("📹 Device Capture / Webcam / HDMI (Ctrl+W)")
             .open(&mut open)
             .collapsible(false)
             .resizable(false)

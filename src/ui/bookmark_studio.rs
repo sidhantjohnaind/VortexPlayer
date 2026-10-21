@@ -33,7 +33,7 @@ impl BookmarkStudioDialog {
         }
 
         let mut open_flag = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🔖 Bookmark Studio & Timeline Annotator")
+        egui::Window::new("🔖 Bookmark Studio & Timeline Annotator")
             .open(&mut open_flag)
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
             .default_width(600.0)

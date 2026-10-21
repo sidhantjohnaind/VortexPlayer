@@ -38,7 +38,7 @@ impl BroadcastDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📡 Live RTMP Stream Broadcasting (Ctrl+B)")
+        egui::Window::new("📡 Live RTMP Stream Broadcasting (Ctrl+B)")
             .open(&mut open)
             .collapsible(false)
             .default_size(Vec2::new(420.0, 260.0))

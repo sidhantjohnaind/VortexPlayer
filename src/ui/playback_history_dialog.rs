@@ -142,7 +142,7 @@ impl PlaybackHistoryDialog {
             return None;
         }
         let mut open = self.is_open;
-        let window_resp = crate::ui::popup_window::PopupWindow::new("📜 Playback History & Watch Statistics")
+        let window_resp = egui::Window::new("📜 Playback History & Watch Statistics")
             .id(egui::Id::new("playback_history_window"))
             .open(&mut open)
             .collapsible(false)

@@ -33,7 +33,7 @@ impl ParametricEqDialog {
             return None;
         }
 
-        let resp = crate::ui::popup_window::PopupWindow::new("Parametric Equalizer (PEQ)")
+        let resp = egui::Window::new("Parametric Equalizer (PEQ)")
             .open(is_open)
             .resizable(false)
             .default_width(620.0)
@@ -161,7 +161,7 @@ impl ParametricEqDialog {
         let mut apply_import = false;
         if self.show_import_modal {
             let mut is_open = true;
-            crate::ui::popup_window::PopupWindow::new("Import AutoEQ / Equalizer APO Profile")
+            egui::Window::new("Import AutoEQ / Equalizer APO Profile")
                 .open(&mut is_open)
                 .default_width(420.0)
                 .show(ctx, |ui| {

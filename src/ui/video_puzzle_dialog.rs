@@ -74,7 +74,7 @@ impl VideoPuzzleDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🧩 Interactive Video Puzzle Game (VLC Classic)")
+        egui::Window::new("🧩 Interactive Video Puzzle Game (VLC Classic)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

@@ -37,7 +37,7 @@ impl StreamUrlDialog {
 
         let mut should_close = false;
 
-        let resp = crate::ui::popup_window::PopupWindow::new("Open Network Stream / URL (Ctrl+U)")
+        let resp = egui::Window::new("Open Network Stream / URL (Ctrl+U)")
             .open(is_open)
             .resizable(false)
             .default_width(450.0)

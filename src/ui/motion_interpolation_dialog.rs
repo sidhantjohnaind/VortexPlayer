@@ -82,7 +82,7 @@ impl MotionInterpolationDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🏎️ Motion Interpolation & SmoothMotion")
+        egui::Window::new("🏎️ Motion Interpolation & SmoothMotion")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

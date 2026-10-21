@@ -1,7 +1,7 @@
 use super::theme::VortexTheme;
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, Margin, Rect, RichText, ScrollArea, Stroke,
-    Vec2,
+    Vec2, Window,
 };
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
@@ -167,7 +167,7 @@ impl UpdateDialog {
         let accent = VortexTheme::current_skin().accent_primary;
         let mut do_close = false;
 
-        let resp = crate::ui::popup_window::PopupWindow::new("✨ Check for Updates")
+        let resp = Window::new("✨ Check for Updates")
             .open(is_open)
             .resizable(false)
             .collapsible(false)

@@ -51,7 +51,7 @@ impl ScreenCaptureDialog {
         }
 
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🖥️ Screen & Desktop Live Capture (Ctrl+Shift+S)")
+        egui::Window::new("🖥️ Screen & Desktop Live Capture (Ctrl+Shift+S)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

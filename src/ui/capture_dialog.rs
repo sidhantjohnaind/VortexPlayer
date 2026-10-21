@@ -34,7 +34,7 @@ impl CaptureDialog {
             return None;
         }
 
-        let resp = crate::ui::popup_window::PopupWindow::new("Capture & Recording Studio (Ctrl+S)")
+        let resp = egui::Window::new("Capture & Recording Studio (Ctrl+S)")
             .open(is_open)
             .resizable(false)
             .default_width(520.0)

@@ -34,7 +34,7 @@ impl LibraryView {
 
         let mut file_to_play = None;
 
-        let resp = crate::ui::popup_window::PopupWindow::new("Media Library & Poster Wall (F8)")
+        let resp = egui::Window::new("Media Library & Poster Wall (F8)")
             .open(is_open)
             .default_width(740.0)
             .default_height(520.0)

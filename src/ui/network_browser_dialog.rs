@@ -63,7 +63,7 @@ impl NetworkBrowserDialog {
         }
 
         let mut open_flag = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🌐 Network Media Browser & Cloud Streaming (Ctrl+N)")
+        egui::Window::new("🌐 Network Media Browser & Cloud Streaming (Ctrl+N)")
             .open(&mut open_flag)
             .default_width(560.0)
             .default_height(460.0)

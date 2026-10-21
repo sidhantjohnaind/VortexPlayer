@@ -28,7 +28,7 @@ impl SubtitleExplorerDialog {
         }
 
         let mut open_flag = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("📝 Subtitle Explorer & Timeline Search")
+        egui::Window::new("📝 Subtitle Explorer & Timeline Search")
             .open(&mut open_flag)
             .default_width(550.0)
             .default_height(400.0)

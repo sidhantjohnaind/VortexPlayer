@@ -120,7 +120,7 @@ impl AiSubtitleDialog {
     pub fn render(&mut self, ctx: &egui::Context, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        crate::ui::popup_window::PopupWindow::new("🧠 AI Live Subtitle Transcriber & Translator (Whisper)")
+        egui::Window::new("🧠 AI Live Subtitle Transcriber & Translator (Whisper)")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)

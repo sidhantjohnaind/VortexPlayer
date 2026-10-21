@@ -722,9 +722,10 @@ impl VortexMenu {
 
         let skin = VortexTheme::get_skin(config.theme_mode);
 
-        // Apply Unified Global Menu Aesthetics across all popup and submenus (260px first menu width)
-        ui.set_width(260.0);
-        ui.set_min_width(260.0);
+        // Apply Unified Global Menu Aesthetics across all popup and submenus
+        // (300px first menu width - wide enough for the longest entry label)
+        ui.set_width(300.0);
+        ui.set_min_width(300.0);
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.5);
         ui.spacing_mut().button_padding = Vec2::new(4.0, 1.0);
         ui.spacing_mut().menu_margin = Margin::symmetric(3, 2);
@@ -2531,22 +2532,22 @@ impl VortexMenu {
             ui.close();
         }
 
-        if menu_item(ui, &skin, "📊", "Telemetry HUD (Real-time Drops & Jitter)", "Ctrl+T", false, false).clicked() {
+        if menu_item(ui, &skin, "📊", "Telemetry HUD...", "Ctrl+T", false, false).clicked() {
             actions.toggle_telemetry_hud = true;
             ui.close();
         }
 
-        if menu_item(ui, &skin, "📋", "Playback & Frame Drop Debug Log...", "Ctrl+Shift+D", false, false).clicked() {
+        if menu_item(ui, &skin, "📋", "Frame Drop Debug Log...", "Ctrl+Shift+D", false, false).clicked() {
             actions.toggle_debug_log = true;
             ui.close();
         }
 
-        if menu_item(ui, &skin, "🤓", "Stats for Nerds (Buffer & Frame Graphs)...", "Ctrl+Shift+N", false, false).clicked() {
+        if menu_item(ui, &skin, "🤓", "Stats for Nerds...", "Ctrl+Shift+N", false, false).clicked() {
             actions.toggle_stats_for_nerds = true;
             ui.close();
         }
 
-        if menu_item(ui, &skin, "📄", "File Info (MediaInfo)...", "Ctrl+Shift+F1", false, false).clicked() {
+        if menu_item(ui, &skin, "📄", "Media Info...", "Ctrl+Shift+F1", false, false).clicked() {
             actions.open_file_info = true;
             ui.close();
         }

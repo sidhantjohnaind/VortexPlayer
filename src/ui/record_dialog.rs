@@ -43,6 +43,7 @@ impl StreamRecordDialog {
             .collapsible(false)
             .resizable(false)
             .default_size(Vec2::new(380.0, 180.0))
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.add_space(4.0);

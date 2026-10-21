@@ -143,6 +143,8 @@ impl CinemaMatteDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(600.0, 420.0))
+    .min_size([360.0, 252.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Cinema Scope Matte Masking & Curtains").strong().size(15.0).color(Color32::from_rgb(255, 200, 120)));

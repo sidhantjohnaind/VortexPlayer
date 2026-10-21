@@ -62,6 +62,8 @@ impl MediaTagEditorDialog {
             .resizable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .default_size(Vec2::new(560.0, 440.0))
+    .min_size([336.0, 264.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.label(RichText::new("ID3v2 / Vorbis / MKV Tag Editor").strong().size(15.0).color(Color32::from_rgb(200, 160, 255)));
                 ui.separator();

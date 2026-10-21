@@ -72,6 +72,8 @@ impl VideoCropDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(560.0, 380.0))
+    .min_size([336.0, 228.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {

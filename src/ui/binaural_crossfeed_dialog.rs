@@ -89,6 +89,8 @@ impl BinauralCrossfeedDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(680.0, 480.0))
+    .min_size([408.0, 288.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

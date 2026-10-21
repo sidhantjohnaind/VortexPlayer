@@ -85,6 +85,8 @@ impl CdRipperDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(720.0, 520.0))
+    .min_size([432.0, 312.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

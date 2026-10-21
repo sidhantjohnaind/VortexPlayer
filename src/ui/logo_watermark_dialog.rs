@@ -57,6 +57,8 @@ impl LogoWatermarkDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(460.0, 420.0))
+    .min_size([276.0, 252.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(

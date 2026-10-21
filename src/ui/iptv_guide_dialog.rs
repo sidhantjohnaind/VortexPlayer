@@ -145,6 +145,8 @@ impl IptvGuideDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(820.0, 540.0))
+    .min_size([492.0, 324.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

@@ -116,6 +116,8 @@ impl SubtitleStudioDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(760.0, 520.0))
+    .min_size([456.0, 312.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

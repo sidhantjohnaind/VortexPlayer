@@ -142,6 +142,7 @@ impl StatsForNerdsDialog {
             .resizable(true)
             .collapsible(true)
             .default_size([460.0, 560.0])
+    .vscroll(true)
             .min_size([400.0, 420.0])
             .default_pos([24.0, 48.0])
             .frame(

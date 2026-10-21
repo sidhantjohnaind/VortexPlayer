@@ -56,6 +56,8 @@ impl ScreenCaptureDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(450.0, 380.0))
+    .min_size([270.0, 228.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(

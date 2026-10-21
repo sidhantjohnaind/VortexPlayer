@@ -44,6 +44,8 @@ impl KaraokeStudioDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(440.0, 420.0))
+    .min_size([264.0, 252.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(

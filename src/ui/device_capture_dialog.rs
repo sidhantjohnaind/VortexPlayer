@@ -34,6 +34,7 @@ impl DeviceCaptureDialog {
             .collapsible(false)
             .resizable(false)
             .default_size(Vec2::new(380.0, 200.0))
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("DirectShow HDMI Capture & Webcam Stream").strong().color(Color32::from_rgb(180, 140, 255)));

@@ -45,6 +45,7 @@ impl GifMakerDialog {
             .collapsible(false)
             .resizable(false)
             .default_size(Vec2::new(420.0, 320.0))
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Export Animated GIF, WebP, or Lossless Video Cut").strong().color(Color32::from_rgb(180, 140, 255)));

@@ -93,6 +93,8 @@ impl AbRepeatDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(560.0, 360.0))
+    .min_size([336.0, 216.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("A-B Repeat Interval Looper").strong().size(15.0).color(Color32::from_rgb(140, 220, 180)));

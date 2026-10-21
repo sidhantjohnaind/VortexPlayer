@@ -86,6 +86,8 @@ impl DeinterlaceDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(560.0, 400.0))
+    .min_size([336.0, 240.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 let mut changed = false;
                 ui.label(RichText::new("Deinterlace, Deband & Denoise Controls").strong().size(15.0).color(Color32::from_rgb(180, 200, 140)));

@@ -84,6 +84,8 @@ impl Vr360StudioDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(700.0, 520.0))
+    .min_size([420.0, 312.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

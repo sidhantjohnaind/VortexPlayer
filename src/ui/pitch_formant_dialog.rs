@@ -83,6 +83,8 @@ impl PitchFormantDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(600.0, 420.0))
+    .min_size([360.0, 252.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {

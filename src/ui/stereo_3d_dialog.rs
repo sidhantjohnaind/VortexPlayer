@@ -53,6 +53,8 @@ impl Stereo3dDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(420.0, 360.0))
+    .min_size([252.0, 216.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(

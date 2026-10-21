@@ -65,6 +65,8 @@ impl DiscordRpcDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(680.0, 460.0))
+    .min_size([408.0, 276.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

@@ -149,6 +149,8 @@ impl PlaybackHistoryDialog {
             .resizable(true)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .default_size(Vec2::new(750.0, 460.0))
+    .min_size([450.0, 276.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(

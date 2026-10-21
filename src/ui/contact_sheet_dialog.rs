@@ -42,6 +42,7 @@ impl ContactSheetDialog {
             .collapsible(false)
             .resizable(false)
             .default_size(Vec2::new(380.0, 260.0))
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Export Video Storyboard Grid").strong().color(Color32::from_rgb(180, 140, 255)));

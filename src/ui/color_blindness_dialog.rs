@@ -82,6 +82,8 @@ impl ColorBlindnessDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(620.0, 440.0))
+    .min_size([372.0, 264.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {

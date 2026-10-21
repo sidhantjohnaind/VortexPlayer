@@ -76,6 +76,8 @@ impl SubtitleTranslatorDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(650.0, 440.0))
+    .min_size([390.0, 264.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Language Learning & Subtitle Translation Studio").strong().size(15.0).color(Color32::from_rgb(120, 200, 255)));

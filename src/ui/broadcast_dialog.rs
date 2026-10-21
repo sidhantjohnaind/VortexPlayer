@@ -42,6 +42,7 @@ impl BroadcastDialog {
             .open(&mut open)
             .collapsible(false)
             .default_size(Vec2::new(420.0, 260.0))
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Broadcast Video to Twitch / YouTube Live / RTMP").strong().color(Color32::from_rgb(180, 140, 255)));

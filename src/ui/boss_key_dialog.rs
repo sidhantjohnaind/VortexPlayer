@@ -81,6 +81,8 @@ impl BossKeyDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(520.0, 340.0))
+    .min_size([312.0, 204.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Boss Key Privacy & Panic Concealer").strong().size(15.0).color(Color32::from_rgb(255, 120, 120)));

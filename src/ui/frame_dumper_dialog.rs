@@ -67,6 +67,8 @@ impl FrameDumperDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(620.0, 440.0))
+    .min_size([372.0, 264.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Sequential Frame Dumper & Burst Image Extractor").strong().size(15.0).color(Color32::from_rgb(255, 200, 100)));

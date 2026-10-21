@@ -125,6 +125,8 @@ impl AiSubtitleDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(680.0, 480.0))
+    .min_size([408.0, 288.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("AI Speech-to-Text & Real-Time Subtitle Translation").strong().size(15.0).color(Color32::from_rgb(140, 200, 255)));

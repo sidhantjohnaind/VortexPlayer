@@ -42,6 +42,7 @@ impl GotoFrameDialog {
             .collapsible(false)
             .resizable(false)
             .default_size(Vec2::new(400.0, 200.0))
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.label(RichText::new("Jump to Exact Video Frame Number").strong().size(15.0).color(Color32::from_rgb(200, 220, 140)));
                 ui.separator();

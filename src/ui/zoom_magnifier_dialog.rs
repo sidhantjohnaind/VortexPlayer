@@ -59,6 +59,8 @@ impl ZoomMagnifierDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(640.0, 440.0))
+    .min_size([384.0, 264.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

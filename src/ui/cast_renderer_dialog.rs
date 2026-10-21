@@ -101,6 +101,8 @@ impl CastRendererDialog {
             .collapsible(false)
             .resizable(true)
             .default_size(Vec2::new(740.0, 500.0))
+    .min_size([444.0, 300.0])
+    .vscroll(true)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     // Header Bar

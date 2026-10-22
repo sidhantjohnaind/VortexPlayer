@@ -52,6 +52,14 @@ fn safe_truncate(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// Truncate in the middle instead of at the end.
+///
+/// Episode files usually differ only in their tail ("... - 07.mkv"), so
+/// cutting the end off made every row look like the same file.
+fn safe_truncate_middle(s: &str, max_chars: usize) -> String {
+    crate::ui::safe_truncate_middle(s, max_chars)
+}
+
 fn format_duration_vortex(secs: f64) -> String {
     if secs <= 0.0 {
         return "--:--".to_string();
@@ -513,7 +521,7 @@ impl PlaylistPanel {
                                 };
 
                                 let title_w = rect.width() - 80.0;
-                                let truncated = safe_truncate(&display_title, (title_w / 5.2).max(18.0) as usize);
+                                let truncated = safe_truncate_middle(&display_title, (title_w / 5.2).max(18.0) as usize);
                                 painter.text(
                                     Pos2::new(rect.left() + 30.0, rect.center().y),
                                     Align2::LEFT_CENTER,

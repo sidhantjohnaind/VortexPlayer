@@ -30,6 +30,12 @@ use crate::engine::parametric_eq::ParametricEqConfig;
 use crate::engine::surround_eq::SurroundEqConfig;
 use crate::engine::shaders::ShaderConfig;
 
+/// Revision counter of the config file.
+///
+/// Every save bumps it, so a snapshot that is still waiting in a background
+/// thread can tell that it has been overtaken and must not be written.
+static SAVE_REV: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeMode {
     #[serde(alias = "VortexClassic")]
@@ -186,9 +192,15 @@ impl ToastPosition {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+// Missing fields must not break an older config file: they fall back to the
+// default instead of making the whole document unparsable.
+#[serde(default)]
 pub struct PerFileConfig {
     pub audio_track_id: Option<i64>,
     pub subtitle_track_id: Option<i64>,
+    /// `Some(true)` when the user switched the subtitles off for this file.
+    /// Without it mpv would pick a subtitle track again on the next open.
+    pub subtitles_disabled: Option<bool>,
     pub audio_delay: Option<f64>,
     pub subtitle_delay: Option<f64>,
     pub aspect_ratio: Option<String>,
@@ -481,6 +493,41 @@ pub struct AppConfig {
 /// actually findable again when the file is reopened.
 fn per_file_key(path: &str) -> String {
     crate::engine::player::canonical_media_key(path)
+}
+
+/// Is this path a plausible media file?
+///
+/// A local media file always carries an extension. A path without one is the
+/// leftover of a path that was truncated when it was stored (an older build
+/// added the file to the recent list *before* it had loaded successfully, so
+/// a path that got cut short ended up in the list forever).
+pub fn looks_like_media_path(path: &str) -> bool {
+    if path.contains("://") {
+        // A stream URL - no file name involved.
+        return true;
+    }
+    std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| !e.is_empty())
+        .unwrap_or(false)
+}
+
+/// Remove unusable entries from a list of recently played paths and merge the
+/// ones that only differ in their path spelling.
+pub fn clean_recent_paths(paths: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(paths.len());
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for p in paths {
+        if !looks_like_media_path(&p) {
+            continue;
+        }
+        let key = crate::engine::player::canonical_media_key(&p);
+        if seen.insert(key) {
+            out.push(p);
+        }
+    }
+    out
 }
 
 /// All spellings under which a media file may be stored in the per-file map.
@@ -796,6 +843,9 @@ impl AppConfig {
             }
             cfg.resume_timestamps = migrated;
         }
+        // Drop leftovers of truncated paths and merge the entries that only
+        // differ in their path spelling - the same file must not show up twice.
+        cfg.recent_files = clean_recent_paths(std::mem::take(&mut cfg.recent_files));
         // Upgrade legacy 0.0 default color values to 100.0% Vortex neutral baseline
         if cfg.video_brightness == 0.0 && cfg.video_contrast == 0.0 && cfg.video_saturation == 0.0 {
             cfg.video_brightness = 100.0;
@@ -824,10 +874,55 @@ impl AppConfig {
         Some(cfg)
     }
 
+    /// Take a snapshot of the config together with a revision number.
+    ///
+    /// Background threads must not write a plain snapshot: by the time the
+    /// write happens the UI thread may already have saved something newer,
+    /// and the stale snapshot would silently undo it. Use
+    /// [`AppConfig::save_snapshot`] with the returned revision so the write
+    /// is skipped in that case.
+    pub fn snapshot(&self) -> (Self, u64) {
+        let rev = SAVE_REV.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        (self.clone(), rev)
+    }
+
+    /// Write a snapshot taken with [`AppConfig::snapshot`].
+    ///
+    /// Does nothing when a newer revision has been saved in the meantime -
+    /// that newer save is the one that should end up on disk.
+    pub fn save_snapshot(&self, rev: u64) -> Result<(), String> {
+        if SAVE_REV.load(std::sync::atomic::Ordering::SeqCst) != rev {
+            return Ok(());
+        }
+        self.save()
+    }
+
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path();
         let json = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
-        fs::write(&path, json).map_err(|e| e.to_string())?;
+
+        // Every save bumps the revision, so an older snapshot that is still
+        // waiting in a background thread knows that it is out of date.
+        SAVE_REV.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+        // The config is written from the UI thread *and* from background
+        // threads. Two concurrent `fs::write` calls on the same file can
+        // interleave and leave a truncated document behind, which would fail
+        // to parse on the next start and silently reset every setting.
+        static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = SAVE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Write to a temporary file and rename it into place: a crash or a
+        // concurrent reader can then never observe a half-written config.
+        let tmp = path.with_extension("json.tmp");
+        if let Err(e) = fs::write(&tmp, json) {
+            let _ = fs::remove_file(&tmp);
+            return Err(e.to_string());
+        }
+        if let Err(e) = fs::rename(&tmp, &path) {
+            let _ = fs::remove_file(&tmp);
+            return Err(e.to_string());
+        }
         Ok(())
     }
 

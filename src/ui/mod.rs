@@ -3,6 +3,34 @@
 pub mod native_window;
 pub use native_window::show_native_window;
 
+/// Truncate a name in the middle instead of at the end.
+///
+/// Episode files usually differ only in their tail ("... - 07.mkv"), so
+/// cutting the end off made every row look like the same file.
+pub fn safe_truncate_middle(s: &str, max_chars: usize) -> String {
+    let count = s.chars().count();
+    if count <= max_chars {
+        return s.to_string();
+    }
+    if max_chars <= 4 {
+        return s.chars().take(max_chars).collect();
+    }
+    let budget = max_chars - 3;
+    let tail_len = (budget + 1) / 2;
+    let head_len = budget - tail_len;
+
+    let chars: Vec<char> = s.chars().collect();
+    let mut head: String = chars[..head_len].iter().collect();
+    // Prefer to break at a word boundary so the head does not end mid-word.
+    if let Some(sp) = head.rfind(' ') {
+        if sp > head_len / 2 {
+            head.truncate(sp);
+        }
+    }
+    let tail: String = chars[count - tail_len..].iter().collect();
+    format!("{}...{}", head, tail)
+}
+
 pub mod music_view;
 pub use music_view::MusicBackgroundView;
 pub mod audio_meter;

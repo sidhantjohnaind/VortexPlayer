@@ -2193,8 +2193,18 @@ impl Player {
             None
         };
 
+        // `sid` is a string property when it is "auto" or "no" (subtitles
+        // disabled) and a number when a specific track is selected. Reading it
+        // as an integer therefore fails exactly in the "subtitles off" case
+        // and used to be reported as track 1 - which made the app remember
+        // (and later re-enable) a subtitle track the user had switched off.
+        let sid_value = match get_str("sid").as_deref() {
+            Some("no") | Some("off") | Some("none") => 0,
+            Some(s) => s.parse::<i64>().unwrap_or(1),
+            None => get_int("sid").unwrap_or(1),
+        };
         stats.selected_audio_track = get_int("aid").unwrap_or(1);
-        stats.selected_subtitle_track = get_int("sid").unwrap_or(1);
+        stats.selected_subtitle_track = sid_value;
 
         let mut audio_tracks = Vec::new();
         let mut subtitle_tracks = Vec::new();
@@ -2804,7 +2814,11 @@ impl Player {
                 };
                 // Fast in-memory track selection update (zero FFI overhead)
                 let aid = get_int("aid").unwrap_or(1);
-                let sid = get_int("sid").unwrap_or(1);
+                let sid = match get_str("sid").as_deref() {
+                    Some("no") | Some("off") | Some("none") => 0,
+                    Some(s) => s.parse::<i64>().unwrap_or(1),
+                    None => get_int("sid").unwrap_or(1),
+                };
                 let sec_sid = get_int("secondary-sid").unwrap_or(0);
                 if stats.selected_audio_track != aid {
                     stats.selected_audio_track = aid;

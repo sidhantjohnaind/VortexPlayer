@@ -196,6 +196,9 @@ pub struct VortexApp {
     pending_history_record: Option<(String, f64)>,
     pending_audio_track: Option<(String, i64)>,
     pending_subtitle_track: Option<(String, i64)>,
+    /// File whose subtitles were switched off - mpv would otherwise pick a
+    /// subtitle track again when the file is loaded.
+    pending_subtitle_off: Option<String>,
     last_mouse_activity: std::time::Instant,
     last_maximize_time: std::time::Instant,
     last_fullscreen_change: std::time::Instant,
@@ -554,6 +557,7 @@ impl VortexApp {
             pending_history_record: None,
             pending_audio_track: None,
             pending_subtitle_track: None,
+            pending_subtitle_off: None,
             last_video_rect: Rect::ZERO,
             video_surface: Arc::new(Mutex::new(crate::engine::VideoSurface::new())),
             active_popup_rects: Vec::new(),
@@ -743,6 +747,7 @@ impl VortexApp {
                 let pfc = crate::config::PerFileConfig {
                     audio_track_id: if stats.selected_audio_track > 0 { Some(stats.selected_audio_track) } else { None },
                     subtitle_track_id: if stats.selected_subtitle_track > 0 { Some(stats.selected_subtitle_track) } else { None },
+                    subtitles_disabled: Some(stats.selected_subtitle_track == 0),
                     audio_delay: Some(stats.audio_delay),
                     subtitle_delay: Some(stats.subtitle_delay),
                     aspect_ratio: Some(stats.aspect_ratio.clone()),
@@ -751,9 +756,9 @@ impl VortexApp {
                 self.config.save_per_file(&stats.file_path, pfc);
             }
         }
-        let config_clone = self.config.clone();
+        let (config_clone, config_rev) = self.config.snapshot();
         std::thread::spawn(move || {
-            let _ = config_clone.save();
+            let _ = config_clone.save_snapshot(config_rev);
         });
     }
 
@@ -784,10 +789,11 @@ impl VortexApp {
             let mut pfc = self.config.get_per_file(&path).cloned().unwrap_or_default();
             pfc.audio_track_id = if stats.selected_audio_track > 0 { Some(stats.selected_audio_track) } else { None };
             pfc.subtitle_track_id = if stats.selected_subtitle_track > 0 { Some(stats.selected_subtitle_track) } else { None };
+            pfc.subtitles_disabled = Some(stats.selected_subtitle_track == 0);
             self.config.save_per_file(&path, pfc);
-            let cfg = self.config.clone();
+            let (cfg, cfg_rev) = self.config.snapshot();
             std::thread::spawn(move || {
-                let _ = cfg.save();
+                let _ = cfg.save_snapshot(cfg_rev);
             });
         }
     }
@@ -866,9 +872,17 @@ impl VortexApp {
             if let Some(ref p) = pfc {
                 self.pending_audio_track = p.audio_track_id.map(|id| (path_str.clone(), id));
                 self.pending_subtitle_track = p.subtitle_track_id.map(|id| (path_str.clone(), id));
+                // The subtitles were switched off for this file: re-apply that
+                // instead of letting mpv pick a track again.
+                self.pending_subtitle_off = if p.subtitles_disabled == Some(true) {
+                    Some(path_str.clone())
+                } else {
+                    None
+                };
             } else {
                 self.pending_audio_track = None;
                 self.pending_subtitle_track = None;
+                self.pending_subtitle_off = None;
             }
 
             if let Ok(mut surface) = self.video_surface.lock() {
@@ -931,9 +945,9 @@ impl VortexApp {
                 }
             });
 
-            let cfg_save = self.config.clone();
+            let (cfg_save, cfg_save_rev) = self.config.snapshot();
             std::thread::spawn(move || {
-                let _ = cfg_save.save();
+                let _ = cfg_save.save_snapshot(cfg_save_rev);
             });
 
             if self.config.auto_load_next_episode && self.playlist.lock().unwrap().len() <= 1 {
@@ -2984,9 +2998,9 @@ impl VortexApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(log_w, log_h)));
                 self.config.window_width = log_w;
                 self.config.window_height = log_h;
-                let config_clone = self.config.clone();
+                let (config_clone, config_rev) = self.config.snapshot();
                 std::thread::spawn(move || {
-                    let _ = config_clone.save();
+                    let _ = config_clone.save_snapshot(config_rev);
                 });
                 self.osd.show(format!("Window Snapped to Aspect Ratio ({:.2}:1)", target_ar), 1500);
             }
@@ -5006,12 +5020,7 @@ impl eframe::App for VortexApp {
                                                     // 2. Text Information (Wide space with title and path)
                                                     ui.allocate_ui_with_layout(Vec2::new(text_w, 32.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                                         let max_chars = (text_w / 7.0) as usize;
-                                                        let short_name = if file_name.chars().count() > max_chars {
-                                                            let s: String = file_name.chars().take(max_chars.saturating_sub(3)).collect();
-                                                            format!("{}...", s)
-                                                        } else {
-                                                            file_name.clone()
-                                                        };
+                                                        let short_name = crate::ui::safe_truncate_middle(&file_name, max_chars);
                                                         ui.label(RichText::new(short_name).strong().size(13.0).color(Color32::from_rgb(235, 238, 248)));
 
                                                         if !dir_str.is_empty() {
@@ -5080,12 +5089,7 @@ impl eframe::App for VortexApp {
 
                                                     ui.allocate_ui_with_layout(Vec2::new(text_w, 32.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                                         let max_chars = (text_w / 7.0) as usize;
-                                                        let short_name = if file_name.chars().count() > max_chars {
-                                                            let s: String = file_name.chars().take(max_chars.saturating_sub(3)).collect();
-                                                            format!("{}...", s)
-                                                        } else {
-                                                            file_name.clone()
-                                                        };
+                                                        let short_name = crate::ui::safe_truncate_middle(&file_name, max_chars);
                                                         ui.label(RichText::new(short_name).strong().size(13.0).color(Color32::from_rgb(235, 238, 248)));
 
                                                         if !dir_str.is_empty() {
@@ -7357,6 +7361,15 @@ impl eframe::App for VortexApp {
                         player.set_subtitle_track(sid);
                     }
                     self.pending_subtitle_track = None;
+                }
+            }
+            // Subtitles that were switched off for this file stay off.
+            if let Some(ref target_path) = self.pending_subtitle_off.clone() {
+                if crate::engine::player::canonical_media_key(&stats.file_path) == crate::engine::player::canonical_media_key(target_path) && !stats.subtitle_tracks.is_empty() {
+                    if stats.selected_subtitle_track != 0 {
+                        player.set_property_string("sid", "no");
+                    }
+                    self.pending_subtitle_off = None;
                 }
             }
         }

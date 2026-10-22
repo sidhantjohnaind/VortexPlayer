@@ -47,7 +47,7 @@ impl PlaybackHistoryDialog {
 
     pub fn load() -> Self {
         let path = Self::history_path();
-        let entries: Vec<HistoryEntry> = if path.exists() {
+        let mut entries: Vec<HistoryEntry> = if path.exists() {
             if let Ok(file) = std::fs::File::open(&path) {
                 serde_json::from_reader(file).unwrap_or_default()
             } else {
@@ -56,6 +56,24 @@ impl PlaybackHistoryDialog {
         } else {
             Vec::new()
         };
+
+        // Drop leftovers of truncated paths and merge the entries that only
+        // differ in their path spelling - the same file must not show up
+        // twice in the history.
+        {
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            entries.retain_mut(|e| {
+                if !crate::config::looks_like_media_path(&e.file_path) {
+                    return false;
+                }
+                let key = crate::engine::player::canonical_media_key(&e.file_path);
+                if seen.insert(key) {
+                    true
+                } else {
+                    false
+                }
+            });
+        }
 
         let count = entries.len();
         Self {

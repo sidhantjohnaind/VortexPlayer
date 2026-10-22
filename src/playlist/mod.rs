@@ -96,7 +96,15 @@ impl Playlist {
     }
 
     pub fn add_item(&mut self, path: PathBuf) -> usize {
-        if let Some(existing_idx) = self.items.iter().position(|it| it.path == path) {
+        // The same file can reach the playlist under two spellings (with and
+        // without the `\\?\` extended-length prefix), so compare canonically -
+        // otherwise the file shows up twice in the playlist.
+        let key = crate::engine::player::canonical_media_key(&path.to_string_lossy());
+        if let Some(existing_idx) = self
+            .items
+            .iter()
+            .position(|it| crate::engine::player::canonical_media_key(&it.path.to_string_lossy()) == key)
+        {
             return existing_idx;
         }
         let item = PlaylistItem::from_path(path);
@@ -106,9 +114,14 @@ impl Playlist {
     }
 
     pub fn add_items(&mut self, paths: Vec<PathBuf>) {
-        let mut existing: std::collections::HashSet<PathBuf> = self.items.iter().map(|it| it.path.clone()).collect();
+        let mut existing: std::collections::HashSet<String> = self
+            .items
+            .iter()
+            .map(|it| crate::engine::player::canonical_media_key(&it.path.to_string_lossy()))
+            .collect();
         for path in paths {
-            if existing.insert(path.clone()) {
+            let key = crate::engine::player::canonical_media_key(&path.to_string_lossy());
+            if existing.insert(key) {
                 self.items.push(PlaylistItem::from_path(path));
             }
         }
@@ -118,9 +131,22 @@ impl Playlist {
     pub fn remove_duplicates(&mut self) {
         let mut seen = std::collections::HashSet::new();
         let current_path = self.current_item().map(|it| it.path.clone());
-        self.items.retain(|it| seen.insert(it.path.clone()));
+        self.items.retain(|it| {
+            seen.insert(crate::engine::player::canonical_media_key(
+                &it.path.to_string_lossy(),
+            ))
+        });
         if let Some(path) = current_path {
-            self.current_index = self.items.iter().position(|it| it.path == path);
+            self.current_index = self
+                .items
+                .iter()
+                .position(|it| it.path == path)
+                .or_else(|| {
+                    let key = crate::engine::player::canonical_media_key(&path.to_string_lossy());
+                    self.items.iter().position(|it| {
+                        crate::engine::player::canonical_media_key(&it.path.to_string_lossy()) == key
+                    })
+                });
         }
         self.rebuild_shuffle();
     }

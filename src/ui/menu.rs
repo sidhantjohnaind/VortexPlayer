@@ -1699,7 +1699,7 @@ impl VortexMenu {
                     ui.close();
                 }
                 let is_autofit = config.auto_fit_window_to_video;
-                if menu_item(ui, &skin, if is_autofit { "✓" } else { " " }, "Auto-Fit Window on Video Open", "", is_autofit, false).clicked() {
+                if menu_item(ui, &skin, if is_autofit { "✓" } else { " " }, "Auto-Fit Window on Video Open", "Resize to video on play", is_autofit, false).clicked() {
                     config.auto_fit_window_to_video = !config.auto_fit_window_to_video;
                     let _ = config.save();
                     ui.close();
@@ -1707,13 +1707,8 @@ impl VortexMenu {
                 let is_autocrop = config.auto_crop_fill_black_bars;
                 if menu_item(ui, &skin, if is_autocrop { "✓" } else { " " }, "Auto-Crop Black Bars in Fullscreen/Maximized", "Shift+C", is_autocrop, false).clicked() {
                     config.auto_crop_fill_black_bars = !config.auto_crop_fill_black_bars;
-                    if let Some(p) = player {
-                        if config.auto_crop_fill_black_bars {
-                            p.set_property_double("panscan", 1.0);
-                        } else if config.aspect_ratio != "crop_fill" {
-                            p.set_property_double("panscan", 0.0);
-                        }
-                    }
+                    // The actual panscan value is owned by the app's crop
+                    // policy, which only crops in fullscreen/maximized.
                     let _ = config.save();
                     ui.close();
                 }

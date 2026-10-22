@@ -404,6 +404,29 @@ pub fn normalize_media_path_buf(path: PathBuf) -> PathBuf {
     }
 }
 
+/// Canonical key that identifies a media file regardless of how its path is
+/// spelled.
+///
+/// The app hands long Windows paths to libmpv in the extended-length
+/// `\\?\` form, but mpv reports the very same file back without it. Keys
+/// built from one spelling therefore never match keys built from the other,
+/// which is why per-file state (the selected audio/subtitle track, the
+/// resume position) used to be lost between runs. Stripping the prefix and
+/// normalising the separators makes both spellings resolve to one entry.
+pub fn canonical_media_key(path: &str) -> String {
+    // Normalize separators FIRST so that forward-slash spellings of the
+    // extended-length prefix (e.g. `//?/Z:/foo`) collapse too.
+    let normalized = path.trim().replace('/', "\\");
+    let stripped = if let Some(rest) = normalized.strip_prefix("\\\\?\\UNC\\") {
+        format!("\\\\{}", rest)
+    } else if let Some(rest) = normalized.strip_prefix("\\\\?\\") {
+        rest.to_string()
+    } else {
+        normalized
+    };
+    stripped
+}
+
 pub struct Player {
     ffi: MpvFfi,
     ctx: *mut c_void,

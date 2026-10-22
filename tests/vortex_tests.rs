@@ -606,3 +606,84 @@ fn test_taskbar_button_icons_valid() {
         handle.join().unwrap();
     }
 
+
+// ---------------------------------------------------------------------------
+// Per-file settings / canonical media keys
+// ---------------------------------------------------------------------------
+
+const PREFIXED_PATH: &str = "\\\\?\\Z:\\media\\movie.mkv";
+const PLAIN_PATH: &str = "Z:\\media\\movie.mkv";
+
+#[test]
+fn test_canonical_media_key_strips_extended_prefix() {
+    use vortex_player::engine::player::canonical_media_key;
+    assert_eq!(canonical_media_key(PREFIXED_PATH), PLAIN_PATH);
+    assert_eq!(canonical_media_key(PLAIN_PATH), PLAIN_PATH);
+    // Forward-slash spellings of the extended prefix collapse as well.
+    assert_eq!(canonical_media_key("//?/Z:/media/movie.mkv"), PLAIN_PATH);
+    // UNC paths keep their server/share form.
+    assert_eq!(
+        canonical_media_key("\\\\?\\UNC\\server\\share\\movie.mkv"),
+        "\\\\server\\share\\movie.mkv"
+    );
+}
+
+#[test]
+fn test_per_file_settings_round_trip_across_path_spellings() {
+    let mut cfg = AppConfig::default();
+    let pfc = vortex_player::config::PerFileConfig {
+        audio_track_id: Some(3),
+        subtitle_track_id: Some(2),
+        ..Default::default()
+    };
+
+    // Saved with the extended-length spelling (what the app hands to libmpv).
+    cfg.save_per_file(PREFIXED_PATH, pfc.clone());
+    // ... and looked up with the spelling mpv reports back.
+    let found = cfg.get_per_file(PLAIN_PATH).expect("entry must be found");
+    assert_eq!(found.audio_track_id, Some(3));
+    assert_eq!(found.subtitle_track_id, Some(2));
+    // The map must not grow a second entry for the same file.
+    assert_eq!(cfg.per_file_settings.len(), 1);
+    assert!(cfg.per_file_settings.contains_key(PLAIN_PATH));
+
+    // The other way round: saved without the prefix, looked up with it.
+    let mut cfg2 = AppConfig::default();
+    cfg2.save_per_file(PLAIN_PATH, pfc.clone());
+    let found2 = cfg2.get_per_file(PREFIXED_PATH).expect("entry must be found");
+    assert_eq!(found2.audio_track_id, Some(3));
+    assert_eq!(cfg2.per_file_settings.len(), 1);
+}
+
+#[test]
+fn test_config_from_json_str_keeps_per_file_and_resume_maps() {
+    let json = r#"{
+        "per_file_settings": {
+            "\\\\?\\Z:\\media\\movie.mkv": { "audio_track_id": 3, "subtitle_track_id": 2 }
+        },
+        "resume_timestamps": {
+            "//?/Z:/media/movie.mkv": 45.5
+        }
+    }"#;
+    let cfg = AppConfig::from_json_str(json).expect("config must parse");
+    assert_eq!(cfg.per_file_settings.len(), 1);
+    assert!(cfg.per_file_settings.contains_key(PLAIN_PATH));
+    let pfc = &cfg.per_file_settings[PLAIN_PATH];
+    assert_eq!(pfc.audio_track_id, Some(3));
+    assert_eq!(pfc.subtitle_track_id, Some(2));
+    // Resume positions survive the migration as well.
+    assert_eq!(cfg.resume_timestamps.len(), 1);
+    assert_eq!(cfg.resume_timestamps.get(PLAIN_PATH), Some(&45.5));
+}
+
+#[test]
+fn test_config_from_json_str_tolerates_utf8_bom() {
+    let json = "{\n  \"per_file_settings\": { \"Z:\\\\media\\\\movie.mkv\": { \"audio_track_id\": 7 } }\n}";
+    let with_bom = format!("\u{feff}{json}");
+    let cfg = AppConfig::from_json_str(&with_bom).expect("a BOM must not break the config");
+    assert_eq!(cfg.per_file_settings.len(), 1);
+    assert_eq!(
+        cfg.per_file_settings[PLAIN_PATH].audio_track_id,
+        Some(7)
+    );
+}

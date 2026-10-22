@@ -134,13 +134,28 @@ fn main() {
             let work_w = (mi.rcWork.right - mi.rcWork.left).max(400) as f32;
             let work_h = (mi.rcWork.bottom - mi.rcWork.top).max(300) as f32;
 
-            let target_scale = 0.75;
-            let mut win_w = (work_w * target_scale).round();
-            let mut win_h = (win_w / mon_ar).round();
-            if win_h > work_h * target_scale {
-                win_h = (work_h * target_scale).round();
-                win_w = (win_h * mon_ar).round();
-            }
+            let (target_scale, use_saved) = if config.remember_window_size
+                && config.window_width > 100.0
+                && config.window_height > 100.0
+            {
+                (1.0, true)
+            } else {
+                (0.75, false)
+            };
+
+            let (win_w, win_h) = if use_saved {
+                let w = config.window_width.clamp(400.0, work_w);
+                let h = config.window_height.clamp(300.0, work_h);
+                (w, h)
+            } else {
+                let mut w = (work_w * target_scale).round();
+                let mut h = (w / mon_ar).round();
+                if h > work_h * target_scale {
+                    h = (work_h * target_scale).round();
+                    w = (h * mon_ar).round();
+                }
+                (w, h)
+            };
             let left = mi.rcWork.left as f32 + ((work_w - win_w) / 2.0).round();
             let top = mi.rcWork.top as f32 + ((work_h - win_h) / 2.0).round();
             ([left, top], [win_w, win_h])

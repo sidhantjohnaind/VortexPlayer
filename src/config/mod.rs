@@ -267,6 +267,9 @@ pub struct AppConfig {
     pub video_align_y: String,
     #[serde(default = "default_false")]
     pub lock_aspect_ratio: bool,
+    /// When true the window is resized to the video's aspect ratio as soon as a
+    /// file is opened. The picture is still letterboxed inside the window, so
+    /// the video is never cropped to fill it.
     #[serde(default = "default_true")]
     pub auto_fit_window_to_video: bool,
     #[serde(default = "default_false")]
@@ -466,6 +469,30 @@ pub struct AppConfig {
     pub auto_hide_controls_windowed: bool,
     #[serde(default = "default_ui_scale")]
     pub ui_scale_override: f32,
+}
+
+
+/// Canonical key for per-file settings.
+///
+/// The same file can be reached through different path spellings: the app
+/// normalises long Windows paths to the `\\?\` extended form, while mpv
+/// reports the path back in its original form. Keying the per-file map on a
+/// normalised spelling makes the saved audio/subtitle track selection
+/// actually findable again when the file is reopened.
+fn per_file_key(path: &str) -> String {
+    crate::engine::player::canonical_media_key(path)
+}
+
+/// All spellings under which a media file may be stored in the per-file map.
+fn per_file_key_variants(path: &str) -> Vec<String> {
+    let canon = per_file_key(path);
+    let mut out = Vec::with_capacity(3);
+    out.push(canon.clone());
+    let raw = path.to_string();
+    if !out.contains(&raw) { out.push(raw.clone()); }
+    let prefixed = if raw.starts_with("\\\\?\\") { raw.clone() } else { format!("\\\\?\\{}", raw) };
+    if !out.contains(&prefixed) { out.push(prefixed); }
+    out
 }
 
 fn default_true() -> bool { true }
@@ -721,40 +748,80 @@ impl AppConfig {
 
         if active_path.exists() {
             if let Ok(data) = fs::read_to_string(&active_path) {
-                if let Ok(mut cfg) = serde_json::from_str::<AppConfig>(&data) {
-                    if cfg.eq_bands.len() != 18 {
-                        cfg.eq_bands = vec![0.0; 18];
-                    }
-                    // Upgrade legacy 0.0 default color values to 100.0% Vortex neutral baseline
-                    if cfg.video_brightness == 0.0 && cfg.video_contrast == 0.0 && cfg.video_saturation == 0.0 {
-                        cfg.video_brightness = 100.0;
-                        cfg.video_contrast = 100.0;
-                        cfg.video_saturation = 100.0;
-                    }
-                    if cfg.video_gamma == 0.0 {
-                        cfg.video_gamma = 100.0;
-                    }
-                    // Ensure subtitle clearance so subtitles never clip into bottom seekbar / letterbox
-                    if cfg.subtitle_margin_y < 50 {
-                        cfg.subtitle_margin_y = 65;
-                    }
-                    if cfg.subtitle_vertical_pos > 100.0 || cfg.subtitle_vertical_pos <= 0.0 {
-                        cfg.subtitle_vertical_pos = 100.0;
-                    }
-                    if cfg.fps_interaction < 120 {
-                        cfg.fps_interaction = 144;
-                    }
-                    if cfg.fps_playback < 60 {
-                        cfg.fps_playback = 144;
-                    }
-                    if cfg.fps_background < 30 {
-                        cfg.fps_background = 60;
-                    }
+                if let Some(cfg) = Self::from_json_str(&data) {
                     return cfg;
                 }
             }
         }
         Self::default()
+    }
+
+    /// Parse a config document and apply the legacy-key migrations.
+    ///
+    /// A UTF-8 BOM (which some editors and PowerShell's `Out-File -Encoding
+    /// UTF8` add) is stripped first: without that the whole document would
+    /// fail to parse and every user setting would silently reset to the
+    /// defaults.
+    pub fn from_json_str(data: &str) -> Option<Self> {
+        let data = data.strip_prefix('\u{feff}').unwrap_or(data);
+        let mut cfg: AppConfig = serde_json::from_str(data).ok()?;
+        if cfg.eq_bands.len() != 18 {
+            cfg.eq_bands = vec![0.0; 18];
+        }
+        // Migrate per-file and resume keys to their canonical spelling so that
+        // settings saved by an older build (which stored the path in a
+        // different prefix/separator form) are still found.
+        {
+            let mut migrated: std::collections::HashMap<String, PerFileConfig> = std::collections::HashMap::new();
+            for (k, v) in std::mem::take(&mut cfg.per_file_settings) {
+                let ck = crate::engine::player::canonical_media_key(&k);
+                if let Some(e) = migrated.get_mut(&ck) {
+                    if e.audio_track_id.is_none() { e.audio_track_id = v.audio_track_id; }
+                    if e.subtitle_track_id.is_none() { e.subtitle_track_id = v.subtitle_track_id; }
+                    if e.audio_delay.is_none() { e.audio_delay = v.audio_delay; }
+                    if e.subtitle_delay.is_none() { e.subtitle_delay = v.subtitle_delay; }
+                    if e.aspect_ratio.is_none() { e.aspect_ratio = v.aspect_ratio; }
+                    if e.resume_pos.is_none() { e.resume_pos = v.resume_pos; }
+                } else {
+                    migrated.insert(ck, v);
+                }
+            }
+            cfg.per_file_settings = migrated;
+        }
+        {
+            let mut migrated: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+            for (k, v) in std::mem::take(&mut cfg.resume_timestamps) {
+                let ck = crate::engine::player::canonical_media_key(&k);
+                migrated.entry(ck).and_modify(|e| { *e = e.max(v); }).or_insert(v);
+            }
+            cfg.resume_timestamps = migrated;
+        }
+        // Upgrade legacy 0.0 default color values to 100.0% Vortex neutral baseline
+        if cfg.video_brightness == 0.0 && cfg.video_contrast == 0.0 && cfg.video_saturation == 0.0 {
+            cfg.video_brightness = 100.0;
+            cfg.video_contrast = 100.0;
+            cfg.video_saturation = 100.0;
+        }
+        if cfg.video_gamma == 0.0 {
+            cfg.video_gamma = 100.0;
+        }
+        // Ensure subtitle clearance so subtitles never clip into bottom seekbar / letterbox
+        if cfg.subtitle_margin_y < 50 {
+            cfg.subtitle_margin_y = 65;
+        }
+        if cfg.subtitle_vertical_pos > 100.0 || cfg.subtitle_vertical_pos <= 0.0 {
+            cfg.subtitle_vertical_pos = 100.0;
+        }
+        if cfg.fps_interaction < 120 {
+            cfg.fps_interaction = 144;
+        }
+        if cfg.fps_playback < 60 {
+            cfg.fps_playback = 144;
+        }
+        if cfg.fps_background < 30 {
+            cfg.fps_background = 60;
+        }
+        Some(cfg)
     }
 
     pub fn save(&self) -> Result<(), String> {
@@ -781,15 +848,18 @@ impl AppConfig {
     /// that touched an `AppConfig::default()` wiped the real recent-files
     /// list and resume positions on disk.
     pub fn save_resume_time(&mut self, path: &str, time: f64) {
-        let win_key = path.replace('/', "\\");
-        let unix_key = path.replace('\\', "/");
+        // Canonicalise so that a file saved via one path spelling (mpv's
+        // reported form) is still found when looked up with another.
+        let base = crate::engine::player::canonical_media_key(path);
+        let win_key = base.replace('/', "\\");
+        let unix_key = base.replace('\\', "/");
         let min_thresh = self.smart_resume_min_sec.max(2.0);
         if time <= min_thresh {
             self.resume_timestamps.remove(&win_key);
             self.resume_timestamps.remove(&unix_key);
-            self.resume_timestamps.remove(path);
+            self.resume_timestamps.remove(&base);
         } else {
-            self.resume_timestamps.insert(path.to_string(), time);
+            self.resume_timestamps.insert(base, time);
             self.resume_timestamps.insert(unix_key, time);
             self.resume_timestamps.insert(win_key, time);
         }
@@ -800,16 +870,17 @@ impl AppConfig {
     ///
     /// Like `save_resume_time` this does not touch the disk.
     pub fn save_smart_resume_time(&mut self, path: &str, time: f64, duration: f64) {
-        let win_key = path.replace('/', "\\");
-        let unix_key = path.replace('\\', "/");
+        let base = crate::engine::player::canonical_media_key(path);
+        let win_key = base.replace('/', "\\");
+        let unix_key = base.replace('\\', "/");
         let min_thresh = self.smart_resume_min_sec.max(2.0);
         let is_credits = duration > 0.0 && (time / duration * 100.0) >= self.smart_resume_max_percent;
         if time <= min_thresh || is_credits {
             self.resume_timestamps.remove(&win_key);
             self.resume_timestamps.remove(&unix_key);
-            self.resume_timestamps.remove(path);
+            self.resume_timestamps.remove(&base);
         } else {
-            self.resume_timestamps.insert(path.to_string(), time);
+            self.resume_timestamps.insert(base, time);
             self.resume_timestamps.insert(unix_key, time);
             self.resume_timestamps.insert(win_key, time);
         }
@@ -819,24 +890,59 @@ impl AppConfig {
         if !self.auto_resume {
             return None;
         }
-        let win_key = path.replace('/', "\\");
-        let unix_key = path.replace('\\', "/");
+        let base = crate::engine::player::canonical_media_key(path);
+        let win_key = base.replace('/', "\\");
+        let unix_key = base.replace('\\', "/");
         self.resume_timestamps
-            .get(path)
+            .get(&base)
             .copied()
             .or_else(|| self.resume_timestamps.get(&unix_key).copied())
             .or_else(|| self.resume_timestamps.get(&win_key).copied())
+            // Legacy fallback: try the raw spellings too, so resume positions
+            // saved by an older build are still found.
+            .or_else(|| {
+                let raw = path.to_string();
+                let raw_win = raw.replace('/', "\\");
+                let raw_unix = raw.replace('\\', "/");
+                self.resume_timestamps.get(&raw).copied()
+                    .or_else(|| self.resume_timestamps.get(&raw_win).copied())
+                    .or_else(|| self.resume_timestamps.get(&raw_unix).copied())
+            })
+            // Canonical scan over stored keys (handles any legacy spelling).
+            .or_else(|| {
+                self.resume_timestamps.iter()
+                    .find(|(k, _)| crate::engine::player::canonical_media_key(k) == base)
+                    .map(|(_, v)| *v)
+            })
     }
 
     /// Store per-file overrides (track ids, delays, aspect ratio).
     ///
     /// In-memory only - the caller persists the config.
     pub fn save_per_file(&mut self, path: &str, pfc: PerFileConfig) {
-        self.per_file_settings.insert(path.to_string(), pfc);
+        let canon = per_file_key(path);
+        // Drop legacy spellings of the same file so the map keeps one entry.
+        let raw = path.to_string();
+        let prefixed = if raw.starts_with("\\\\?\\") { raw.clone() } else { format!("\\\\?\\{}", raw) };
+        for key in [&raw, &prefixed] {
+            if key != &canon {
+                self.per_file_settings.remove(key);
+            }
+        }
+        self.per_file_settings.insert(canon, pfc);
     }
 
     pub fn get_per_file(&self, path: &str) -> Option<&PerFileConfig> {
-        self.per_file_settings.get(path)
+        for key in per_file_key_variants(path) {
+            if let Some(v) = self.per_file_settings.get(&key) {
+                return Some(v);
+            }
+        }
+        // Canonical scan over stored keys (handles legacy spellings).
+        let target = crate::engine::player::canonical_media_key(path);
+        self.per_file_settings.iter()
+            .find(|(k, _)| crate::engine::player::canonical_media_key(k) == target)
+            .map(|(_, v)| v)
     }
 
     pub fn matches_skip_chapter(&self, chapter_title: &str) -> bool {

@@ -236,7 +236,18 @@ pub struct VortexApp {
     pub stats_for_nerds: crate::ui::StatsForNerdsDialog,
     pub has_handled_eof: bool,
     pub media_closed_this_frame: bool,
+    /// Last inputs that produced a crop-policy decision:
+    /// (aspect mode, auto-crop flag, fullscreen/maximized).
+    /// A change in any of them re-applies the policy to mpv.
+    last_crop_policy: (String, bool, bool),
+    /// Last track selection persisted for the current file, so the per-file
+    /// settings are kept up to date even if the app is killed mid-playback.
+    last_persisted_track_path: String,
+    last_persisted_audio_track: i64,
+    last_persisted_subtitle_track: i64,
 }
+
+const TOP_BAR_HEIGHT: f32 = 32.0;
 
 #[derive(Clone, Debug)]
 pub struct RippleSeekState {
@@ -280,7 +291,7 @@ fn show_top_control_surface(
         .fixed_pos(Pos2::ZERO)
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
-            ui.allocate_ui(Vec2::new(screen_w, 32.0), |ui| {
+            ui.allocate_ui(Vec2::new(screen_w, TOP_BAR_HEIGHT), |ui| {
                 ui.set_width(screen_w);
                 egui::Frame::new()
                     .fill(Color32::from_rgb(18, 18, 20))
@@ -582,6 +593,10 @@ impl VortexApp {
             stats_for_nerds: crate::ui::StatsForNerdsDialog::new(),
             has_handled_eof: false,
             media_closed_this_frame: false,
+            last_crop_policy: (String::new(), false, false),
+            last_persisted_track_path: String::new(),
+            last_persisted_audio_track: -1,
+            last_persisted_subtitle_track: -1,
         };
 
         crate::ui::theme::VortexTheme::apply(&cc.egui_ctx, app.config.theme_mode);
@@ -740,6 +755,41 @@ impl VortexApp {
         std::thread::spawn(move || {
             let _ = config_clone.save();
         });
+    }
+
+    /// Persist the audio/subtitle track selection for the current file as soon
+    /// as it changes, so the choice survives even if the app is killed before
+    /// a clean shutdown (e.g. a crash or a hard kill).
+    pub fn persist_track_selection_if_changed(&mut self, stats: &MediaStats) {
+        let path = stats.file_path.clone();
+        if path.is_empty() {
+            return;
+        }
+        if self.last_persisted_track_path != path {
+            self.last_persisted_track_path = path.clone();
+            self.last_persisted_audio_track = stats.selected_audio_track;
+            self.last_persisted_subtitle_track = stats.selected_subtitle_track;
+            return;
+        }
+        let mut changed = false;
+        if self.last_persisted_audio_track != stats.selected_audio_track {
+            self.last_persisted_audio_track = stats.selected_audio_track;
+            changed = true;
+        }
+        if self.last_persisted_subtitle_track != stats.selected_subtitle_track {
+            self.last_persisted_subtitle_track = stats.selected_subtitle_track;
+            changed = true;
+        }
+        if changed {
+            let mut pfc = self.config.get_per_file(&path).cloned().unwrap_or_default();
+            pfc.audio_track_id = if stats.selected_audio_track > 0 { Some(stats.selected_audio_track) } else { None };
+            pfc.subtitle_track_id = if stats.selected_subtitle_track > 0 { Some(stats.selected_subtitle_track) } else { None };
+            self.config.save_per_file(&path, pfc);
+            let cfg = self.config.clone();
+            std::thread::spawn(move || {
+                let _ = cfg.save();
+            });
+        }
     }
 
     pub fn open_media_file(&mut self, path: PathBuf) {
@@ -2005,9 +2055,9 @@ impl VortexApp {
             // Deferred seek if mpv did not jump to resume position on start (videos only)
             if !is_song_mode {
                 if let Some((ref pending_path, pending_pos)) = self.pending_resume {
-                    let norm_cur = stats.file_path.replace('/', "\\");
-                    let norm_pen = pending_path.replace('/', "\\");
-                    if norm_cur == norm_pen && stats.duration > 0.0 {
+                    let cur_canon = crate::engine::player::canonical_media_key(&stats.file_path);
+                    let pen_canon = crate::engine::player::canonical_media_key(pending_path);
+                    if cur_canon == pen_canon && stats.duration > 0.0 {
                         if (stats.time_pos - pending_pos).abs() <= 2.0 || stats.time_pos >= pending_pos - 0.5 {
                             // File already opened directly at the resume position via start=pos, no secondary seek needed!
                             self.pending_resume = None;
@@ -2937,7 +2987,7 @@ impl VortexApp {
                 std::thread::spawn(move || {
                     let _ = config_clone.save();
                 });
-                self.osd.show(format!("Window Snapped to Aspect Ratio ({:.2}:1 - Zero Black Bars)", target_ar), 1500);
+                self.osd.show(format!("Window Snapped to Aspect Ratio ({:.2}:1)", target_ar), 1500);
             }
         }
         #[cfg(not(windows))]
@@ -2977,11 +3027,6 @@ impl VortexApp {
                     ShowWindow(self.parent_hwnd as _, SW_RESTORE);
                 }
             }
-            if let Ok(ref player) = self.player {
-                if self.config.aspect_ratio != "crop_fill" {
-                    player.set_property_double("panscan", 0.0);
-                }
-            }
         } else {
             #[cfg(windows)]
             if self.parent_hwnd != 0 {
@@ -3003,13 +3048,6 @@ impl VortexApp {
                 }
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-            if let Ok(ref player) = self.player {
-                if self.config.aspect_ratio == "crop_fill" {
-                    player.set_property_double("panscan", 1.0);
-                } else {
-                    player.set_property_double("panscan", 0.0);
-                }
-            }
         }
         ctx.request_repaint();
     }
@@ -3137,11 +3175,6 @@ impl VortexApp {
 
             if let Ok(ref player) = self.player {
                 player.set_video_align_y("center");
-                if self.config.aspect_ratio == "crop_fill" {
-                    player.set_property_double("panscan", 1.0);
-                } else {
-                    player.set_property_double("panscan", 0.0);
-                }
             }
             ctx.request_repaint();
             self.osd.show(if self.is_fullscreen { "Fullscreen".to_string() } else { "Windowed".to_string() }, 1200);
@@ -3264,6 +3297,43 @@ impl VortexApp {
         }
     }
 
+    /// Single source of truth for whether the video may be cropped.
+    ///
+    /// Windowed mode must never crop the picture: the video is letterboxed
+    /// (black bars) whenever the window's aspect ratio differs from the
+    /// video's, so nothing is cut off. Only an explicit "Crop to Fill"
+    /// choice by the user, or the fullscreen/maximized auto-crop option,
+    /// is allowed to trim the image.
+    ///
+    /// Only `panscan` is managed here - `keepaspect` and the aspect override
+    /// stay under the control of the aspect-ratio setting itself.
+    fn apply_crop_policy(&mut self, is_max: bool) {
+        let is_cinema = self.is_fullscreen || is_max;
+        let key = (
+            self.config.aspect_ratio.clone(),
+            self.config.auto_crop_fill_black_bars,
+            is_cinema,
+        );
+        if self.last_crop_policy == key {
+            return;
+        }
+        let Ok(ref player) = self.player else { return };
+        self.last_crop_policy = key;
+
+        // "crop_fill" is an explicit user request to fill the window without
+        // bars, so it always wins. Otherwise only fullscreen/maximized may
+        // auto-crop, and windowed playback always letterboxes.
+        let crop = if self.config.aspect_ratio == "crop_fill" {
+            true
+        } else {
+            is_cinema && self.config.auto_crop_fill_black_bars
+        };
+
+        // panscan is what actually trims pixels; 0 keeps the whole frame
+        // visible and lets mpv draw the black bars.
+        player.set_property_double("panscan", if crop { 1.0 } else { 0.0 });
+    }
+
     /// Render invisible 8-way resize handles along all window edges and corners & display pixel dimensions OSD (Vortex style)
     fn handle_window_resizing(&mut self, ctx: &egui::Context, stats: &MediaStats) {
         if self.restore_frames_pending > 0 {
@@ -3289,22 +3359,19 @@ impl VortexApp {
         if let Some(ref target_path) = self.pending_auto_fit_video {
             let surface_ready = self.video_surface.lock().map(|s| s.has_rendered_any_frame).unwrap_or(true);
             let time_elapsed = self.media_load_start.elapsed().as_millis() >= 400;
-            if (surface_ready || time_elapsed) && stats.file_path == *target_path && stats.video_width > 0 && stats.video_height > 0 && !stats.is_idle && !MusicBackgroundView::is_song(stats) {
+            if (surface_ready || time_elapsed) && crate::engine::player::canonical_media_key(&stats.file_path) == crate::engine::player::canonical_media_key(target_path) && stats.video_width > 0 && stats.video_height > 0 && !stats.is_idle && !MusicBackgroundView::is_song(stats) {
                 if !self.is_fullscreen && !is_max && self.config.auto_fit_window_to_video {
                     self.snap_window_to_video_aspect_ratio(ctx);
-                }
-                if self.config.aspect_ratio == "crop_fill" {
-                    if let Ok(ref p) = self.player {
-                        p.set_property_double("panscan", 1.0);
-                    }
-                } else {
-                    if let Ok(ref p) = self.player {
-                        p.set_property_double("panscan", 0.0);
-                    }
                 }
                 self.pending_auto_fit_video = None;
             }
         }
+
+        // Keep the video letterboxed (black bars) in windowed mode and never
+        // cropped; the crop policy is re-evaluated here so that switching
+        // between windowed, fullscreen and maximized always lands on the
+        // right behaviour.
+        self.apply_crop_policy(is_max);
 
         #[cfg(windows)]
         {
@@ -3904,6 +3971,7 @@ impl eframe::App for VortexApp {
         }
         self.handle_drag_and_drop(&ctx);
         self.handle_window_resizing(&ctx, &stats);
+        self.persist_track_selection_if_changed(&stats);
         self.check_load_errors();
         self.check_ab_loop_and_resume();
         self.bookmark_mgr.poll_async_load();
@@ -4537,15 +4605,12 @@ impl eframe::App for VortexApp {
         let video_w = if is_docked_pl { pl_x } else { screen_w };
 
         if let Ok(ref player) = self.player {
-            let target_margin = if is_docked_pl && screen_w > 0.0 {
-                (sidebar_w / screen_w).clamp(0.0, 0.85)
-            } else {
-                0.0
-            };
-            static LAST_MARGIN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(99999);
-            let margin_bits = (target_margin * 200.0) as u32;
-            if LAST_MARGIN.swap(margin_bits, std::sync::atomic::Ordering::Relaxed) != margin_bits {
-                player.set_property_string("video-margin-ratio-right", &format!("{:.4}", target_margin));
+            // The FBO is now sized to the video area (chrome excluded), so mpv
+            // no longer needs to reserve the docked-playlist sidebar via its
+            // own margin. Reset it to 0 in case a previous run set it.
+            static LAST_RIGHT_MARGIN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(99999);
+            if LAST_RIGHT_MARGIN.swap(0, std::sync::atomic::Ordering::Relaxed) != 0 {
+                player.set_property_string("video-margin-ratio-right", "0.0000");
             }
         }
 
@@ -4568,9 +4633,25 @@ impl eframe::App for VortexApp {
                     client_rect
                 };
                 let rect = effective_rect;
+                // Reserve the docked chrome (title bar / control bar) so the
+                // picture is never drawn underneath them: in windowed mode the
+                // picture lives in the area between the top bar and the control
+                // bar, where it is fully visible and letterboxed instead of cut.
+                let (chrome_top, chrome_bottom) = if is_fullscreen_active || self.pip_mode.is_pip {
+                    (0.0, 0.0)
+                } else {
+                    (TOP_BAR_HEIGHT, bar_h)
+                };
+                let video_rect = Rect::from_min_max(
+                    Pos2::new(effective_rect.min.x, effective_rect.min.y + chrome_top),
+                    Pos2::new(
+                        effective_rect.max.x,
+                        (effective_rect.max.y - chrome_bottom).max(effective_rect.min.y + chrome_top + 1.0),
+                    ),
+                );
                 ui.set_clip_rect(effective_rect);
                 let response = ui.allocate_rect(effective_rect, Sense::click_and_drag());
-                self.last_video_rect = effective_rect;
+                self.last_video_rect = video_rect;
 
                 // Render video into OpenGL framebuffer via mpv_render_context
                 // Panels use Order::Foreground so they paint ON TOP of this
@@ -4579,16 +4660,26 @@ impl eframe::App for VortexApp {
                         let player_clone = Arc::clone(player);
                         let surface_clone = Arc::clone(&self.video_surface);
                         let egui_ctx = ui.ctx().clone();
+                        let video_rect_px = video_rect;
                         let callback = egui_glow::CallbackFn::new(move |info, painter| {
                             let _ = player_clone.ensure_render_context(&egui_ctx);
-                            let [w, h] = info.screen_size_px;
+                            let ppp = info.pixels_per_point;
+                            let x0 = (video_rect_px.min.x * ppp).round() as i32;
+                            let y0 = (video_rect_px.min.y * ppp).round() as i32;
+                            let x1 = (video_rect_px.max.x * ppp).round() as i32;
+                            let y1 = (video_rect_px.max.y * ppp).round() as i32;
+                            let w = (x1 - x0).max(1);
+                            let h = (y1 - y0).max(1);
+                            let fb_h = info.screen_size_px[1] as i32;
+                            let dst_x = x0;
+                            let dst_y = fb_h - y1; // GL framebuffer origin is bottom-left
                             let gl = painter.gl();
                             if let Ok(mut surface) = surface_clone.lock() {
-                                surface.render_video(gl.as_ref(), &player_clone, w as i32, h as i32);
+                                surface.render_video(gl.as_ref(), &player_clone, w, h, dst_x, dst_y);
                             }
                         });
                         ui.painter().add(egui::PaintCallback {
-                            rect: effective_rect,
+                            rect: video_rect,
                             callback: Arc::new(callback),
                         });
                     }
@@ -7259,7 +7350,7 @@ impl eframe::App for VortexApp {
         // Apply any pending restored audio / subtitle tracks once demuxer populates tracks for the target file
         if let Ok(ref player) = self.player {
             if let Some((ref target_path, aid)) = self.pending_audio_track {
-                if stats.file_path == *target_path && !stats.audio_tracks.is_empty() {
+                if crate::engine::player::canonical_media_key(&stats.file_path) == crate::engine::player::canonical_media_key(target_path) && !stats.audio_tracks.is_empty() {
                     if stats.selected_audio_track != aid {
                         player.set_audio_track(aid);
                     }
@@ -7267,7 +7358,7 @@ impl eframe::App for VortexApp {
                 }
             }
             if let Some((ref target_path, sid)) = self.pending_subtitle_track {
-                if stats.file_path == *target_path && !stats.subtitle_tracks.is_empty() {
+                if crate::engine::player::canonical_media_key(&stats.file_path) == crate::engine::player::canonical_media_key(target_path) && !stats.subtitle_tracks.is_empty() {
                     if stats.selected_subtitle_track != sid {
                         player.set_subtitle_track(sid);
                     }

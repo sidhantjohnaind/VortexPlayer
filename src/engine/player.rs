@@ -2617,6 +2617,30 @@ impl Player {
             None
         };
 
+        // Read mpv's chapter list.
+        //
+        // `None` means "mpv does not know any chapters (yet)". On a network
+        // drive the demuxer can need several seconds to reach the chapter
+        // atom, so this must be retried instead of read only once.
+        let read_chapters = || -> Option<Vec<ChapterItem>> {
+            let count = get_int("chapter-list/count").unwrap_or(0);
+            if count <= 0 {
+                return None;
+            }
+            let mut chapters = Vec::with_capacity(count as usize);
+            for i in 0..count {
+                let title = get_str(&format!("chapter-list/{}/title", i))
+                    .unwrap_or_else(|| format!("Chapter {}", i + 1));
+                let time = get_double(&format!("chapter-list/{}/time", i)).unwrap_or(0.0);
+                chapters.push(ChapterItem {
+                    index: i,
+                    title,
+                    time_pos: time,
+                });
+            }
+            Some(chapters)
+        };
+
         let is_medium = tick % 10 == 0;
         let is_slow = tick % 60 == 0;
 
@@ -3058,18 +3082,7 @@ impl Player {
                         }
                         3 => {
                             // Stage 3: Chapters
-                            let ch_count = get_int("chapter-list/count").or_else(|| get_int("chapters")).unwrap_or(0);
-                            if ch_count > 0 {
-                                let mut chapters = Vec::with_capacity(ch_count as usize);
-                                for i in 0..ch_count {
-                                    let title = get_str(&format!("chapter-list/{}/title", i)).unwrap_or_else(|| format!("Chapter {}", i + 1));
-                                    let time = get_double(&format!("chapter-list/{}/time", i)).unwrap_or(0.0);
-                                    chapters.push(ChapterItem {
-                                        index: i,
-                                        title,
-                                        time_pos: time,
-                                    });
-                                }
+                            if let Some(chapters) = read_chapters() {
                                 stats.chapters = chapters;
                             }
 
@@ -3108,6 +3121,16 @@ impl Player {
                 let cur_track_count = get_int("track-list/count").unwrap_or(0) as usize;
                 if cur_track_count > 0 && cur_track_count != known_track_count {
                     Self::discover_tracks(ffi, ctx, stats, cur_track_count);
+                }
+
+                // Chapters can arrive late - a NAS drive may need a couple of
+                // seconds to reach the chapter atom, long after the one-shot
+                // read in stage 3 - so keep retrying until they show up.
+                let ch_count = get_int("chapter-list/count").unwrap_or(0);
+                if ch_count > 0 && ch_count as usize != stats.chapters.len() {
+                    if let Some(chapters) = read_chapters() {
+                        stats.chapters = chapters;
+                    }
                 }
             }
 

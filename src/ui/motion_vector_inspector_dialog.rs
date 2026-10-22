@@ -81,14 +81,14 @@ impl MotionVectorInspectorDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🔬 Motion Vector & Codec Inspector")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(620.0, 440.0))
-    .min_size([372.0, 264.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_motion_vector_inspector_dialog_window",
+            "🔬 Motion Vector & Codec Inspector",
+            eframe::egui::Vec2::new(620.0, 440.0),
+            true,
+            &mut open,
+            |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Codec Bitstream & Motion Vector Inspector").strong().size(15.0).color(Color32::from_rgb(100, 240, 220)));
@@ -159,7 +159,8 @@ impl MotionVectorInspectorDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

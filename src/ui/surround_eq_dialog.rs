@@ -63,22 +63,14 @@ impl SurroundEqDialog {
         let def_w = 780.0f32.min(win_size.x - 32.0);
         let def_h = 560.0f32.min(win_size.y - 32.0);
 
-        let window_resp = Window::new("🎛 7.1 Surround Per-Channel Equalizer")
-            .open(is_open)
-            .resizable(true)
-            .default_width(def_w)
-            .default_height(def_h)
-            .max_width(win_size.x - 20.0)
-            .max_height(win_size.y - 20.0)
-            .constrain(true)
-            .frame(
-                egui::Frame::new()
-                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(40, 48, 65)))
-                    .corner_radius(CornerRadius::same(10))
-                    .inner_margin(Margin::same(14)),
-            )
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_surround_eq_dialog_window",
+            "🎛 7.1 Surround Per-Channel Equalizer",
+            eframe::egui::Vec2::new(def_w, def_h),
+            false,
+            is_open,
+            |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
@@ -496,13 +488,14 @@ impl SurroundEqDialog {
                     }
                 }
                     });
-            });
+        },
+        );
 
         if changed {
             let af_str = config.build_audio_filter_string();
             player.set_audio_filter(&af_str);
         }
 
-        window_resp.map(|w| w.response.rect)
+        None
     }
 }

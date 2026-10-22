@@ -142,16 +142,14 @@ impl PlaybackHistoryDialog {
             return None;
         }
         let mut open = self.is_open;
-        let window_resp = egui::Window::new("📜 Playback History & Watch Statistics")
-            .id(egui::Id::new("playback_history_window"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_size(Vec2::new(750.0, 460.0))
-    .min_size([450.0, 276.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_playback_history_dialog_window",
+            "📜 Playback History & Watch Statistics",
+            eframe::egui::Vec2::new(750.0, 460.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Playback History Log")
@@ -278,8 +276,9 @@ impl PlaybackHistoryDialog {
                         .small()
                         .color(Color32::from_rgb(140, 190, 220)),
                 );
-            });
+        },
+        );
         self.is_open = open;
-        window_resp.map(|r| r.response.rect)
+        None
     }
 }

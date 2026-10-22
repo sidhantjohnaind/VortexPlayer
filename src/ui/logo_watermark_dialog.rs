@@ -52,14 +52,14 @@ impl LogoWatermarkDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🖼️ Custom Logo & Watermark Overlay Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(460.0, 420.0))
-    .min_size([276.0, 252.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_logo_watermark_dialog_window",
+            "🖼️ Custom Logo & Watermark Overlay Studio",
+            eframe::egui::Vec2::new(460.0, 420.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Video Watermark & Idle Screen Customizer")
@@ -179,7 +179,8 @@ impl LogoWatermarkDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

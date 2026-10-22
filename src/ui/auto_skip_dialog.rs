@@ -176,14 +176,14 @@ impl AutoSkipDialog {
         let mut save_and_close = false;
         let mut cancel_and_close = false;
 
-        let window_resp = egui::Window::new("Skip Setup")
-            .id(egui::Id::new("vortex_skip_setup_window"))
-            .open(&mut open)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(560.0, 520.0))
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_auto_skip_dialog_window",
+            "Skip Setup",
+            eframe::egui::Vec2::new(560.0, 520.0),
+            false,
+            &mut open,
+            |ui| {
                 ui.set_width(540.0);
 
                 // =============================================================
@@ -765,7 +765,8 @@ impl AutoSkipDialog {
                         },
                     );
                 });
-            });
+        },
+        );
 
         // =====================================================================
         // Sub-Modal: Add / Edit Skip Interval
@@ -779,14 +780,14 @@ impl AutoSkipDialog {
             let mut modal_open = self.is_modal_open;
             let mut apply_modal = false;
 
-            egui::Window::new(modal_title)
-                .id(egui::Id::new("sub_modal_skip_interval"))
-                .open(&mut modal_open)
-                .resizable(false)
-                .collapsible(false)
-                .anchor(Align2::CENTER_CENTER, Vec2::new(0.0, 20.0))
-                .default_width(340.0)
-                .show(ctx, |ui| {
+            crate::ui::native_window::show_native_window(
+                ctx,
+                "vortex_auto_skip_dialog_window_2",
+                modal_title,
+                eframe::egui::Vec2::new(340.0, 400.0),
+                false,
+                &mut modal_open,
+                |ui| {
                     ui.add_space(4.0);
 
                     ui.horizontal(|ui| {
@@ -907,7 +908,8 @@ impl AutoSkipDialog {
                             },
                         );
                     });
-                });
+            },
+            );
 
             if apply_modal {
                 let start_sec =
@@ -983,6 +985,6 @@ impl AutoSkipDialog {
             self.was_open = false;
         }
 
-        window_resp.map(|r| r.response.rect)
+        None
     }
 }

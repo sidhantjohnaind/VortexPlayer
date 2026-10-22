@@ -94,26 +94,17 @@ impl ControlPanel {
             self.drag_offset = None;
             return None;
         }
-
-        let anchor_offset = self.drag_offset.unwrap_or(Vec2::ZERO);
         let mut close_requested = false;
         let mut drag_delta = Vec2::ZERO;
 
-        let resp = egui::Window::new("vortex_control_panel_win")
-            .title_bar(false)
-            .collapsible(false)
-            .resizable(true)
-            .default_width(580.0)
-            .min_width(550.0)
-            .anchor(egui::Align2::CENTER_CENTER, anchor_offset)
-            .frame(
-                egui::Frame::new()
-                    .fill(VortexTheme::current_skin().bg_panel)
-                    .stroke(Stroke::new(1.0, VortexTheme::current_skin().border_light))
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(egui::Margin::symmetric(14, 12)),
-            )
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_control_panel_window",
+            "Vortex Control Panel",
+            eframe::egui::Vec2::new(580.0, 640.0),
+            true,
+            is_open,
+            |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 9.0);
 
                 // ── 0. Custom Sleek Titlebar (Draggable) ─────────────────────
@@ -936,7 +927,8 @@ impl ControlPanel {
                         });
                     }
                 }
-            });
+        },
+        );
 
         if drag_delta != Vec2::ZERO {
             let cur = self.drag_offset.unwrap_or(Vec2::ZERO);
@@ -948,6 +940,6 @@ impl ControlPanel {
             self.drag_offset = None;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

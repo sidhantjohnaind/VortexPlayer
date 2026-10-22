@@ -138,14 +138,14 @@ impl CinemaMatteDialog {
     pub fn render(&mut self, ctx: &egui::Context) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🎭 Cinema Screen Matte & Ambient Curtains")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(600.0, 420.0))
-    .min_size([360.0, 252.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_cinema_matte_dialog_window",
+            "🎭 Cinema Screen Matte & Ambient Curtains",
+            eframe::egui::Vec2::new(600.0, 420.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Cinema Scope Matte Masking & Curtains").strong().size(15.0).color(Color32::from_rgb(255, 200, 120)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -208,7 +208,8 @@ impl CinemaMatteDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

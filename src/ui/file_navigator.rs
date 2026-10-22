@@ -48,11 +48,14 @@ impl FileNavigatorSidebar {
         }
 
         let mut open_flag = self.is_open;
-        egui::Window::new("📁 File Explorer Navigator")
-            .open(&mut open_flag)
-            .default_width(320.0)
-            .default_height(480.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_file_navigator_window",
+            "📁 File Explorer Navigator",
+            eframe::egui::Vec2::new(320.0, 480.0),
+            false,
+            &mut open_flag,
+            |ui| {
                 ui.horizontal(|ui| {
                     if ui.button("⬆ Parent").clicked() {
                         if let Some(parent) = self.current_dir.parent() {
@@ -72,7 +75,8 @@ impl FileNavigatorSidebar {
                         }
                     }
                 });
-            });
+        },
+        );
         self.is_open = open_flag;
     }
 }

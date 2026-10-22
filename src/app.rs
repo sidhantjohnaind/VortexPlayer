@@ -2541,14 +2541,14 @@ impl VortexApp {
 
         let mut close_requested = false;
 
-        egui::Window::new("📋 Playback & Frame Drop Diagnostics Log")
-            .open(&mut is_open)
-            .resizable(true)
-            .default_size([760.0, 520.0])
-            .min_size([540.0, 360.0])
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_debug_log_window",
+            "📋 Playback & Frame Drop Diagnostics Log",
+            eframe::egui::Vec2::new(760.0, 520.0),
+            false,
+            &mut is_open,
+            |ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
 
                 // Top Diagnostic Cards Header
@@ -2702,7 +2702,8 @@ impl VortexApp {
                             }
                         }
                     });
-            });
+        },
+        );
 
         if close_requested {
             is_open = false;
@@ -7090,19 +7091,14 @@ impl eframe::App for VortexApp {
 
         if self.show_about_dialog {
             let mut close_about = false;
-            let window_resp = egui::Window::new("About VortexPlayer")
-                .open(&mut self.show_about_dialog)
-                .resizable(false)
-                .collapsible(false)
-                .default_size(Vec2::new(460.0, 360.0))
-                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-                .frame(
-                    egui::Frame::new()
-                        .fill(VortexTheme::current_skin().bg_panel)
-                        .stroke(Stroke::new(1.0, VortexTheme::current_skin().accent_primary))
-                        .corner_radius(CornerRadius::same(8)),
-                )
-                .show(&ctx, |ui| {
+            crate::ui::native_window::show_native_window(
+                &ctx,
+                "vortex_about_window",
+                "About VortexPlayer",
+                eframe::egui::Vec2::new(460.0, 360.0),
+                false,
+                &mut self.show_about_dialog,
+                |ui| {
                     ui.vertical_centered(|ui| {
                         ui.add_space(8.0);
                         let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(50.0), Sense::hover());
@@ -7127,10 +7123,8 @@ impl eframe::App for VortexApp {
                         }
                         ui.add_space(4.0);
                     });
-                });
-            if let Some(inner) = window_resp {
-                self.active_popup_rects.push(inner.response.rect);
-            }
+                },
+            );
             if close_about {
                 self.show_about_dialog = false;
             }

@@ -37,13 +37,14 @@ impl GotoFrameDialog {
         self.total_frames = (stats.duration * self.fps) as u64;
 
         let mut open = self.is_open;
-        egui::Window::new("🎞️ Go To Frame")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_size(Vec2::new(400.0, 200.0))
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_goto_frame_dialog_window",
+            "🎞️ Go To Frame",
+            eframe::egui::Vec2::new(400.0, 200.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.label(RichText::new("Jump to Exact Video Frame Number").strong().size(15.0).color(Color32::from_rgb(200, 220, 140)));
                 ui.separator();
 
@@ -89,7 +90,8 @@ impl GotoFrameDialog {
 
                 ui.add_space(4.0);
                 ui.label(RichText::new(&self.status_message).small().color(Color32::from_rgb(140, 190, 220)));
-            });
+        },
+        );
         self.is_open = open;
     }
 }

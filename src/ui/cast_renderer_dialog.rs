@@ -96,14 +96,14 @@ impl CastRendererDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📡 Google Chromecast & Apple AirPlay Casting Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(740.0, 500.0))
-    .min_size([444.0, 300.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_cast_renderer_dialog_window",
+            "📡 Google Chromecast & Apple AirPlay Casting Studio",
+            eframe::egui::Vec2::new(740.0, 500.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -228,7 +228,8 @@ impl CastRendererDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

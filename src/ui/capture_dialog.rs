@@ -34,12 +34,14 @@ impl CaptureDialog {
             return None;
         }
 
-        let resp = egui::Window::new("Capture & Recording Studio (Ctrl+S)")
-            .open(is_open)
-            .resizable(false)
-            .default_width(520.0)
-            .default_height(380.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_capture_dialog_window",
+            "Capture & Recording Studio (Ctrl+S)",
+            eframe::egui::Vec2::new(520.0, 380.0),
+            false,
+            is_open,
+            |ui| {
                 ui.horizontal(|ui| {
                     let tabs = ["Burst Snapshot", "Contact Sheet", "Video & Stream Recording"];
                     for t in tabs {
@@ -127,7 +129,8 @@ impl CaptureDialog {
                     }
                     _ => {}
                 }
-            });
-        resp.map(|r| r.response.rect)
+        },
+        );
+        None
     }
 }

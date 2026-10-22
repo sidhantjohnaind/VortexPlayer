@@ -109,14 +109,14 @@ impl RadioDirectoryDialog {
         ];
 
         let mut open = self.is_open;
-        egui::Window::new("📻 Icecast & Shoutcast Internet Radio Directory")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(760.0, 520.0))
-    .min_size([456.0, 312.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_radio_directory_dialog_window",
+            "📻 Icecast & Shoutcast Internet Radio Directory",
+            eframe::egui::Vec2::new(760.0, 520.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -217,7 +217,8 @@ impl RadioDirectoryDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

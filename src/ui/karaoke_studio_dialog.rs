@@ -39,14 +39,14 @@ impl KaraokeStudioDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎤 Karaoke & Pitch/Tempo Studio (Ctrl+K)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(440.0, 420.0))
-    .min_size([264.0, 252.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_karaoke_studio_dialog_window",
+            "🎤 Karaoke & Pitch/Tempo Studio (Ctrl+K)",
+            eframe::egui::Vec2::new(440.0, 420.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Center Vocal Removal, Voice Isolation & Real-Time Pitch Studio")
@@ -161,7 +161,8 @@ impl KaraokeStudioDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

@@ -38,12 +38,14 @@ impl BroadcastDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📡 Live RTMP Stream Broadcasting (Ctrl+B)")
-            .open(&mut open)
-            .collapsible(false)
-            .default_size(Vec2::new(420.0, 260.0))
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_broadcast_dialog_window",
+            "📡 Live RTMP Stream Broadcasting (Ctrl+B)",
+            eframe::egui::Vec2::new(420.0, 260.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Broadcast Video to Twitch / YouTube Live / RTMP").strong().color(Color32::from_rgb(180, 140, 255)));
                     ui.add_space(8.0);
@@ -115,7 +117,8 @@ impl BroadcastDialog {
                         ui.label(RichText::new(&self.status).color(Color32::from_rgb(100, 220, 140)));
                     }
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

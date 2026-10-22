@@ -97,14 +97,14 @@ impl AudioCompressorDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🔊 Dynamic Range Compressor & Night Mode")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(640.0, 420.0))
-    .min_size([384.0, 252.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_audio_compressor_dialog_window",
+            "🔊 Dynamic Range Compressor & Night Mode",
+            eframe::egui::Vec2::new(640.0, 420.0),
+            true,
+            &mut open,
+            |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Audio Dynamic Range Compressor / Limiter").strong().size(15.0).color(Color32::from_rgb(220, 180, 100)));
@@ -153,7 +153,8 @@ impl AudioCompressorDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

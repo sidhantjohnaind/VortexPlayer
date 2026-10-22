@@ -1,5 +1,8 @@
 #![allow(unused_imports)]
 
+pub mod native_window;
+pub use native_window::show_native_window;
+
 pub mod music_view;
 pub use music_view::MusicBackgroundView;
 pub mod audio_meter;

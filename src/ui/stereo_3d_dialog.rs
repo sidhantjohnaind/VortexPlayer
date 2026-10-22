@@ -48,14 +48,14 @@ impl Stereo3dDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🕶️ Stereoscopic 3D & 2D-to-3D Studio (Ctrl+Alt+3)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(420.0, 360.0))
-    .min_size([252.0, 216.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_stereo_3d_dialog_window",
+            "🕶️ Stereoscopic 3D & 2D-to-3D Studio (Ctrl+Alt+3)",
+            eframe::egui::Vec2::new(420.0, 360.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Stereoscopic 3D Video Decoder & Anaglyph Studio")
@@ -139,7 +139,8 @@ impl Stereo3dDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

@@ -33,12 +33,14 @@ impl ParametricEqDialog {
             return None;
         }
 
-        let resp = egui::Window::new("Parametric Equalizer (PEQ)")
-            .open(is_open)
-            .resizable(false)
-            .default_width(620.0)
-            .default_height(480.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_parametric_eq_dialog_window",
+            "Parametric Equalizer (PEQ)",
+            eframe::egui::Vec2::new(620.0, 480.0),
+            false,
+            is_open,
+            |ui| {
                 ui.horizontal(|ui| {
                     let mut en = config.enabled;
                     if ui.checkbox(&mut en, "Enable Parametric EQ").changed() {
@@ -154,17 +156,22 @@ impl ParametricEqDialog {
                     let af_str = config.build_audio_filter_string();
                     player.set_audio_filter(&af_str);
                 }
-            });
+        },
+        );
 
         // AutoEQ Importer Modal
         let mut close_modal = false;
         let mut apply_import = false;
         if self.show_import_modal {
             let mut is_open = true;
-            egui::Window::new("Import AutoEQ / Equalizer APO Profile")
-                .open(&mut is_open)
-                .default_width(420.0)
-                .show(ctx, |ui| {
+            crate::ui::native_window::show_native_window(
+                ctx,
+                "vortex_parametric_eq_dialog_window_2",
+                "Import AutoEQ / Equalizer APO Profile",
+                eframe::egui::Vec2::new(420.0, 400.0),
+                false,
+                &mut is_open,
+                |ui| {
                     ui.label("Paste your AutoEQ or Equalizer APO text configuration below:");
                     ui.text_edit_multiline(&mut self.import_text);
                     ui.horizontal(|ui| {
@@ -176,7 +183,8 @@ impl ParametricEqDialog {
                             close_modal = true;
                         }
                     });
-                });
+            },
+            );
             if !is_open || close_modal {
                 self.show_import_modal = false;
             }
@@ -188,6 +196,6 @@ impl ParametricEqDialog {
                 }
             }
         }
-        resp.map(|r| r.response.rect)
+        None
     }
 }

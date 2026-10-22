@@ -137,14 +137,14 @@ impl BdaTunerDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📡 Digital TV Broadcast Tuner (BDA) Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(760.0, 540.0))
-    .min_size([456.0, 324.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_bda_tuner_dialog_window",
+            "📡 Digital TV Broadcast Tuner (BDA) Studio",
+            eframe::egui::Vec2::new(760.0, 540.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -287,7 +287,8 @@ impl BdaTunerDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

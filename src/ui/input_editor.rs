@@ -30,11 +30,14 @@ impl InputEditorDialog {
         }
 
         let mut open_flag = self.is_open;
-        egui::Window::new("⌨ Input Shortcuts & Gesture Binding Editor (Ctrl+K)")
-            .open(&mut open_flag)
-            .default_width(720.0)
-            .default_height(500.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_input_editor_window",
+            "⌨ Input Shortcuts & Gesture Binding Editor (Ctrl+K)",
+            eframe::egui::Vec2::new(720.0, 500.0),
+            false,
+            &mut open_flag,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("ACTIVE PROFILE:").strong().color(VortexTheme::current_skin().accent_primary));
                     egui::ComboBox::from_id_salt("profile_select")
@@ -98,7 +101,8 @@ impl InputEditorDialog {
                             });
                     });
                 }
-            });
+        },
+        );
         self.is_open = open_flag;
     }
 }

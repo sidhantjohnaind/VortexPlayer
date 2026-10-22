@@ -79,14 +79,14 @@ impl Vr360StudioDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🥽 360° VR Spherical Video Studio (KMPlayer 64X)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(700.0, 520.0))
-    .min_size([420.0, 312.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_vr_360_studio_dialog_window",
+            "🥽 360° VR Spherical Video Studio (KMPlayer 64X)",
+            eframe::egui::Vec2::new(700.0, 520.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -228,7 +228,8 @@ impl Vr360StudioDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

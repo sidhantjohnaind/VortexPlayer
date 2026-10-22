@@ -33,12 +33,14 @@ impl BookmarkStudioDialog {
         }
 
         let mut open_flag = self.is_open;
-        egui::Window::new("🔖 Bookmark Studio & Timeline Annotator")
-            .open(&mut open_flag)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_width(600.0)
-            .default_height(450.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_bookmark_studio_window",
+            "🔖 Bookmark Studio & Timeline Annotator",
+            eframe::egui::Vec2::new(600.0, 450.0),
+            false,
+            &mut open_flag,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("BOOKMARKS & SCENE NOTES").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -70,7 +72,8 @@ impl BookmarkStudioDialog {
                         }
                     });
                 }
-            });
+        },
+        );
         self.is_open = open_flag;
     }
 }

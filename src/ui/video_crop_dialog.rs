@@ -67,14 +67,14 @@ impl VideoCropDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("✂️ Video Crop & Pan-Scan Tool")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(560.0, 380.0))
-    .min_size([336.0, 228.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_video_crop_dialog_window",
+            "✂️ Video Crop & Pan-Scan Tool",
+            eframe::egui::Vec2::new(560.0, 380.0),
+            true,
+            &mut open,
+            |ui| {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Custom Video Region Crop & Pan-Scan").strong().size(15.0).color(Color32::from_rgb(140, 200, 255)));
@@ -119,7 +119,8 @@ impl VideoCropDialog {
                     if ui.button("↺ Reset Crop").clicked() { *self = Self { is_open: true, ..Self::default() }; self.apply_to_player(player); }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { if ui.button("Close").clicked() { self.is_open = false; } });
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

@@ -140,14 +140,14 @@ impl IptvGuideDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("📺 IPTV Channel Guide & EPG Browser (Ctrl+I)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(820.0, 540.0))
-    .min_size([492.0, 324.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_iptv_guide_dialog_window",
+            "📺 IPTV Channel Guide & EPG Browser (Ctrl+I)",
+            eframe::egui::Vec2::new(820.0, 540.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -305,7 +305,8 @@ impl IptvGuideDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

@@ -55,16 +55,14 @@ impl MediaTagEditorDialog {
         self.load_from_stats(stats);
 
         let mut open = self.is_open;
-        let window_resp = egui::Window::new("🏷️ Media Metadata / Tag Editor")
-            .id(egui::Id::new("media_tag_editor_window"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-            .default_size(Vec2::new(560.0, 440.0))
-    .min_size([336.0, 264.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_media_tag_editor_dialog_window",
+            "🏷️ Media Metadata / Tag Editor",
+            eframe::egui::Vec2::new(560.0, 440.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.label(RichText::new("ID3v2 / Vorbis / MKV Tag Editor").strong().size(15.0).color(Color32::from_rgb(200, 160, 255)));
                 ui.separator();
 
@@ -106,8 +104,9 @@ impl MediaTagEditorDialog {
                         if ui.button("Close").clicked() { self.is_open = false; }
                     });
                 });
-            });
+        },
+        );
         self.is_open = open;
-        window_resp.map(|r| r.response.rect)
+        None
     }
 }

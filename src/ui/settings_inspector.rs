@@ -27,11 +27,14 @@ impl SettingsInspectorDialog {
         }
 
         let mut open_flag = self.is_open;
-        let resp = egui::Window::new("🔍 Settings Inspector & Layer Provenance")
-            .open(&mut open_flag)
-            .default_width(620.0)
-            .default_height(420.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_settings_inspector_window",
+            "🔍 Settings Inspector & Layer Provenance",
+            eframe::egui::Vec2::new(620.0, 420.0),
+            false,
+            &mut open_flag,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("EFFECTIVE SETTINGS & ORIGIN HIERARCHY").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.label(RichText::new("(Global → Profile → Folder → File)").color(Color32::from_rgb(140, 140, 160)));
@@ -98,9 +101,10 @@ impl SettingsInspectorDialog {
                         ui.label("—");
                         ui.end_row();
                     });
-            });
+        },
+        );
         self.is_open = open_flag;
-        resp.map(|r| r.response.rect)
+        None
     }
 
     fn render_badge(ui: &mut egui::Ui, source: SettingSource, name: &str) {

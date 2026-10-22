@@ -74,14 +74,14 @@ impl VideoPuzzleDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🧩 Interactive Video Puzzle Game (VLC Classic)")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(580.0, 520.0))
-    .min_size([348.0, 312.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_video_puzzle_dialog_window",
+            "🧩 Interactive Video Puzzle Game (VLC Classic)",
+            eframe::egui::Vec2::new(580.0, 520.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -189,7 +189,8 @@ impl VideoPuzzleDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

@@ -137,23 +137,14 @@ impl StatsForNerdsDialog {
 
         let skin = VortexTheme::current_skin();
 
-        let window = egui::Window::new("🤓 Stats for Nerds")
-            .open(&mut is_open)
-            .resizable(true)
-            .collapsible(true)
-            .default_size([460.0, 560.0])
-    .vscroll(true)
-            .min_size([400.0, 420.0])
-            .default_pos([24.0, 48.0])
-            .frame(
-                egui::Frame::new()
-                    .fill(Color32::from_rgba_premultiplied(12, 14, 18, 235))
-                    .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(70, 160, 240, 120)))
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(egui::Margin::symmetric(14, 12))
-            );
-
-        window.show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_stats_for_nerds_window",
+            "🤓 Stats for Nerds",
+            eframe::egui::Vec2::new(460.0, 560.0),
+            true,
+            &mut is_open,
+            |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0.0, 6.0);
 
             // ── Top Toolbar Header ──────────────────────────────────────────
@@ -440,7 +431,8 @@ impl StatsForNerdsDialog {
             ui.horizontal(|ui| {
                 ui.colored_label(Color32::from_rgb(140, 150, 165), egui::RichText::new(mystery_text).monospace().size(10.5));
             });
-        });
+        },
+        );
 
         if copy_debug_info {
             let escaped_path = stats.file_path.replace('\\', "\\\\").replace('\"', "\\\"");

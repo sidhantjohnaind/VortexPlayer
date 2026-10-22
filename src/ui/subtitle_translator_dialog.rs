@@ -71,14 +71,14 @@ impl SubtitleTranslatorDialog {
     pub fn render(&mut self, ctx: &egui::Context, stats: &crate::engine::MediaStats) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🌐 Interactive Subtitle Translator & Dictionary")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(650.0, 440.0))
-    .min_size([390.0, 264.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_subtitle_translator_dialog_window",
+            "🌐 Interactive Subtitle Translator & Dictionary",
+            eframe::egui::Vec2::new(650.0, 440.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Language Learning & Subtitle Translation Studio").strong().size(15.0).color(Color32::from_rgb(120, 200, 255)));
                 });
@@ -157,7 +157,8 @@ impl SubtitleTranslatorDialog {
                 ui.horizontal(|ui| {
                     if ui.button("Close").clicked() { self.is_open = false; }
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

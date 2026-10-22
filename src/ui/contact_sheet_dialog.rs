@@ -37,13 +37,14 @@ impl ContactSheetDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🖼️ Storyboard Contact Sheet Generator")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .default_size(Vec2::new(380.0, 260.0))
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_contact_sheet_dialog_window",
+            "🖼️ Storyboard Contact Sheet Generator",
+            eframe::egui::Vec2::new(380.0, 260.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Export Video Storyboard Grid").strong().color(Color32::from_rgb(180, 140, 255)));
                     ui.add_space(6.0);
@@ -115,7 +116,8 @@ impl ContactSheetDialog {
                         ui.label(RichText::new(&self.status_msg).color(Color32::from_rgb(100, 220, 140)));
                     }
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

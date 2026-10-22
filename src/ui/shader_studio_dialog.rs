@@ -39,11 +39,14 @@ impl ShaderStudioDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🎨 Pixel Shader Studio & Code Editor")
-            .open(&mut open)
-            .collapsible(false)
-            .default_size(Vec2::new(560.0, 420.0))
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_shader_studio_dialog_window",
+            "🎨 Pixel Shader Studio & Code Editor",
+            eframe::egui::Vec2::new(560.0, 420.0),
+            false,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("GLSL / HLSL Video Shader Editor").strong().color(Color32::from_rgb(180, 140, 255)));
@@ -124,7 +127,8 @@ vec4 hook() {
                         ui.label(RichText::new(&self.status).color(Color32::from_rgb(100, 220, 140)));
                     }
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

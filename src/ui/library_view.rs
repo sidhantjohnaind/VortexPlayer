@@ -34,11 +34,14 @@ impl LibraryView {
 
         let mut file_to_play = None;
 
-        let resp = egui::Window::new("Media Library & Poster Wall (F8)")
-            .open(is_open)
-            .default_width(740.0)
-            .default_height(520.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_library_view_window",
+            "Media Library & Poster Wall (F8)",
+            eframe::egui::Vec2::new(740.0, 520.0),
+            false,
+            is_open,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("LIBRARY").strong().color(VortexTheme::current_skin().accent_primary));
                     ui.add(egui::TextEdit::singleline(&mut self.search_query).hint_text("Search library by title, season, or tag...").desired_width(320.0));
@@ -127,8 +130,9 @@ impl LibraryView {
                             });
                     });
                 }
-            });
+        },
+        );
 
-        (file_to_play, resp.map(|r| r.response.rect))
+        (file_to_play, None)
     }
 }

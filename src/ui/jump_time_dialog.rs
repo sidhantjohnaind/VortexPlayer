@@ -55,20 +55,14 @@ impl JumpTimeDialog {
         let mut do_close = false;
         let mut target_time: Option<f64> = None;
 
-        let resp = Window::new("Jump to Specific Time (G)")
-            .open(is_open)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(380.0, 310.0))
-            .frame(
-                egui::Frame::new()
-                    .fill(VortexTheme::current_skin().bg_panel)
-                    .stroke(Stroke::new(1.0, VortexTheme::current_skin().border_light))
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(Margin::same(14)),
-            )
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_jump_time_dialog_window",
+            "Jump to Specific Time (G)",
+            eframe::egui::Vec2::new(380.0, 310.0),
+            false,
+            is_open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Status
                     ui.horizontal(|ui| {
@@ -239,7 +233,8 @@ impl JumpTimeDialog {
                         }
                     });
                 });
-            });
+        },
+        );
 
         if let Some(t) = target_time {
             player.seek_absolute(t);
@@ -250,7 +245,7 @@ impl JumpTimeDialog {
             self.initialized = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 
     fn parse_time_str(input: &str) -> Option<f64> {

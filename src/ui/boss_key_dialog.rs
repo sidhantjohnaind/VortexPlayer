@@ -76,14 +76,14 @@ impl BossKeyDialog {
     pub fn render(&mut self, ctx: &egui::Context) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("🛡️ Boss Key & Privacy Disguise")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(520.0, 340.0))
-    .min_size([312.0, 204.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_boss_key_dialog_window",
+            "🛡️ Boss Key & Privacy Disguise",
+            eframe::egui::Vec2::new(520.0, 340.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Boss Key Privacy & Panic Concealer").strong().size(15.0).color(Color32::from_rgb(255, 120, 120)));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -121,7 +121,8 @@ impl BossKeyDialog {
                 ui.horizontal(|ui| {
                     if ui.button("Close").clicked() { self.is_open = false; }
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

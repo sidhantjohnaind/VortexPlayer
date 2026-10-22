@@ -81,14 +81,14 @@ impl DeinterlaceDialog {
     pub fn render(&mut self, ctx: &egui::Context, player: &crate::engine::Player) {
         if !self.is_open { return; }
         let mut open = self.is_open;
-        egui::Window::new("📺 Deinterlace & Video Post-Processing")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(560.0, 400.0))
-    .min_size([336.0, 240.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_deinterlace_dialog_window",
+            "📺 Deinterlace & Video Post-Processing",
+            eframe::egui::Vec2::new(560.0, 400.0),
+            true,
+            &mut open,
+            |ui| {
                 let mut changed = false;
                 ui.label(RichText::new("Deinterlace, Deband & Denoise Controls").strong().size(15.0).color(Color32::from_rgb(180, 200, 140)));
                 ui.separator();
@@ -137,7 +137,8 @@ impl DeinterlaceDialog {
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { if ui.button("Close").clicked() { self.is_open = false; } });
                 });
-            });
+        },
+        );
         self.is_open = open;
     }
 }

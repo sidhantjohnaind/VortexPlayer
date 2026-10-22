@@ -167,20 +167,14 @@ impl UpdateDialog {
         let accent = VortexTheme::current_skin().accent_primary;
         let mut do_close = false;
 
-        let resp = Window::new("✨ Check for Updates")
-            .open(is_open)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(440.0, 340.0))
-            .frame(
-                egui::Frame::new()
-                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 68)))
-                    .corner_radius(CornerRadius::same(8))
-                    .inner_margin(Margin::same(16)),
-            )
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_update_dialog_window",
+            "✨ Check for Updates",
+            eframe::egui::Vec2::new(440.0, 340.0),
+            false,
+            is_open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header
                     ui.horizontal(|ui| {
@@ -298,12 +292,13 @@ impl UpdateDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         if do_close {
             *is_open = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

@@ -93,14 +93,14 @@ impl BdjDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("☕ Java BD-J Interactive Blu-ray Menu Engine")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(720.0, 480.0))
-    .min_size([432.0, 288.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_bdj_dialog_window",
+            "☕ Java BD-J Interactive Blu-ray Menu Engine",
+            eframe::egui::Vec2::new(720.0, 480.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header
                     ui.horizontal(|ui| {
@@ -214,7 +214,8 @@ impl BdjDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

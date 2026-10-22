@@ -37,11 +37,14 @@ impl StreamUrlDialog {
 
         let mut should_close = false;
 
-        let resp = egui::Window::new("Open Network Stream / URL (Ctrl+U)")
-            .open(is_open)
-            .resizable(false)
-            .default_width(450.0)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_stream_url_dialog_window",
+            "Open Network Stream / URL (Ctrl+U)",
+            eframe::egui::Vec2::new(450.0, 400.0),
+            false,
+            is_open,
+            |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 8.0);
 
                 ui.label(RichText::new("Enter direct URL, HLS, DASH, RTSP, or Online Stream:").color(VortexTheme::current_skin().text_secondary));
@@ -84,12 +87,13 @@ impl StreamUrlDialog {
                         }
                     }
                 });
-            });
+        },
+        );
 
         if should_close {
             *is_open = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

@@ -49,14 +49,14 @@ impl DetachedWindowsController {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🪟 Detachable Multi-Window & Video Wall Studio")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(700.0, 460.0))
-    .min_size([420.0, 276.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_detached_windows_window",
+            "🪟 Detachable Multi-Window & Video Wall Studio",
+            eframe::egui::Vec2::new(700.0, 460.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header
                     ui.label(
@@ -131,7 +131,8 @@ impl DetachedWindowsController {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

@@ -54,14 +54,14 @@ impl ZoomMagnifierDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🔍 Interactive Live Video Zoom Magnifier Lens")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(640.0, 440.0))
-    .min_size([384.0, 264.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_zoom_magnifier_dialog_window",
+            "🔍 Interactive Live Video Zoom Magnifier Lens",
+            eframe::egui::Vec2::new(640.0, 440.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -165,7 +165,8 @@ impl ZoomMagnifierDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

@@ -39,20 +39,14 @@ impl SleepTimerDialog {
         let accent = VortexTheme::current_skin().accent_primary;
         let mut do_close = false;
 
-        let resp = Window::new("🌙 Sleep Timer")
-            .open(is_open)
-            .resizable(false)
-            .collapsible(false)
-            .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-            .fixed_size(Vec2::new(400.0, 360.0))
-            .frame(
-                egui::Frame::new()
-                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_panel)
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 68)))
-                    .corner_radius(CornerRadius::same(8))
-                    .inner_margin(Margin::same(16)),
-            )
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_sleep_timer_dialog_window",
+            "🌙 Sleep Timer",
+            eframe::egui::Vec2::new(400.0, 360.0),
+            false,
+            is_open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Title and Description
                     ui.label(
@@ -221,12 +215,13 @@ impl SleepTimerDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         if do_close {
             *is_open = false;
         }
 
-        resp.map(|r| r.response.rect)
+        None
     }
 }

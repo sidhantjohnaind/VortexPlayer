@@ -58,14 +58,14 @@ impl VideoWallMatrixDialog {
         }
 
         let mut open = self.is_open;
-        egui::Window::new("🔲 Multi-Screen Video Wall Matrix & Bezel Compensation")
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(true)
-            .default_size(Vec2::new(680.0, 520.0))
-    .min_size([408.0, 312.0])
-    .vscroll(true)
-            .show(ctx, |ui| {
+        crate::ui::native_window::show_native_window(
+            ctx,
+            "vortex_video_wall_matrix_dialog_window",
+            "🔲 Multi-Screen Video Wall Matrix & Bezel Compensation",
+            eframe::egui::Vec2::new(680.0, 520.0),
+            true,
+            &mut open,
+            |ui| {
                 ui.vertical(|ui| {
                     // Header Bar
                     ui.horizontal(|ui| {
@@ -204,7 +204,8 @@ impl VideoWallMatrixDialog {
                         });
                     });
                 });
-            });
+        },
+        );
 
         self.is_open = open;
     }

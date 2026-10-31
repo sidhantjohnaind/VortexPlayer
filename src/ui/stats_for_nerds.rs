@@ -133,23 +133,24 @@ impl StatsForNerdsDialog {
 
         let mut is_open = self.is_open;
         let mut copy_debug_info = false;
+        let mut close_requested = false;
 
         let skin = VortexTheme::current_skin();
 
         crate::ui::native_window::show_native_window(
             ctx,
             "vortex_stats_for_nerds_window",
-            "Stats for Nerds",
+            "",
             eframe::egui::Vec2::new(540.0, 650.0),
             true,
             &mut is_open,
             |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(8.0, 6.0);
 
-            // ── Top Toolbar Header ──────────────────────────────────────────
+            // ── Top Toolbar Header (Unified Title Bar with Pin & Close) ────
             ui.horizontal(|ui| {
                 ui.label(
-                    egui::RichText::new("Stats for Nerds")
+                    egui::RichText::new("📊 Stats for Nerds")
                         .strong()
                         .size(13.5)
                         .color(skin.accent_bright),
@@ -157,12 +158,51 @@ impl StatsForNerdsDialog {
                 ui.colored_label(skin.text_muted, "• Vortex Engine");
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Close button on far right
+                    let close_btn = ui.add(
+                        egui::Button::new(
+                            egui::RichText::new("✕")
+                                .size(12.5)
+                                .color(Color32::from_rgb(180, 185, 200))
+                        )
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::NONE)
+                    ).on_hover_text("Close Stats for Nerds (Esc)");
+                    if close_btn.clicked() {
+                        close_requested = true;
+                    }
+
+                    ui.add_space(6.0);
+
+                    // Pin button immediately next to Close button!
                     let pin_icon = if self.is_pinned { "📌 Unpin" } else { "📍 Pin" };
-                    if ui.button(pin_icon).on_hover_text("Pin overlay on top of video").clicked() {
+                    let pin_btn = ui.add(
+                        egui::Button::new(
+                            egui::RichText::new(pin_icon)
+                                .size(11.5)
+                                .color(if self.is_pinned { skin.accent_bright } else { Color32::from_rgb(180, 185, 200) })
+                        )
+                        .fill(if self.is_pinned { Color32::from_rgb(32, 40, 56) } else { Color32::from_rgb(24, 26, 34) })
+                        .stroke(Stroke::new(1.0, if self.is_pinned { Color32::from_rgb(50, 70, 110) } else { Color32::from_rgb(45, 50, 65) }))
+                        .corner_radius(CornerRadius::same(4))
+                    ).on_hover_text(if self.is_pinned { "Unpin window (Close when clicking outside)" } else { "Pin window on top of video" });
+                    if pin_btn.clicked() {
                         self.is_pinned = !self.is_pinned;
                     }
 
-                    if ui.button("📋 Copy Debug Info").on_hover_text("Copy formatted JSON debug statistics to clipboard").clicked() {
+                    ui.add_space(4.0);
+
+                    // Copy Debug Info
+                    if ui.add(
+                        egui::Button::new(
+                            egui::RichText::new("📋 Copy Debug Info")
+                                .size(11.5)
+                                .color(Color32::from_rgb(180, 185, 200))
+                        )
+                        .fill(Color32::from_rgb(24, 26, 34))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 50, 65)))
+                        .corner_radius(CornerRadius::same(4))
+                    ).on_hover_text("Copy formatted JSON debug statistics to clipboard").clicked() {
                         copy_debug_info = true;
                     }
                 });
@@ -488,6 +528,10 @@ impl StatsForNerdsDialog {
                 stats.vsync_jitter * 1000.0
             );
             ctx.copy_text(debug_json);
+        }
+
+        if close_requested {
+            is_open = false;
         }
 
         self.is_open = is_open;

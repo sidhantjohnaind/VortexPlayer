@@ -14,9 +14,10 @@ pub fn show_native_window(
         return;
     }
 
-    egui::Window::new(title)
+    let has_title_bar = !title.is_empty();
+
+    let mut window = egui::Window::new(title)
         .id(egui::Id::new(key))
-        .open(open)
         .default_pos(ctx.content_rect().center())
         .pivot(egui::Align2::CENTER_CENTER)
         .default_size(size)
@@ -25,6 +26,7 @@ pub fn show_native_window(
         .collapsible(false)
         .vscroll(scroll)
         .constrain(true)
+        .title_bar(has_title_bar)
         .order(egui::Order::Foreground)
         .frame(
             egui::Frame::new()
@@ -38,8 +40,13 @@ pub fn show_native_window(
                     spread: 2,
                     color: Color32::from_black_alpha(200),
                 }),
-        )
-        .show(ctx, |ui| {
-            contents(ui);
-        });
+        );
+
+    if has_title_bar {
+        window = window.open(open);
+    }
+
+    window.show(ctx, |ui| {
+        contents(ui);
+    });
 }

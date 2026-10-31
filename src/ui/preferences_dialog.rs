@@ -6,6 +6,7 @@ use super::theme::VortexTheme;
 use crate::config::{AppConfig, DoubleClickAction, PlaylistEndAction, ThemeMode};
 use crate::engine::audio_dsp::{FREQS, VORTEX_EQ_PRESETS};
 use crate::engine::shaders::{Anime4kPreset, VideoScaler};
+use crate::engine::surround_eq::{ChannelId, SURROUND_EQ_FREQS, SURROUND_EQ_LABELS};
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2};
 
 /// Modern Fluent-style Animated Toggle Switch
@@ -467,6 +468,8 @@ pub struct PreferencesDialog {
     pub save_feedback_time: f64,
     pub feedback_message: String,
     pub backup_config: Option<AppConfig>,
+    pub eq_channel_tab: usize,
+    pub open_floating_surround_eq: bool,
 }
 
 impl Default for PreferencesDialog {
@@ -480,6 +483,8 @@ impl Default for PreferencesDialog {
             save_feedback_time: 0.0,
             feedback_message: String::new(),
             backup_config: None,
+            eq_channel_tab: 0,
+            open_floating_surround_eq: false,
         }
     }
 }
@@ -1664,48 +1669,98 @@ impl PreferencesDialog {
                                             });
                                         });
                                     }
-                                    ("Audio", "18-Band Equalizer") => {
+                                    ("Audio", "18-Band Equalizer") | ("Audio", "18-Band & 7.1 Equalizer") | ("Audio", "Equalizer & 7.1 Channels") | ("Audio", "7.1 Surround Channel EQ") => {
                                         let current_time = ui.input(|i| i.time);
                                         let is_recently_saved = current_time - self.save_feedback_time < 2.0;
 
-                                        section_header(ui, "Audio  ›  18-Band Equalizer", "18-Band Graphic Equalizer", "Configure frequency responses, craft custom curves, and manage custom presets.");
+                                        section_header(ui, "Audio  ›  18-Band & 7.1 Equalizer", "Acoustic Equalizer & 7.1 Surround Matrix", "Tune Master 18-Band spectrum or calibrate every 7.1 surround speaker channel independently.");
 
-                                        settings_card(ui, |ui| {
-                                            ui.horizontal(|ui| {
-                                                let is_eq = config.eq_enabled;
-                                                let mut eq_en = config.eq_enabled;
-                                                if ui.checkbox(&mut eq_en, RichText::new("Enable Equalizer").strong().color(if is_eq { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).changed() {
-                                                    config.eq_enabled = eq_en;
-                                                    if let Some(p) = player {
-                                                        p.set_equalizer(eq_en, &config.eq_bands);
+                                        // Channel Mode Selector Segmented Pill Bar
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 4.0);
+                                            let tabs = [
+                                                (0, "🌐 Master (18-Band)", Color32::from_rgb(100, 200, 255)),
+                                                (1, "🎛 7.1 Overview Matrix", Color32::from_rgb(255, 200, 80)),
+                                                (2, "FL (Front Left)", Color32::from_rgb(0, 225, 255)),
+                                                (3, "FR (Front Right)", Color32::from_rgb(45, 140, 255)),
+                                                (4, "FC (Center / Speech)", Color32::from_rgb(255, 195, 35)),
+                                                (5, "LFE (Subwoofer)", Color32::from_rgb(225, 75, 255)),
+                                                (6, "SL (Surround Left)", Color32::from_rgb(50, 230, 120)),
+                                                (7, "SR (Surround Right)", Color32::from_rgb(150, 245, 55)),
+                                                (8, "BL (Rear Left)", Color32::from_rgb(0, 210, 190)),
+                                                (9, "BR (Rear Right)", Color32::from_rgb(255, 125, 50)),
+                                            ];
+
+                                            for (idx, label, col) in tabs {
+                                                let is_sel = self.eq_channel_tab == idx;
+                                                let btn = ui.add(
+                                                    egui::Button::new(
+                                                        RichText::new(label)
+                                                            .size(11.0)
+                                                            .strong()
+                                                            .color(if is_sel { Color32::WHITE } else { col })
+                                                    )
+                                                    .fill(if is_sel { col.gamma_multiply(0.4) } else { Color32::from_rgb(20, 22, 30) })
+                                                    .stroke(Stroke::new(1.0, if is_sel { col } else { Color32::from_rgb(38, 42, 56) }))
+                                                    .corner_radius(CornerRadius::same(5))
+                                                );
+                                                if btn.clicked() {
+                                                    self.eq_channel_tab = idx;
+                                                }
+                                            }
+
+                                            if ui.button(RichText::new("↗ Floating 7.1 Studio").color(Color32::from_rgb(200, 225, 255))).on_hover_text("Open 7.1 Surround EQ in an interactive floating overlay window").clicked() {
+                                                self.open_floating_surround_eq = true;
+                                            }
+                                        });
+
+                                        ui.add_space(6.0);
+
+                                        if self.eq_channel_tab == 0 {
+                                            // ── Master 18-Band Equalizer ─────────────────────────
+                                            settings_card(ui, |ui| {
+                                                ui.horizontal_wrapped(|ui| {
+                                                    let is_eq = config.eq_enabled;
+                                                    let mut eq_en = config.eq_enabled;
+                                                    if ui.checkbox(&mut eq_en, RichText::new("Enable Equalizer").strong().color(if is_eq { VortexTheme::current_skin().accent_primary } else { Color32::WHITE })).changed() {
+                                                        config.eq_enabled = eq_en;
+                                                        if let Some(p) = player {
+                                                            p.set_equalizer(eq_en, &config.eq_bands);
+                                                        }
+                                                        let _ = config.save();
                                                     }
-                                                    let _ = config.save();
-                                                }
 
-                                                if ui.button("Reset (0 dB)").on_hover_text("Reset all 18 bands to 0 dB flat").clicked() {
-                                                    config.eq_bands = vec![0.0; 18];
-                                                    config.eq_preset = "Flat".to_string();
-                                                    if let Some(p) = player {
-                                                        p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                                                    ui.add_space(8.0);
+
+                                                    if ui.button("Reset (0 dB)").on_hover_text("Reset all 18 bands to 0 dB flat").clicked() {
+                                                        config.eq_bands = vec![0.0; 18];
+                                                        config.eq_preset = "Flat".to_string();
+                                                        if let Some(p) = player {
+                                                            p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                                                        }
+                                                        let _ = config.save();
                                                     }
-                                                    let _ = config.save();
-                                                }
 
-                                                let save_txt = if is_recently_saved { "✓ Saved!" } else { "💾 Save Config" };
-                                                let save_col = if is_recently_saved { Color32::from_rgb(100, 225, 140) } else { Color32::WHITE };
-                                                if ui.button(RichText::new(save_txt).color(save_col)).on_hover_text("Save current equalizer bands and preset to disk").clicked() {
-                                                    let _ = config.save();
-                                                    self.save_feedback_time = current_time;
-                                                }
-
-                                                if ui.button("➕ Save As Custom Preset...").on_hover_text("Save current band values as a new named custom preset").clicked() {
-                                                    self.is_naming_preset = !self.is_naming_preset;
-                                                    if self.is_naming_preset {
-                                                        self.new_preset_name = format!("Custom {}", config.custom_eq_presets.len() + 1);
+                                                    let save_txt = if is_recently_saved { "✓ Saved!" } else { "💾 Save Config" };
+                                                    let save_col = if is_recently_saved { Color32::from_rgb(100, 225, 140) } else { Color32::WHITE };
+                                                    if ui.button(RichText::new(save_txt).color(save_col)).on_hover_text("Save current equalizer bands and preset to disk").clicked() {
+                                                        let _ = config.save();
+                                                        self.save_feedback_time = current_time;
                                                     }
-                                                }
 
-                                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                    if ui.button("➕ Save As Custom Preset...").on_hover_text("Save current band values as a new named custom preset").clicked() {
+                                                        self.is_naming_preset = !self.is_naming_preset;
+                                                        if self.is_naming_preset {
+                                                            self.new_preset_name = format!("Custom {}", config.custom_eq_presets.len() + 1);
+                                                        }
+                                                    }
+                                                });
+
+                                                ui.add_space(4.0);
+
+                                                // Clean separate line for Active Preset selector to prevent text overlap
+                                                ui.horizontal(|ui| {
+                                                    ui.label(RichText::new("Active Preset:").color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                                     egui::ComboBox::from_id_salt("pref_eq_preset_sel")
                                                         .selected_text(RichText::new(&config.eq_preset).color(VortexTheme::current_skin().accent_primary).strong())
                                                         .show_ui(ui, |ui| {
@@ -1753,174 +1808,394 @@ impl PreferencesDialog {
                                                                 }
                                                             }
                                                         });
-                                                    ui.label(RichText::new("Active Preset:").color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
                                                 });
-                                            });
 
-                                            if self.is_naming_preset {
-                                                ui.add_space(4.0);
-                                                egui::Frame::new()
-                                                    .fill(Color32::from_rgb(10, 10, 14))
-                                                    .stroke(Stroke::new(1.0, Color32::from_rgb(40, 45, 60)))
-                                                    .corner_radius(CornerRadius::same(6))
-                                                    .inner_margin(Margin::symmetric(10, 6))
-                                                    .show(ui, |ui| {
-                                                        ui.horizontal(|ui| {
-                                                            ui.label(RichText::new("New Custom Preset Name:").size(11.5).color(VortexTheme::current_skin().accent_primary).strong());
-                                                            let text_resp = ui.add(
-                                                                egui::TextEdit::singleline(&mut self.new_preset_name)
-                                                                    .desired_width(200.0)
-                                                                    .hint_text("e.g. Bass Extra, Vocals, Gaming...")
-                                                            );
-                                                            let enter_pressed = text_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                                                            if enter_pressed || ui.button("💾 Save Preset").clicked() {
-                                                                let name = self.new_preset_name.trim().to_string();
-                                                                if !name.is_empty() {
-                                                                    config.custom_eq_presets.insert(name.clone(), config.eq_bands.clone());
-                                                                    config.eq_preset = name;
-                                                                    let _ = config.save();
-                                                                    self.is_naming_preset = false;
-                                                                    self.save_feedback_time = current_time;
-                                                                    if let Some(p) = player {
-                                                                        p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                                                if self.is_naming_preset {
+                                                    ui.add_space(4.0);
+                                                    egui::Frame::new()
+                                                        .fill(Color32::from_rgb(10, 10, 14))
+                                                        .stroke(Stroke::new(1.0, Color32::from_rgb(40, 45, 60)))
+                                                        .corner_radius(CornerRadius::same(6))
+                                                        .inner_margin(Margin::symmetric(10, 6))
+                                                        .show(ui, |ui| {
+                                                            ui.horizontal(|ui| {
+                                                                ui.label(RichText::new("New Custom Preset Name:").size(11.5).color(VortexTheme::current_skin().accent_primary).strong());
+                                                                let text_resp = ui.add(
+                                                                    egui::TextEdit::singleline(&mut self.new_preset_name)
+                                                                        .desired_width(200.0)
+                                                                        .hint_text("e.g. Bass Extra, Vocals, Gaming...")
+                                                                );
+                                                                let enter_pressed = text_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                                                                if enter_pressed || ui.button("💾 Save Preset").clicked() {
+                                                                    let name = self.new_preset_name.trim().to_string();
+                                                                    if !name.is_empty() {
+                                                                        config.custom_eq_presets.insert(name.clone(), config.eq_bands.clone());
+                                                                        config.eq_preset = name;
+                                                                        let _ = config.save();
+                                                                        self.is_naming_preset = false;
+                                                                        self.save_feedback_time = current_time;
+                                                                        if let Some(p) = player {
+                                                                            p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                                                                        }
                                                                     }
                                                                 }
-                                                            }
-                                                            if ui.button("Cancel").clicked() {
-                                                                self.is_naming_preset = false;
+                                                                if ui.button("Cancel").clicked() {
+                                                                    self.is_naming_preset = false;
+                                                                }
+                                                            });
+                                                        });
+                                                }
+
+                                                ui.add_space(6.0);
+
+                                                let freqs = ["20", "31", "50", "80", "125", "200", "315", "500", "800", "1.2k", "2k", "3.1k", "5k", "8k", "12k", "16k", "18k", "20k"];
+                                                if config.eq_bands.len() != 18 {
+                                                    config.eq_bands = vec![0.0; 18];
+                                                }
+
+                                                egui::Frame::new()
+                                                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
+                                                    .stroke(Stroke::new(1.0, Color32::from_rgb(32, 36, 48)))
+                                                    .corner_radius(CornerRadius::same(6))
+                                                    .inner_margin(Margin::symmetric(10, 8))
+                                                    .show(ui, |ui| {
+                                                        ui.horizontal(|ui| {
+                                                            ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+                                                            for i in 0..18 {
+                                                                ui.vertical(|ui| {
+                                                                    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+                                                                    let mut gain = config.eq_bands[i];
+
+                                                                    let gain_col = if gain > 0.1 {
+                                                                        Color32::from_rgb(255, 195, 60)
+                                                                    } else if gain < -0.1 {
+                                                                        Color32::from_rgb(100, 180, 255)
+                                                                    } else {
+                                                                        crate::ui::theme::VortexTheme::current_skin().text_muted
+                                                                    };
+                                                                    ui.label(RichText::new(format!("{:+.0}", gain)).size(9.5).monospace().color(gain_col));
+
+                                                                    let slider = ui.add(
+                                                                        egui::Slider::new(&mut gain, -12.0..=12.0)
+                                                                            .vertical()
+                                                                            .show_value(false),
+                                                                    );
+                                                                    if slider.changed() {
+                                                                        config.eq_bands[i] = gain;
+                                                                        config.eq_preset = "Custom".to_string();
+                                                                        if let Some(p) = player {
+                                                                            p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                                                                        }
+                                                                        let _ = config.save();
+                                                                    }
+
+                                                                    ui.label(RichText::new(freqs[i]).size(9.5).monospace().color(Color32::from_rgb(140, 145, 160)));
+                                                                });
                                                             }
                                                         });
                                                     });
-                                            }
+                                            });
 
-                                            ui.add_space(6.0);
+                                            ui.add_space(8.0);
+                                            settings_card(ui, |ui| {
+                                                ui.label(RichText::new("Saved Custom Presets Library").size(13.0).strong().color(VortexTheme::current_skin().accent_primary));
+                                                if config.custom_eq_presets.is_empty() {
+                                                    ui.label(RichText::new("No custom EQ presets created yet. Adjust the sliders above and click '➕ Save As Custom Preset...' to save your personalized sound curve.").size(10.5).color(Color32::from_rgb(140, 145, 160)));
+                                                } else {
+                                                    egui::ScrollArea::vertical()
+                                                        .max_height(140.0)
+                                                        .show(ui, |ui| {
+                                                            let mut to_del: Option<String> = None;
+                                                            let mut to_overwrite: Option<String> = None;
+                                                            let mut to_load: Option<String> = None;
+                                                            let custom_names: Vec<String> = config.custom_eq_presets.keys().cloned().collect();
 
-                                            let freqs = ["20", "31", "50", "80", "125", "200", "315", "500", "800", "1.2k", "2k", "3.1k", "5k", "8k", "12k", "16k", "18k", "20k"];
-                                            if config.eq_bands.len() != 18 {
-                                                config.eq_bands = vec![0.0; 18];
-                                            }
-
-                                            egui::Frame::new()
-                                                .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
-                                                .stroke(Stroke::new(1.0, Color32::from_rgb(32, 36, 48)))
-                                                .corner_radius(CornerRadius::same(6))
-                                                .inner_margin(Margin::symmetric(10, 8))
-                                                .show(ui, |ui| {
-                                                    ui.horizontal(|ui| {
-                                                        ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
-                                                        for i in 0..18 {
-                                                            ui.vertical(|ui| {
-                                                                ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-                                                                let mut gain = config.eq_bands[i];
-
-                                                                let gain_col = if gain > 0.1 {
-                                                                    Color32::from_rgb(255, 195, 60)
-                                                                } else if gain < -0.1 {
-                                                                    Color32::from_rgb(100, 180, 255)
+                                                            for name in custom_names {
+                                                                let is_active = config.eq_preset == name;
+                                                                let row_bg = if is_active {
+                                                                    Color32::from_rgb(32, 36, 48)
                                                                 } else {
-                                                                    crate::ui::theme::VortexTheme::current_skin().text_muted
+                                                                    crate::ui::theme::VortexTheme::current_skin().bg_panel
                                                                 };
-                                                                ui.label(RichText::new(format!("{:+.0}", gain)).size(9.5).monospace().color(gain_col));
 
-                                                                let slider = ui.add(
-                                                                    egui::Slider::new(&mut gain, -12.0..=12.0)
-                                                                        .vertical()
-                                                                        .show_value(false),
-                                                                );
-                                                                if slider.changed() {
-                                                                    config.eq_bands[i] = gain;
+                                                                egui::Frame::new()
+                                                                    .fill(row_bg)
+                                                                    .stroke(Stroke::new(1.0, if is_active { Color32::from_rgb(65, 80, 115) } else { Color32::from_rgb(36, 40, 52) }))
+                                                                    .corner_radius(CornerRadius::same(4))
+                                                                    .inner_margin(Margin::symmetric(10, 6))
+                                                                    .show(ui, |ui| {
+                                                                        ui.horizontal(|ui| {
+                                                                            let star_col = if is_active { VortexTheme::current_skin().accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
+                                                                            ui.label(RichText::new(format!("★ {}", name)).strong().color(star_col));
+
+                                                                            if is_active {
+                                                                                ui.label(RichText::new("[Active]").size(9.5).color(VortexTheme::current_skin().accent_primary));
+                                                                            }
+
+                                                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                                                if ui.button(RichText::new("🗑 Delete").color(Color32::from_rgb(240, 90, 90))).clicked() {
+                                                                                    to_del = Some(name.clone());
+                                                                                }
+                                                                                if ui.button("⟳ Overwrite").on_hover_text("Update this preset with current 18-band slider values").clicked() {
+                                                                                    to_overwrite = Some(name.clone());
+                                                                                }
+                                                                                if !is_active && ui.button("Load").clicked() {
+                                                                                    to_load = Some(name.clone());
+                                                                                }
+                                                                            });
+                                                                        });
+                                                                    });
+                                                                ui.add_space(2.0);
+                                                            }
+
+                                                            if let Some(del_key) = to_del {
+                                                                config.custom_eq_presets.remove(&del_key);
+                                                                if config.eq_preset == del_key {
                                                                     config.eq_preset = "Custom".to_string();
+                                                                }
+                                                                let _ = config.save();
+                                                            }
+                                                            if let Some(ow_key) = to_overwrite {
+                                                                config.custom_eq_presets.insert(ow_key.clone(), config.eq_bands.clone());
+                                                                config.eq_preset = ow_key;
+                                                                let _ = config.save();
+                                                                self.save_feedback_time = current_time;
+                                                            }
+                                                            if let Some(load_key) = to_load {
+                                                                if let Some(bands) = config.custom_eq_presets.get(&load_key) {
+                                                                    config.eq_bands = bands.clone();
+                                                                    config.eq_preset = load_key;
                                                                     if let Some(p) = player {
                                                                         p.set_equalizer(config.eq_enabled, &config.eq_bands);
                                                                     }
                                                                     let _ = config.save();
                                                                 }
-
-                                                                ui.label(RichText::new(freqs[i]).size(9.5).monospace().color(Color32::from_rgb(140, 145, 160)));
-                                                            });
-                                                        }
-                                                    });
-                                                });
-                                        });
-
-                                        ui.add_space(8.0);
-                                        settings_card(ui, |ui| {
-                                            ui.label(RichText::new("Saved Custom Presets Library").size(13.0).strong().color(VortexTheme::current_skin().accent_primary));
-                                            if config.custom_eq_presets.is_empty() {
-                                                ui.label(RichText::new("No custom EQ presets created yet. Adjust the sliders above and click \"➕ Save As Custom Preset...\" to save your personalized sound curve.").size(10.5).color(Color32::from_rgb(140, 145, 160)));
-                                            } else {
-                                                egui::ScrollArea::vertical()
-                                                    .max_height(140.0)
-                                                    .show(ui, |ui| {
-                                                        let mut to_del: Option<String> = None;
-                                                        let mut to_overwrite: Option<String> = None;
-                                                        let mut to_load: Option<String> = None;
-                                                        let custom_names: Vec<String> = config.custom_eq_presets.keys().cloned().collect();
-
-                                                        for name in custom_names {
-                                                            let is_active = config.eq_preset == name;
-                                                            let row_bg = if is_active {
-                                                                Color32::from_rgb(32, 36, 48)
-                                                            } else {
-                                                                crate::ui::theme::VortexTheme::current_skin().bg_panel
-                                                            };
-
-                                                            egui::Frame::new()
-                                                                .fill(row_bg)
-                                                                .stroke(Stroke::new(1.0, if is_active { Color32::from_rgb(65, 80, 115) } else { Color32::from_rgb(36, 40, 52) }))
-                                                                .corner_radius(CornerRadius::same(4))
-                                                                .inner_margin(Margin::symmetric(10, 6))
-                                                                .show(ui, |ui| {
-                                                                    ui.horizontal(|ui| {
-                                                                        let star_col = if is_active { VortexTheme::current_skin().accent_primary } else { crate::ui::theme::VortexTheme::current_skin().text_secondary };
-                                                                        ui.label(RichText::new(format!("★ {}", name)).strong().color(star_col));
-
-                                                                        if is_active {
-                                                                            ui.label(RichText::new("[Active]").size(9.5).color(VortexTheme::current_skin().accent_primary));
-                                                                        }
-
-                                                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                                            if ui.button(RichText::new("🗑 Delete").color(Color32::from_rgb(240, 90, 90))).clicked() {
-                                                                                to_del = Some(name.clone());
-                                                                            }
-                                                                            if ui.button("⟳ Overwrite").on_hover_text("Update this preset with current 18-band slider values").clicked() {
-                                                                                to_overwrite = Some(name.clone());
-                                                                            }
-                                                                            if !is_active && ui.button("Load").clicked() {
-                                                                                to_load = Some(name.clone());
-                                                                            }
-                                                                        });
-                                                                    });
-                                                                });
-                                                            ui.add_space(2.0);
-                                                        }
-
-                                                        if let Some(del_key) = to_del {
-                                                            config.custom_eq_presets.remove(&del_key);
-                                                            if config.eq_preset == del_key {
-                                                                config.eq_preset = "Custom".to_string();
                                                             }
-                                                            let _ = config.save();
+                                                        });
+                                                }
+                                            });
+                                        } else if self.eq_channel_tab == 1 {
+                                            // ── 7.1 Surround Overview & Trims ─────────────────────
+                                            settings_card(ui, |ui| {
+                                                ui.horizontal_wrapped(|ui| {
+                                                    let is_en = config.surround_eq.enabled;
+                                                    let mut en = is_en;
+                                                    let label = RichText::new("Enable 7.1 Surround EQ")
+                                                        .font(FontId::proportional(12.5))
+                                                        .strong()
+                                                        .color(if is_en { VortexTheme::current_skin().accent_primary } else { Color32::WHITE });
+                                                    if ui.checkbox(&mut en, label).changed() {
+                                                        config.surround_eq.enabled = en;
+                                                        if let Some(p) = player {
+                                                            p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
                                                         }
-                                                        if let Some(ow_key) = to_overwrite {
-                                                            config.custom_eq_presets.insert(ow_key.clone(), config.eq_bands.clone());
-                                                            config.eq_preset = ow_key;
-                                                            let _ = config.save();
-                                                            self.save_feedback_time = current_time;
+                                                        let _ = config.save();
+                                                    }
+
+                                                    ui.add_space(10.0);
+                                                    if ui.checkbox(&mut config.surround_eq.link_stereo_pairs, "🔗 Link Pairs (FL/FR, SL/SR, BL/BR)").changed() {
+                                                        let _ = config.save();
+                                                    }
+
+                                                    ui.add_space(8.0);
+                                                    if ui.button("Flat / Reset All").on_hover_text("Reset all 8 surround channels to 0 dB flat").clicked() {
+                                                        config.surround_eq.reset_all();
+                                                        if let Some(p) = player {
+                                                            p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
                                                         }
-                                                        if let Some(load_key) = to_load {
-                                                            if let Some(bands) = config.custom_eq_presets.get(&load_key) {
-                                                                config.eq_bands = bands.clone();
-                                                                config.eq_preset = load_key;
+                                                        let _ = config.save();
+                                                    }
+                                                });
+
+                                                ui.add_space(4.0);
+
+                                                ui.horizontal(|ui| {
+                                                    ui.label(RichText::new("7.1 Acoustic Preset:").color(crate::ui::theme::VortexTheme::current_skin().text_secondary));
+                                                    let presets = [
+                                                        "Cinema Dialogue Focus",
+                                                        "Subwoofer Bass Slam",
+                                                        "Action Movie Immersion",
+                                                        "Night Mode (Quiet Bass / Clear Speech)",
+                                                    ];
+                                                    egui::ComboBox::from_id_salt("pref_surround_presets_combo")
+                                                        .selected_text(RichText::new(&config.surround_eq.profile_name).color(VortexTheme::current_skin().accent_primary).strong())
+                                                        .show_ui(ui, |ui| {
+                                                            for &pr in &presets {
+                                                                if ui.selectable_label(config.surround_eq.profile_name == pr, pr).clicked() {
+                                                                    config.surround_eq.apply_preset(pr);
+                                                                    if let Some(p) = player {
+                                                                        p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
+                                                                    }
+                                                                    let _ = config.save();
+                                                                }
+                                                            }
+                                                        });
+                                                });
+
+                                                ui.add_space(8.0);
+                                                ui.separator();
+                                                ui.add_space(8.0);
+
+                                                // 8-Channel Quick Trim & Direct Band Access Grid
+                                                egui::Grid::new("pref_7_1_channels_grid")
+                                                    .striped(true)
+                                                    .spacing(Vec2::new(14.0, 8.0))
+                                                    .show(ui, |ui| {
+                                                        for &ch in &ChannelId::ALL {
+                                                            let ch_idx = ch as usize;
+                                                            let col = crate::ui::surround_eq_dialog::SurroundEqDialog::channel_color(ch);
+
+                                                            ui.label(RichText::new(ch.display_name()).font(FontId::proportional(11.5)).strong().color(col));
+
+                                                            let mut ch_en = config.surround_eq.channels[ch_idx].enabled;
+                                                            if ui.checkbox(&mut ch_en, "Active").changed() {
+                                                                config.surround_eq.channels[ch_idx].enabled = ch_en;
                                                                 if let Some(p) = player {
-                                                                    p.set_equalizer(config.eq_enabled, &config.eq_bands);
+                                                                    p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
                                                                 }
                                                                 let _ = config.save();
                                                             }
+
+                                                            let mut trim = config.surround_eq.channels[ch_idx].gain_offset_db;
+                                                            if ui.add(egui::Slider::new(&mut trim, -12.0..=12.0).step_by(0.1).suffix(" dB")).changed() {
+                                                                config.surround_eq.channels[ch_idx].gain_offset_db = trim;
+                                                                if config.surround_eq.link_stereo_pairs {
+                                                                    if let Some(p_idx) = ch.stereo_pair_index() {
+                                                                        config.surround_eq.channels[p_idx].gain_offset_db = trim;
+                                                                    }
+                                                                }
+                                                                if let Some(p) = player {
+                                                                    p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
+                                                                }
+                                                                let _ = config.save();
+                                                            }
+
+                                                            if ui.small_button("Tune 10 Bands ➔").clicked() {
+                                                                self.eq_channel_tab = ch_idx + 2;
+                                                            }
+
+                                                            ui.end_row();
                                                         }
                                                     });
+                                            });
+                                        } else {
+                                            // ── Specific Channel 10-Band Equalizer (FL, FR, Center, Subwoofer, Surrounds, Rears) ──
+                                            let ch_idx = self.eq_channel_tab - 2;
+                                            if ch_idx < ChannelId::ALL.len() {
+                                                let ch = ChannelId::ALL[ch_idx];
+                                                let ch_col = crate::ui::surround_eq_dialog::SurroundEqDialog::channel_color(ch);
+
+                                                settings_card(ui, |ui| {
+                                                    ui.horizontal_wrapped(|ui| {
+                                                        ui.label(
+                                                            RichText::new(format!("● {}", ch.display_name()))
+                                                                .font(FontId::proportional(13.5))
+                                                                .strong()
+                                                                .color(ch_col),
+                                                        );
+
+                                                        ui.add_space(10.0);
+                                                        let mut ch_en = config.surround_eq.channels[ch_idx].enabled;
+                                                        if ui.checkbox(&mut ch_en, "Active Channel").changed() {
+                                                            config.surround_eq.channels[ch_idx].enabled = ch_en;
+                                                            if let Some(p) = player {
+                                                                p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
+                                                            }
+                                                            let _ = config.save();
+                                                        }
+
+                                                        ui.add_space(8.0);
+                                                        let mut trim = config.surround_eq.channels[ch_idx].gain_offset_db;
+                                                        ui.label("Trim:");
+                                                        if ui.add(egui::Slider::new(&mut trim, -12.0..=12.0).step_by(0.1).suffix(" dB")).changed() {
+                                                            config.surround_eq.channels[ch_idx].gain_offset_db = trim;
+                                                            if config.surround_eq.link_stereo_pairs {
+                                                                if let Some(p_idx) = ch.stereo_pair_index() {
+                                                                    config.surround_eq.channels[p_idx].gain_offset_db = trim;
+                                                                }
+                                                            }
+                                                            if let Some(p) = player {
+                                                                p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
+                                                            }
+                                                            let _ = config.save();
+                                                        }
+
+                                                        ui.add_space(8.0);
+                                                        if ui.button("Flat (0 dB)").on_hover_text("Reset this channel's 10 bands to 0 dB flat").clicked() {
+                                                            config.surround_eq.channels[ch_idx].bands = [0.0; 10];
+                                                            if config.surround_eq.link_stereo_pairs {
+                                                                if let Some(p_idx) = ch.stereo_pair_index() {
+                                                                    config.surround_eq.channels[p_idx].bands = [0.0; 10];
+                                                                }
+                                                            }
+                                                            if let Some(p) = player {
+                                                                p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
+                                                            }
+                                                            let _ = config.save();
+                                                        }
+
+                                                        if let Some(p_idx) = ch.stereo_pair_index() {
+                                                            let pair_name = ChannelId::ALL[p_idx].short_name();
+                                                            ui.label(RichText::new(format!("(Linked with {})", pair_name)).size(10.5).color(crate::ui::theme::VortexTheme::current_skin().text_muted));
+                                                        }
+                                                    });
+
+                                                    ui.add_space(8.0);
+
+                                                    // 10 Frequency Band Sliders for this specific channel
+                                                    let pair_idx = if config.surround_eq.link_stereo_pairs {
+                                                        ch.stereo_pair_index()
+                                                    } else {
+                                                        None
+                                                    };
+
+                                                    egui::Frame::new()
+                                                        .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
+                                                        .stroke(Stroke::new(1.0, Color32::from_rgb(32, 36, 48)))
+                                                        .corner_radius(CornerRadius::same(6))
+                                                        .inner_margin(Margin::symmetric(14, 10))
+                                                        .show(ui, |ui| {
+                                                            ui.horizontal(|ui| {
+                                                                ui.spacing_mut().item_spacing = Vec2::new(12.0, 0.0);
+                                                                for b_idx in 0..10 {
+                                                                    ui.vertical(|ui| {
+                                                                        ui.spacing_mut().item_spacing = Vec2::new(0.0, 3.0);
+                                                                        let mut val = config.surround_eq.channels[ch_idx].bands[b_idx];
+
+                                                                        let val_col = if val > 0.1 {
+                                                                            ch_col
+                                                                        } else if val < -0.1 {
+                                                                            Color32::from_rgb(100, 180, 255)
+                                                                        } else {
+                                                                            crate::ui::theme::VortexTheme::current_skin().text_muted
+                                                                        };
+                                                                        ui.label(RichText::new(format!("{:+.1}", val)).size(9.5).monospace().color(val_col));
+
+                                                                        let slider = ui.add(
+                                                                            egui::Slider::new(&mut val, -12.0..=12.0)
+                                                                                .vertical()
+                                                                                .step_by(0.1)
+                                                                                .show_value(false),
+                                                                        );
+                                                                        if slider.changed() {
+                                                                            config.surround_eq.channels[ch_idx].bands[b_idx] = val;
+                                                                            if let Some(p_idx) = pair_idx {
+                                                                                config.surround_eq.channels[p_idx].bands[b_idx] = val;
+                                                                            }
+                                                                            if let Some(p) = player {
+                                                                                p.set_audio_filter(&config.surround_eq.build_audio_filter_string());
+                                                                            }
+                                                                            let _ = config.save();
+                                                                        }
+
+                                                                        ui.label(RichText::new(SURROUND_EQ_LABELS[b_idx]).size(9.5).monospace().color(Color32::from_rgb(140, 145, 160)));
+                                                                    });
+                                                                }
+                                                            });
+                                                        });
+                                                });
                                             }
-                                        });
+                                        }
                                     }
                                     ("Audio", "Soxr Resampling & ReplayGain") => {
                                         section_header(ui, "Audio  ›  Soxr Resampling & ReplayGain", "Soxr Resampling & ReplayGain", "Audiophile rate conversion and automatic track/album volume leveling.");

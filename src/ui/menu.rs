@@ -2527,18 +2527,13 @@ impl VortexMenu {
             ui.close();
         }
 
-        if menu_item(ui, &skin, "📊", "Telemetry HUD...", "Ctrl+T", false, false).clicked() {
-            actions.toggle_telemetry_hud = true;
+        if menu_item(ui, &skin, "📊", "Stats for Nerds (Telemetry)...", "Ctrl+T", false, false).clicked() {
+            actions.toggle_stats_for_nerds = true;
             ui.close();
         }
 
         if menu_item(ui, &skin, "📋", "Frame Drop Debug Log...", "Ctrl+Shift+D", false, false).clicked() {
             actions.toggle_debug_log = true;
-            ui.close();
-        }
-
-        if menu_item(ui, &skin, "🤓", "Stats for Nerds...", "Ctrl+Shift+N", false, false).clicked() {
-            actions.toggle_stats_for_nerds = true;
             ui.close();
         }
 

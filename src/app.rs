@@ -1185,7 +1185,7 @@ impl VortexApp {
                 self.channel_matrix_dialog.is_open = !self.channel_matrix_dialog.is_open;
             }
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::T) && !input.modifiers.shift && !input.modifiers.alt {
-                self.show_telemetry_hud = !self.show_telemetry_hud;
+                self.stats_for_nerds.toggle();
             }
             if (input.modifiers.ctrl || input.modifiers.command) && input.modifiers.shift && input.key_pressed(egui::Key::D) {
                 self.show_debug_log_dialog = !self.show_debug_log_dialog;
@@ -5780,7 +5780,8 @@ impl eframe::App for VortexApp {
         }
 
         if self.show_telemetry_hud {
-            TelemetryHudView::render(&ctx, self.show_telemetry_hud, &stats);
+            self.stats_for_nerds.is_open = true;
+            self.show_telemetry_hud = false;
         }
 
         if self.show_debug_log_dialog {
@@ -6546,7 +6547,7 @@ impl eframe::App for VortexApp {
                         }
                         if menu_actions.toggle_telemetry_hud {
                             self.show_main_menu = false;
-                            self.show_telemetry_hud = !self.show_telemetry_hud;
+                            self.stats_for_nerds.toggle();
                         }
                         if menu_actions.toggle_debug_log {
                             self.show_main_menu = false;
@@ -7164,7 +7165,9 @@ impl eframe::App for VortexApp {
             }
         }
 
-        if self.show_surround_eq_dialog {
+        if self.show_surround_eq_dialog || self.preferences_dialog.open_floating_surround_eq {
+            self.preferences_dialog.open_floating_surround_eq = false;
+            self.show_surround_eq_dialog = true;
             if let Ok(ref player) = self.player {
                 if let Some(r) = self.surround_eq_dialog.render(&ctx, &mut self.show_surround_eq_dialog, &mut self.config.surround_eq, player) {
                     self.active_popup_rects.push(r);

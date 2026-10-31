@@ -248,6 +248,7 @@ pub struct VortexApp {
     last_persisted_track_path: String,
     last_persisted_audio_track: i64,
     last_persisted_subtitle_track: i64,
+    prev_always_on_top: bool,
 }
 
 const TOP_BAR_HEIGHT: f32 = 32.0;
@@ -463,7 +464,7 @@ impl VortexApp {
 
 
             playlist,
-
+            prev_always_on_top: config.always_on_top,
             config,
             bookmark_mgr,
             osd: OsdEngine::new(),
@@ -3767,6 +3768,17 @@ impl eframe::App for VortexApp {
                     }
                 }
             }
+        }
+
+        if self.prev_always_on_top != self.config.always_on_top {
+            self.prev_always_on_top = self.config.always_on_top;
+            #[cfg(windows)]
+            if self.parent_hwnd != 0 {
+                set_native_always_on_top(self.parent_hwnd, self.config.always_on_top);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+                if self.config.always_on_top { egui::WindowLevel::AlwaysOnTop } else { egui::WindowLevel::Normal }
+            ));
         }
 
         if ctx.input(|i| i.viewport().close_requested()) {
@@ -8182,10 +8194,14 @@ pub fn set_native_fullscreen(
             crate::platform::mark_fullscreen_window(hwnd as isize, true);
             crate::platform::apply_fullscreen_border_suppression(hwnd as _);
 
-            // Fullscreen MUST use HWND_TOPMOST (-1) so it covers the taskbar completely
+            // Respect Always-on-Top setting: standard fullscreen uses HWND_NOTOPMOST (-2)
+            // so that Windows Volume/Media OSD, brightness sliders, and system notifications
+            // render on top of fullscreen video (matching VLC, MPC-HC, mpv behavior).
+            // HWND_TOPMOST (-1) is only used when the user explicitly enabled Always on Top.
+            let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
             SetWindowPos(
                 hwnd,
-                -1 as isize as HWND, // HWND_TOPMOST
+                z_order,
                 rc_mon.left,
                 rc_mon.top,
                 mon_w,
@@ -8193,7 +8209,6 @@ pub fn set_native_fullscreen(
                 SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOCOPYBITS,
             );
             SetForegroundWindow(hwnd);
-            BringWindowToTop(hwnd);
             crate::platform::apply_fullscreen_border_suppression(hwnd as _);
         } else {
             // Leaving fullscreen: synchronously notify Windows Explorer taskbar
@@ -8248,6 +8263,20 @@ pub fn set_native_fullscreen(
 }
 #[cfg(not(windows))]
 pub fn set_native_fullscreen(_hwnd: isize, _child_hwnd: isize, _fullscreen: bool, _is_maximized: bool, _saved_rect: Option<()>, _always_on_top: bool) {}
+
+#[cfg(windows)]
+pub fn set_native_always_on_top(hwnd: isize, always_on_top: bool) {
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+    unsafe {
+        let hwnd = hwnd as HWND;
+        if hwnd.is_null() { return; }
+        let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
+        SetWindowPos(hwnd, z_order, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+}
+#[cfg(not(windows))]
+pub fn set_native_always_on_top(_hwnd: isize, _always_on_top: bool) {}
 
 #[cfg(windows)]
 static PRE_PIP_RECT: std::sync::Mutex<windows_sys::Win32::Foundation::RECT> =

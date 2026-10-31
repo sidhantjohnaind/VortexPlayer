@@ -2338,7 +2338,7 @@ impl VortexMenu {
 
         submenu_item(ui, &skin, "•••", "Misc", |ui| {
             ui.set_min_width(150.0);
-            if menu_item(ui, &skin, if config.always_on_top { "✓" } else { " " }, "Always on Top", "Ctrl+T", config.always_on_top, false).clicked() {
+            if menu_item(ui, &skin, if config.always_on_top { "✓" } else { " " }, "Always on Top", "", config.always_on_top, false).clicked() {
                 config.always_on_top = !config.always_on_top;
                 let _ = config.save();
                 ui.close();

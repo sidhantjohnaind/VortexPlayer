@@ -6,7 +6,7 @@ use super::theme::VortexTheme;
 use crate::config::{AppConfig, DoubleClickAction, PlaylistEndAction, ThemeMode};
 use crate::engine::audio_dsp::{FREQS, VORTEX_EQ_PRESETS};
 use crate::engine::shaders::{Anime4kPreset, VideoScaler};
-use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2, ViewportBuilder, ViewportId};
+use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, Vec2};
 
 /// Modern Fluent-style Animated Toggle Switch
 pub fn fluent_switch(ui: &mut egui::Ui, value: &mut bool) -> egui::Response {
@@ -500,26 +500,36 @@ impl PreferencesDialog {
         }
 
         let mut should_close = false;
-        let viewport_id = ViewportId::from_hash_of("vortex_preferences_studio_window");
-        let builder = ViewportBuilder::default()
-            .with_title("Preferences (F5)")
-            .with_inner_size([940.0, 680.0])
-            .with_min_inner_size([820.0, 560.0])
-            .with_resizable(true)
-            .with_decorations(true);
 
-        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
-            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
-                should_close = true;
-            }
-
-            egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::new()
-                        .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
-                        .inner_margin(Margin::same(14)),
-                )
-                .show(ctx, |ui| {
+        egui::Window::new("⚙ Preferences Studio (F5)")
+            .id(egui::Id::new("vortex_preferences_studio_window"))
+            .open(is_open)
+            .default_pos(ctx.content_rect().center())
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_size([940.0, 680.0])
+            .min_size([640.0, 480.0])
+            .resizable(true)
+            .collapsible(false)
+            .vscroll(false)
+            .constrain(true)
+            .order(egui::Order::Foreground)
+            .frame(
+                egui::Frame::new()
+                    .fill(crate::ui::theme::VortexTheme::current_skin().bg_canvas)
+                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 70)))
+                    .corner_radius(CornerRadius::same(10))
+                    .inner_margin(Margin::same(14))
+                    .shadow(egui::Shadow {
+                        offset: [0, 8],
+                        blur: 24,
+                        spread: 2,
+                        color: Color32::from_black_alpha(200),
+                    }),
+            )
+            .show(ctx, |ui| {
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    should_close = true;
+                }
                     // Top Modern Search Bar Capsule
                     egui::Frame::new()
                         .fill(Color32::from_rgb(10, 10, 14))
@@ -2641,7 +2651,6 @@ impl PreferencesDialog {
                     });
                 });
             });
-        });
 
         if should_close {
             if self.backup_config.is_some() {

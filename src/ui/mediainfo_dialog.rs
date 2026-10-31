@@ -2,7 +2,7 @@ use super::theme::VortexTheme;
 use crate::engine::MediaStats;
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Margin, Pos2, Rect, RichText,
-    Sense, Stroke, StrokeKind, Vec2, ViewportBuilder, ViewportId,
+    Sense, Stroke, StrokeKind, Vec2,
 };
 
 use crate::engine::audio_levels::MultiChannelAudioMeterState;
@@ -62,19 +62,6 @@ impl MediaInfoDialog {
 
         let mut meter_state_clone = self.meter_state.clone();
 
-        // Render as a floating immediate viewport so it sits above child_hwnd and never gets hidden by video
-        let viewport_id = ViewportId::from_hash_of("vortex_playback_system_info_window");
-        let mut builder = ViewportBuilder::default()
-            .with_title("Playback/System Information")
-            .with_inner_size([700.0, 720.0])
-            .with_min_inner_size([480.0, 520.0])
-            .with_resizable(true)
-            .with_decorations(true);
-
-        if is_pinned {
-            builder = builder.with_always_on_top();
-        }
-
         let mut new_tab = selected_tab;
         let mut toggle_pin = false;
         let mut new_copy_time = copy_feedback_time;
@@ -82,37 +69,54 @@ impl MediaInfoDialog {
         let is_word_wrap = self.word_wrap;
         let mut toggle_word_wrap = false;
 
-        ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
-            if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
-                close_dialog = true;
-            }
+        egui::Window::new("ℹ Playback / System Information (Ctrl+F1)")
+            .id(egui::Id::new("vortex_playback_system_info_window"))
+            .open(is_open)
+            .default_pos(ctx.content_rect().center())
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_size([720.0, 700.0])
+            .min_size([480.0, 480.0])
+            .resizable(true)
+            .collapsible(false)
+            .vscroll(false)
+            .constrain(true)
+            .order(egui::Order::Foreground)
+            .frame(
+                egui::Frame::new()
+                    .fill(VortexTheme::current_skin().bg_panel)
+                    .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 70)))
+                    .corner_radius(CornerRadius::same(10))
+                    .inner_margin(Margin::same(8))
+                    .shadow(egui::Shadow {
+                        offset: [0, 8],
+                        blur: 24,
+                        spread: 2,
+                        color: Color32::from_black_alpha(200),
+                    }),
+            )
+            .show(ctx, |ui| {
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    close_dialog = true;
+                }
 
-            if is_playing {
-                // Smooth 30 FPS refresh cadence (33ms interval)
-                ctx.request_repaint_after(std::time::Duration::from_millis(33));
-            } else if crate::engine::mediainfo::is_mediainfo_pending(&stats.file_path) {
-                // Fast poll for background MediaInfo scan completion
-                ctx.request_repaint_after(std::time::Duration::from_millis(50));
-            }
+                if is_playing {
+                    // Smooth 30 FPS refresh cadence (33ms interval)
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+                } else if crate::engine::mediainfo::is_mediainfo_pending(&stats.file_path) {
+                    // Fast poll for background MediaInfo scan completion
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
+                }
 
-            let current_time = ctx.input(|i| i.time);
-            let is_copied = current_time - copy_feedback_time < 2.0;
+                let current_time = ui.ctx().input(|i| i.time);
+                let is_copied = current_time - copy_feedback_time < 2.0;
 
-            // 1. TOP TAB BAR PANEL
-            egui::Panel::top("mediainfo_top_bar")
-                .exact_size(32.0)
-                .frame(
-                    egui::Frame::new()
-                        .fill(VortexTheme::current_skin().bg_panel)
-                        .inner_margin(Margin::ZERO),
-                )
-                .show(ctx, |ui| {
-                    let win_w = ui.available_width();
-                    let tab_bar_h = 32.0;
-                    let (tab_bar_rect, _) = ui.allocate_exact_size(
-                        Vec2::new(win_w, tab_bar_h),
-                        Sense::hover(),
-                    );
+                // 1. TOP TAB BAR
+                let win_w = ui.available_width();
+                let tab_bar_h = 32.0;
+                let (tab_bar_rect, _) = ui.allocate_exact_size(
+                    Vec2::new(win_w, tab_bar_h),
+                    Sense::hover(),
+                );
 
                     let pin_w = 26.0;
                     let tabs_total_w = win_w - pin_w - 20.0;
@@ -201,154 +205,150 @@ impl MediaInfoDialog {
                         [tab_bar_rect.left_bottom(), tab_bar_rect.right_bottom()],
                         Stroke::new(1.0, Color32::from_rgb(35, 38, 48)),
                     );
-                });
 
-            // 2. BOTTOM FOOTER TOOLBAR (Guaranteed Visible at Bottom)
-            egui::Panel::bottom("mediainfo_bottom_footer")
-                .exact_size(44.0)
-                .frame(
-                    egui::Frame::new()
-                        .fill(VortexTheme::current_skin().bg_panel)
-                        .inner_margin(Margin::same(6)),
-                )
-                .show(ctx, |ui| {
-                    let footer_rect = ui.max_rect();
-                    let footer_center_y = footer_rect.center().y;
+                ui.add_space(4.0);
 
-                    // Copy Button (Left aligned)
-                    let copy_w = 145.0;
-                    let copy_h = 24.0;
-                    let copy_rect = Rect::from_min_size(
-                        Pos2::new(footer_rect.left() + 8.0, footer_center_y - copy_h / 2.0),
-                        Vec2::new(copy_w, copy_h),
+                // 2. CENTRAL CONTENT AREA
+                let footer_h = 36.0;
+                let total_content_h = (ui.available_height() - footer_h - 10.0).max(100.0);
+                ui.allocate_ui_with_layout(
+                    Vec2::new(win_w, total_content_h),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        match selected_tab {
+                            0 => Self::render_playback_tab_content(ui, stats, total_content_h, &mut meter_state_clone, &mut toggle_wasapi),
+                            1 => Self::render_file_info_tab_content(ui, stats, is_word_wrap),
+                            2 => Self::render_system_info_tab_content(ui, stats, is_word_wrap),
+                            _ => {}
+                        }
+                    },
+                );
+
+                ui.add_space(4.0);
+
+                // 3. BOTTOM FOOTER TOOLBAR
+                let (footer_rect, _) = ui.allocate_exact_size(
+                    Vec2::new(win_w, footer_h),
+                    Sense::hover(),
+                );
+                let footer_center_y = footer_rect.center().y;
+
+                // Copy Button (Left aligned)
+                let copy_w = 145.0;
+                let copy_h = 24.0;
+                let copy_rect = Rect::from_min_size(
+                    Pos2::new(footer_rect.left() + 8.0, footer_center_y - copy_h / 2.0),
+                    Vec2::new(copy_w, copy_h),
+                );
+                let copy_resp = ui.interact(copy_rect, ui.id().with("vp_diag_copy_btn"), Sense::click());
+                let copy_hover = copy_resp.hovered();
+
+                if copy_resp.clicked() {
+                    let text = match selected_tab {
+                        0 => Self::generate_playback_report(stats),
+                        1 => Self::generate_file_info_text(stats),
+                        2 => Self::generate_system_info_text(stats),
+                        _ => String::new(),
+                    };
+                    ui.ctx().copy_text(text);
+                    new_copy_time = current_time;
+                }
+
+                // Word Wrap Button (Next to Copy Button)
+                let wrap_btn_w = 125.0;
+                let wrap_btn_h = 24.0;
+                let wrap_btn_rect = Rect::from_min_size(
+                    Pos2::new(copy_rect.right() + 8.0, footer_center_y - wrap_btn_h / 2.0),
+                    Vec2::new(wrap_btn_w, wrap_btn_h),
+                );
+                let wrap_resp = ui.interact(wrap_btn_rect, ui.id().with("vp_diag_wrap_btn"), Sense::click())
+                    .on_hover_text(if is_word_wrap { "Word Wrap is ON (Wrap long lines). Click to toggle." } else { "Word Wrap is OFF (Horizontal Scroll). Click to toggle." });
+                let wrap_hover = wrap_resp.hovered();
+                if wrap_resp.clicked() {
+                    toggle_word_wrap = true;
+                }
+
+                // Close Button (Right aligned)
+                let close_btn_w = 75.0;
+                let close_btn_h = 24.0;
+                let close_btn_rect = Rect::from_min_size(
+                    Pos2::new(footer_rect.right() - 8.0 - close_btn_w, footer_center_y - close_btn_h / 2.0),
+                    Vec2::new(close_btn_w, close_btn_h),
+                );
+                let close_btn_resp = ui.interact(close_btn_rect, ui.id().with("vp_diag_close_footer"), Sense::click());
+                let cb_hover = close_btn_resp.hovered();
+                if close_btn_resp.clicked() {
+                    close_dialog = true;
+                }
+
+                {
+                    let painter = ui.painter();
+                    painter.line_segment(
+                        [footer_rect.left_top(), footer_rect.right_top()],
+                        Stroke::new(1.0, Color32::from_rgb(35, 38, 48)),
                     );
-                    let copy_resp = ui.interact(copy_rect, ui.id().with("vp_diag_copy_btn"), Sense::click());
-                    let copy_hover = copy_resp.hovered();
 
-                    if copy_resp.clicked() {
-                        let text = match selected_tab {
-                            0 => Self::generate_playback_report(stats),
-                            1 => Self::generate_file_info_text(stats),
-                            2 => Self::generate_system_info_text(stats),
-                            _ => String::new(),
-                        };
-                        ui.ctx().copy_text(text);
-                        new_copy_time = current_time;
-                    }
-
-                    // Word Wrap Button (Next to Copy Button)
-                    let wrap_btn_w = 125.0;
-                    let wrap_btn_h = 24.0;
-                    let wrap_btn_rect = Rect::from_min_size(
-                        Pos2::new(copy_rect.right() + 8.0, footer_center_y - wrap_btn_h / 2.0),
-                        Vec2::new(wrap_btn_w, wrap_btn_h),
+                    // Render Copy Button
+                    painter.rect_filled(
+                        copy_rect,
+                        CornerRadius::same(3),
+                        if is_copied { Color32::from_rgb(20, 60, 32) } else if copy_hover { Color32::from_rgb(26, 30, 40) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
                     );
-                    let wrap_resp = ui.interact(wrap_btn_rect, ui.id().with("vp_diag_wrap_btn"), Sense::click())
-                        .on_hover_text(if is_word_wrap { "Word Wrap is ON (Wrap long lines). Click to toggle." } else { "Word Wrap is OFF (Horizontal Scroll). Click to toggle." });
-                    let wrap_hover = wrap_resp.hovered();
-                    if wrap_resp.clicked() {
-                        toggle_word_wrap = true;
-                    }
-
-                    // Close Button (Right aligned)
-                    let close_btn_w = 75.0;
-                    let close_btn_h = 24.0;
-                    let close_btn_rect = Rect::from_min_size(
-                        Pos2::new(footer_rect.right() - 8.0 - close_btn_w, footer_center_y - close_btn_h / 2.0),
-                        Vec2::new(close_btn_w, close_btn_h),
+                    painter.rect_stroke(
+                        copy_rect,
+                        CornerRadius::same(3),
+                        Stroke::new(1.0, if is_copied { Color32::from_rgb(50, 160, 80) } else if copy_hover { Color32::from_rgb(60, 66, 85) } else { Color32::from_rgb(38, 42, 54) }),
+                        StrokeKind::Inside,
                     );
-                    let close_btn_resp = ui.interact(close_btn_rect, ui.id().with("vp_diag_close_footer"), Sense::click());
-                    let cb_hover = close_btn_resp.hovered();
-                    if close_btn_resp.clicked() {
-                        close_dialog = true;
-                    }
+                    painter.text(
+                        copy_rect.center(),
+                        Align2::CENTER_CENTER,
+                        if is_copied { "✓ Copied!" } else { "Copy to the clipboard" },
+                        FontId::proportional(11.5),
+                        if is_copied { Color32::from_rgb(140, 245, 165) } else if copy_hover { Color32::WHITE } else { Color32::from_rgb(210, 215, 225) },
+                    );
 
-                    {
-                        let painter = ui.painter();
-                        painter.line_segment(
-                            [footer_rect.left_top(), footer_rect.right_top()],
-                            Stroke::new(1.0, Color32::from_rgb(35, 38, 48)),
-                        );
+                    // Render Word Wrap Button
+                    painter.rect_filled(
+                        wrap_btn_rect,
+                        CornerRadius::same(3),
+                        if is_word_wrap { Color32::from_rgb(20, 36, 56) } else if wrap_hover { Color32::from_rgb(26, 30, 40) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
+                    );
+                    painter.rect_stroke(
+                        wrap_btn_rect,
+                        CornerRadius::same(3),
+                        Stroke::new(1.0, if is_word_wrap { Color32::from_rgb(50, 110, 190) } else if wrap_hover { Color32::from_rgb(60, 66, 85) } else { Color32::from_rgb(38, 42, 54) }),
+                        StrokeKind::Inside,
+                    );
+                    painter.text(
+                        wrap_btn_rect.center(),
+                        Align2::CENTER_CENTER,
+                        if is_word_wrap { "↩ Word Wrap: ON" } else { "↩ Word Wrap: OFF" },
+                        FontId::proportional(11.5),
+                        if is_word_wrap { Color32::from_rgb(170, 215, 255) } else if wrap_hover { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
+                    );
 
-                        // Render Copy Button
-                        painter.rect_filled(
-                            copy_rect,
-                            CornerRadius::same(3),
-                            if is_copied { Color32::from_rgb(20, 60, 32) } else if copy_hover { Color32::from_rgb(26, 30, 40) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
-                        );
-                        painter.rect_stroke(
-                            copy_rect,
-                            CornerRadius::same(3),
-                            Stroke::new(1.0, if is_copied { Color32::from_rgb(50, 160, 80) } else if copy_hover { Color32::from_rgb(60, 66, 85) } else { Color32::from_rgb(38, 42, 54) }),
-                            StrokeKind::Inside,
-                        );
-                        painter.text(
-                            copy_rect.center(),
-                            Align2::CENTER_CENTER,
-                            if is_copied { "✓ Copied!" } else { "Copy to the clipboard" },
-                            FontId::proportional(11.5),
-                            if is_copied { Color32::from_rgb(140, 245, 165) } else if copy_hover { Color32::WHITE } else { Color32::from_rgb(210, 215, 225) },
-                        );
-
-                        // Render Word Wrap Button
-                        painter.rect_filled(
-                            wrap_btn_rect,
-                            CornerRadius::same(3),
-                            if is_word_wrap { Color32::from_rgb(20, 36, 56) } else if wrap_hover { Color32::from_rgb(26, 30, 40) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
-                        );
-                        painter.rect_stroke(
-                            wrap_btn_rect,
-                            CornerRadius::same(3),
-                            Stroke::new(1.0, if is_word_wrap { Color32::from_rgb(50, 110, 190) } else if wrap_hover { Color32::from_rgb(60, 66, 85) } else { Color32::from_rgb(38, 42, 54) }),
-                            StrokeKind::Inside,
-                        );
-                        painter.text(
-                            wrap_btn_rect.center(),
-                            Align2::CENTER_CENTER,
-                            if is_word_wrap { "↩ Word Wrap: ON" } else { "↩ Word Wrap: OFF" },
-                            FontId::proportional(11.5),
-                            if is_word_wrap { Color32::from_rgb(170, 215, 255) } else if wrap_hover { Color32::WHITE } else { crate::ui::theme::VortexTheme::current_skin().text_secondary },
-                        );
-
-                        // Render Close Button
-                        painter.rect_filled(
-                            close_btn_rect,
-                            CornerRadius::same(3),
-                            if cb_hover { Color32::from_rgb(35, 38, 50) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
-                        );
-                        painter.rect_stroke(
-                            close_btn_rect,
-                            CornerRadius::same(3),
-                            Stroke::new(1.0, if cb_hover { Color32::from_rgb(65, 70, 92) } else { Color32::from_rgb(38, 42, 54) }),
-                            StrokeKind::Inside,
-                        );
-                        painter.text(
-                            close_btn_rect.center(),
-                            Align2::CENTER_CENTER,
-                            "Close",
-                            FontId::proportional(11.5),
-                            if cb_hover { Color32::WHITE } else { Color32::from_rgb(210, 215, 225) },
-                        );
-                    }
-                });
-
-            // 3. CENTRAL CONTENT PANEL (Fills remaining height perfectly)
-            egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::new()
-                        .fill(VortexTheme::current_skin().bg_panel)
-                        .inner_margin(Margin::same(6)),
-                )
-                .show(ctx, |ui| {
-                    let total_content_h = ui.available_height();
-                    match selected_tab {
-                        0 => Self::render_playback_tab_content(ui, stats, total_content_h, &mut meter_state_clone, &mut toggle_wasapi),
-                        1 => Self::render_file_info_tab_content(ui, stats, is_word_wrap),
-                        2 => Self::render_system_info_tab_content(ui, stats, is_word_wrap),
-                        _ => {}
-                    }
-                });
-        });
+                    // Render Close Button
+                    painter.rect_filled(
+                        close_btn_rect,
+                        CornerRadius::same(3),
+                        if cb_hover { Color32::from_rgb(35, 38, 50) } else { crate::ui::theme::VortexTheme::current_skin().bg_panel },
+                    );
+                    painter.rect_stroke(
+                        close_btn_rect,
+                        CornerRadius::same(3),
+                        Stroke::new(1.0, if cb_hover { Color32::from_rgb(65, 70, 92) } else { Color32::from_rgb(38, 42, 54) }),
+                        StrokeKind::Inside,
+                    );
+                    painter.text(
+                        close_btn_rect.center(),
+                        Align2::CENTER_CENTER,
+                        "Close",
+                        FontId::proportional(11.5),
+                        if cb_hover { Color32::WHITE } else { Color32::from_rgb(210, 215, 225) },
+                    );
+                }
+            });
 
         self.selected_tab = new_tab;
         if toggle_pin {

@@ -7173,57 +7173,64 @@ impl eframe::App for VortexApp {
         }
 
         // =========================================================================
-        // DETACHED PLAYLIST WINDOW (Independent Multi-Monitor Top-Level Native Viewport)
+        // DETACHED PLAYLIST WINDOW (In-App Floating Window)
         // =========================================================================
         if self.show_playlist && self.config.playlist_detached {
-            let viewport_id = egui::ViewportId::from_hash_of("vortex_detached_playlist_window");
-            let mut builder = egui::ViewportBuilder::default()
-                .with_title("Playlist")
-                .with_inner_size([380.0, 620.0])
-                .with_min_inner_size([280.0, 360.0])
-                .with_resizable(true)
-                .with_decorations(true);
-
-            if self.config.playlist_pinned {
-                builder = builder.with_always_on_top();
-            }
-
             let mut close_detached = false;
             let mut detach_toggle = false;
             let mut pin_toggle = false;
+            let mut show_pl = self.show_playlist;
             let is_pinned = self.config.playlist_pinned;
             let active_path = stats.file_path.clone();
 
-            ctx.show_viewport_immediate(viewport_id, builder, |ctx, _class| {
-                if ctx.input(|i| i.viewport().close_requested() || i.key_pressed(egui::Key::Escape)) {
-                    close_detached = true;
-                }
+            egui::Window::new("📑 Playlist")
+                .id(egui::Id::new("vortex_detached_playlist_window"))
+                .open(&mut show_pl)
+                .default_pos(ctx.content_rect().center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .default_size([380.0, 620.0])
+                .min_size([280.0, 360.0])
+                .resizable(true)
+                .collapsible(false)
+                .vscroll(false)
+                .constrain(true)
+                .order(egui::Order::Foreground)
+                .frame(
+                    egui::Frame::new()
+                        .fill(VortexTheme::current_skin().bg_panel)
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 70)))
+                        .corner_radius(CornerRadius::same(10))
+                        .inner_margin(Margin::same(6))
+                        .shadow(egui::Shadow {
+                            offset: [0, 8],
+                            blur: 24,
+                            spread: 2,
+                            color: Color32::from_black_alpha(200),
+                        }),
+                )
+                .show(&ctx, |ui| {
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        close_detached = true;
+                    }
 
-                // Handle files dragged and dropped into Playlist window
-                let dropped = ctx.input(|i| i.raw.dropped_files.clone());
-                if !dropped.is_empty() {
-                    let mut paths = Vec::new();
-                    for d in dropped {
-                        let p = d.path().to_path_buf();
-                        if !p.as_os_str().is_empty() {
-                            paths.push(p);
+                    // Handle files dragged and dropped into Playlist window
+                    let dropped = ui.ctx().input(|i| i.raw.dropped_files.clone());
+                    if !dropped.is_empty() {
+                        let mut paths = Vec::new();
+                        for d in dropped {
+                            let p = d.path().to_path_buf();
+                            if !p.as_os_str().is_empty() {
+                                paths.push(p);
+                            }
+                        }
+                        if !paths.is_empty() {
+                            self.playlist.lock().unwrap().add_items(paths);
+                            self.config.last_playlist = self.playlist.lock().unwrap().items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
+                            let _ = self.config.save();
                         }
                     }
-                    if !paths.is_empty() {
-                        self.playlist.lock().unwrap().add_items(paths);
-                        self.config.last_playlist = self.playlist.lock().unwrap().items.iter().map(|i| i.path.to_string_lossy().to_string()).collect();
-                        let _ = self.config.save();
-                    }
-                }
 
-                egui::CentralPanel::default()
-                    .frame(
-                        egui::Frame::new()
-                            .fill(VortexTheme::current_skin().bg_panel)
-                            .inner_margin(Margin::same(6)),
-                    )
-                    .show(ctx, |ui| {
-                        let pl_actions = PlaylistPanel::render(
+                    let pl_actions = PlaylistPanel::render(
                             ui,
                             &mut *self.playlist.lock().unwrap(),
                             Some(&active_path),
@@ -7324,9 +7331,8 @@ impl eframe::App for VortexApp {
                             close_detached = true;
                         }
                     });
-            });
 
-            if close_detached {
+            if close_detached || !show_pl {
                 self.show_playlist = false;
             }
             if detach_toggle {

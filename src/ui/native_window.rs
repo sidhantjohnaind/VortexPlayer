@@ -1,15 +1,6 @@
-use eframe::egui::{self, Ui, Vec2, ViewportBuilder, ViewportId};
+use eframe::egui::{self, Color32, CornerRadius, Margin, Stroke, Ui, Vec2};
 
-/// Render a popup of the player in its own native OS window.
-///
-/// The popups used to be drawn as overlays *inside* the player window. That
-/// meant the title bar and the control bar of the player could cover them and
-/// they could never be moved to a second monitor. Every popup is a real
-/// window now: it gets its own taskbar entry, its own title bar and it can be
-/// dragged anywhere.
-///
-/// `open` is cleared when the user closes the native window (via the window's
-/// close button), so the caller can hide the popup again.
+/// Render a popup dialog as a sleek in-app floating window.
 pub fn show_native_window(
     ctx: &egui::Context,
     key: &str,
@@ -17,36 +8,38 @@ pub fn show_native_window(
     size: Vec2,
     scroll: bool,
     open: &mut bool,
-    contents: impl FnMut(&mut Ui),
+    mut contents: impl FnMut(&mut Ui),
 ) {
     if !*open {
         return;
     }
 
-    let viewport_id = ViewportId::from_hash_of(key);
-    let builder = ViewportBuilder::default()
-        .with_title(title)
-        .with_inner_size(size)
-        .with_min_inner_size([280.0, 160.0])
-        .with_resizable(true)
-        .with_decorations(true);
-
-    let mut close_requested = false;
-    let mut contents = contents;
-    ctx.show_viewport_immediate(viewport_id, builder, |ui, _class| {
-        if ui.ctx().input(|i| i.viewport().close_requested()) {
-            close_requested = true;
-        }
-        if scroll {
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| contents(ui));
-        } else {
+    egui::Window::new(title)
+        .id(egui::Id::new(key))
+        .open(open)
+        .default_pos(ctx.content_rect().center())
+        .pivot(egui::Align2::CENTER_CENTER)
+        .default_size(size)
+        .min_size(Vec2::new(280.0, 160.0))
+        .resizable(true)
+        .collapsible(false)
+        .vscroll(scroll)
+        .constrain(true)
+        .order(egui::Order::Foreground)
+        .frame(
+            egui::Frame::new()
+                .fill(Color32::from_rgba_premultiplied(16, 18, 24, 250))
+                .stroke(Stroke::new(1.0, Color32::from_rgb(45, 52, 70)))
+                .corner_radius(CornerRadius::same(8))
+                .inner_margin(Margin::same(12))
+                .shadow(egui::Shadow {
+                    offset: [0, 8],
+                    blur: 24,
+                    spread: 2,
+                    color: Color32::from_black_alpha(200),
+                }),
+        )
+        .show(ctx, |ui| {
             contents(ui);
-        }
-    });
-
-    if close_requested {
-        *open = false;
-    }
+        });
 }

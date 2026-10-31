@@ -5788,9 +5788,15 @@ impl eframe::App for VortexApp {
         }
 
         if self.stats_for_nerds.is_open {
-            let v_size = ctx.content_rect().size();
+            let vid_size = self.last_video_rect.size();
+            let (vw, vh) = if vid_size.x > 50.0 && vid_size.y > 50.0 {
+                (vid_size.x, vid_size.y)
+            } else {
+                let s = ctx.content_rect().size();
+                (s.x, s.y)
+            };
             let ppp = ctx.pixels_per_point();
-            self.stats_for_nerds.render(&ctx, &stats, v_size.x, v_size.y, ppp);
+            self.stats_for_nerds.render(&ctx, &stats, vw, vh, ppp);
         }
 
         if let Some(st) = seek_target {

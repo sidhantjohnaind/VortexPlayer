@@ -2540,6 +2540,12 @@ impl Player {
             if active_track.channel_count > 0 && stats.audio_channels == 0 {
                 stats.audio_channels = active_track.channel_count;
             }
+            if active_track.sample_rate > 0 && stats.audio_sample_rate == 0 {
+                stats.audio_sample_rate = active_track.sample_rate;
+            }
+            if !active_track.codec.is_empty() && stats.audio_codec.is_empty() {
+                stats.audio_codec = active_track.codec.clone();
+            }
             if !active_track.channels.is_empty() && stats.audio_channel_layout.is_empty() {
                 stats.audio_channel_layout = active_track.channels.trim_end_matches(" ch").trim().to_string();
             }
@@ -2848,8 +2854,13 @@ impl Player {
                     if !vo.is_empty() { stats.current_vo = vo; }
                 }
 
-                if stats.audio_channels == 0 || path_changed {
-                    if let Some(ch) = get_int("audio-params/channel-count").or_else(|| get_int("audio-params/channels")) {
+                if stats.audio_channels == 0 || stats.audio_codec.is_empty() || path_changed {
+                    if let Some(ch) = get_int("audio-params/channel-count")
+                        .or_else(|| get_int("audio-params/channels"))
+                        .or_else(|| get_int("audio-channels"))
+                        .or_else(|| get_int("current-tracks/audio/channel-count"))
+                        .or_else(|| get_int("ao-params/channel-count"))
+                    {
                         if ch > 0 { stats.audio_channels = ch; }
                     }
                     if let Some(layout) = get_str("audio-params/hr-channels")
@@ -2858,8 +2869,19 @@ impl Player {
                     {
                         if !layout.is_empty() { stats.audio_channel_layout = layout; }
                     }
-                    if let Some(codec) = get_str("audio-codec") {
+                    if let Some(codec) = get_str("audio-codec")
+                        .or_else(|| get_str("audio-codec-name"))
+                        .or_else(|| get_str("current-tracks/audio/codec"))
+                        .or_else(|| get_str("audio-params/codec"))
+                    {
                         if !codec.is_empty() { stats.audio_codec = codec; }
+                    }
+                    if let Some(sr) = get_int("audio-params/samplerate")
+                        .or_else(|| get_int("audio-samplerate"))
+                        .or_else(|| get_int("current-tracks/audio/samplerate"))
+                        .or_else(|| get_int("ao-params/samplerate"))
+                    {
+                        if sr > 0 { stats.audio_sample_rate = sr; }
                     }
                     if let Some(out_ch) = get_int("ao-params/channel-count").or_else(|| get_int("audio-out-params/channel-count")) {
                         if out_ch > 0 { stats.audio_out_channels = out_ch; }
@@ -2952,10 +2974,23 @@ impl Player {
                         }
                         1 => {
                             // Stage 1: Audio Parameters & Backend AO Driver Queries
-                            stats.audio_codec = get_str("audio-codec").unwrap_or_default();
+                            stats.audio_codec = get_str("audio-codec")
+                                .or_else(|| get_str("audio-codec-name"))
+                                .or_else(|| get_str("current-tracks/audio/codec"))
+                                .or_else(|| get_str("audio-params/codec"))
+                                .unwrap_or_default();
                             stats.audio_decoder_name = get_str("audio-decoder-name").unwrap_or_default();
-                            stats.audio_sample_rate = get_int("audio-params/samplerate").unwrap_or(0);
-                            if let Some(ch) = get_int("audio-params/channel-count").or_else(|| get_int("audio-params/channels")) {
+                            stats.audio_sample_rate = get_int("audio-params/samplerate")
+                                .or_else(|| get_int("audio-samplerate"))
+                                .or_else(|| get_int("current-tracks/audio/samplerate"))
+                                .or_else(|| get_int("ao-params/samplerate"))
+                                .unwrap_or(0);
+                            if let Some(ch) = get_int("audio-params/channel-count")
+                                .or_else(|| get_int("audio-params/channels"))
+                                .or_else(|| get_int("audio-channels"))
+                                .or_else(|| get_int("current-tracks/audio/channel-count"))
+                                .or_else(|| get_int("ao-params/channel-count"))
+                            {
                                 if ch > 0 { stats.audio_channels = ch; }
                             }
                             if let Some(raw_layout) = get_str("audio-params/hr-channels")

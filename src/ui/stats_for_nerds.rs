@@ -132,7 +132,6 @@ impl StatsForNerdsDialog {
         self.update_sample(stats);
 
         let mut is_open = self.is_open;
-        let mut close_requested = false;
         let mut copy_debug_info = false;
 
         let skin = VortexTheme::current_skin();
@@ -140,28 +139,24 @@ impl StatsForNerdsDialog {
         crate::ui::native_window::show_native_window(
             ctx,
             "vortex_stats_for_nerds_window",
-            "🤓 Stats for Nerds",
-            eframe::egui::Vec2::new(460.0, 560.0),
+            "Stats for Nerds",
+            eframe::egui::Vec2::new(540.0, 650.0),
             true,
             &mut is_open,
             |ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(0.0, 6.0);
+            ui.spacing_mut().item_spacing = Vec2::new(8.0, 6.0);
 
             // ── Top Toolbar Header ──────────────────────────────────────────
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new("Stats for Nerds")
                         .strong()
-                        .size(13.0)
+                        .size(13.5)
                         .color(skin.accent_bright),
                 );
                 ui.colored_label(skin.text_muted, "• Vortex Engine");
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("✕").on_hover_text("Close Stats for Nerds (Ctrl+Shift+N)").clicked() {
-                        close_requested = true;
-                    }
-
                     let pin_icon = if self.is_pinned { "📌 Unpin" } else { "📍 Pin" };
                     if ui.button(pin_icon).on_hover_text("Pin overlay on top of video").clicked() {
                         self.is_pinned = !self.is_pinned;
@@ -219,15 +214,23 @@ impl StatsForNerdsDialog {
             let v_codec = if stats.video_codec.is_empty() { "N/A" } else { &stats.video_codec };
             let a_codec = if stats.audio_codec.is_empty() { "N/A" } else { &stats.audio_codec };
 
+            let audio_info = if !stats.audio_codec.is_empty() && stats.audio_channels > 0 {
+                format!("{} ({}ch @ {}Hz)", a_codec, stats.audio_channels, stats.audio_sample_rate)
+            } else if !stats.audio_codec.is_empty() {
+                a_codec.to_string()
+            } else {
+                "No Audio / Muted".to_string()
+            };
+
             egui::Grid::new("nerd_stats_grid")
                 .num_columns(2)
-                .spacing([12.0, 4.0])
+                .spacing([16.0, 5.0])
                 .striped(false)
                 .show(ui, |ui| {
                     ui.colored_label(Color32::from_rgb(175, 185, 200), "Video ID / sCPN");
                     let mut file_disp = filename.clone();
-                    if file_disp.chars().count() > 36 {
-                        let truncated: String = file_disp.chars().take(34).collect();
+                    if file_disp.chars().count() > 42 {
+                        let truncated: String = file_disp.chars().take(40).collect();
                         file_disp = format!("{}...", truncated);
                     }
                     ui.label(
@@ -274,7 +277,7 @@ impl StatsForNerdsDialog {
 
                     ui.colored_label(Color32::from_rgb(175, 185, 200), "Codecs");
                     ui.label(
-                        egui::RichText::new(format!("{} ({}) / {} ({}ch @ {}Hz)", v_codec, hw_desc, a_codec, stats.audio_channels, stats.audio_sample_rate))
+                        egui::RichText::new(format!("{} ({}) / {}", v_codec, hw_desc, audio_info))
                             .monospace()
                             .size(11.5)
                             .color(Color32::from_rgb(240, 240, 245)),
@@ -321,7 +324,14 @@ impl StatsForNerdsDialog {
                         .color(Color32::from_rgb(140, 210, 255)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.colored_label(Color32::from_rgb(90, 200, 255), egui::RichText::new(&speed_badge).monospace().strong().size(11.5));
+                    ui.label(
+                        egui::RichText::new(&speed_badge)
+                            .monospace()
+                            .strong()
+                            .size(11.5)
+                            .color(Color32::from_rgb(90, 200, 255)),
+                    );
+                    ui.add_space(8.0);
                     ui.colored_label(skin.text_muted, format!("Peak: {:.1} Kbps", peak_speed));
                 });
             });
@@ -329,7 +339,7 @@ impl StatsForNerdsDialog {
             let speed_values: Vec<f64> = self.history.iter().map(|p| p.net_speed_kbps).collect();
             Self::draw_sparkline_graph(
                 ui,
-                48.0,
+                50.0,
                 &speed_values,
                 None,
                 Color32::from_rgb(60, 180, 255),
@@ -359,7 +369,14 @@ impl StatsForNerdsDialog {
                         .color(Color32::from_rgb(110, 235, 150)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.colored_label(health_color, egui::RichText::new(format!("{:.2} s", latest_buf_sec)).monospace().strong().size(11.5));
+                    ui.label(
+                        egui::RichText::new(format!("{:.2} s", latest_buf_sec))
+                            .monospace()
+                            .strong()
+                            .size(11.5)
+                            .color(health_color),
+                    );
+                    ui.add_space(8.0);
                     ui.colored_label(skin.text_muted, format!("{:.1} MB ({:.1}%)", latest_buf_mb, stats.cache_buffer_percent));
                 });
             });
@@ -367,7 +384,7 @@ impl StatsForNerdsDialog {
             let buffer_values: Vec<f64> = self.history.iter().map(|p| p.buffer_duration_sec).collect();
             Self::draw_sparkline_graph(
                 ui,
-                48.0,
+                50.0,
                 &buffer_values,
                 None,
                 Color32::from_rgb(70, 230, 130),
@@ -395,7 +412,14 @@ impl StatsForNerdsDialog {
                         .color(Color32::from_rgb(255, 190, 80)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.colored_label(drops_label_color, egui::RichText::new(format!("{:.2} FPS (Drops: {})", latest_fps, drops_count)).monospace().strong().size(11.5));
+                    ui.label(
+                        egui::RichText::new(format!("{:.2} FPS (Drops: {})", latest_fps, drops_count))
+                            .monospace()
+                            .strong()
+                            .size(11.5)
+                            .color(drops_label_color),
+                    );
+                    ui.add_space(8.0);
                     ui.colored_label(skin.text_muted, format!("Jitter: {:.2}ms | VO:{} Dec:{}", stats.vsync_jitter * 1000.0, stats.vo_drop_frame_count, stats.decoder_frame_drop_count));
                 });
             });
@@ -415,7 +439,7 @@ impl StatsForNerdsDialog {
 
             ui.add_space(6.0);
             ui.separator();
-            ui.add_space(2.0);
+            ui.add_space(4.0);
 
             // ── Mystery Text Footer (Authentic YouTube Stats for Nerds) ──────
             let mystery_text = format!(
@@ -428,9 +452,16 @@ impl StatsForNerdsDialog {
                 stats.avsync_drift * 1000.0,
                 stats.volume
             );
-            ui.horizontal(|ui| {
-                ui.colored_label(Color32::from_rgb(140, 150, 165), egui::RichText::new(mystery_text).monospace().size(10.5));
-            });
+            egui::Frame::new()
+                .fill(Color32::from_rgba_premultiplied(12, 14, 18, 180))
+                .corner_radius(CornerRadius::same(4))
+                .inner_margin(egui::Margin::symmetric(8, 4))
+                .show(ui, |ui| {
+                    ui.colored_label(
+                        Color32::from_rgb(140, 150, 170),
+                        egui::RichText::new(mystery_text).monospace().size(10.5),
+                    );
+                });
         },
         );
 
@@ -459,9 +490,6 @@ impl StatsForNerdsDialog {
             ctx.copy_text(debug_json);
         }
 
-        if close_requested {
-            is_open = false;
-        }
         self.is_open = is_open;
     }
 
@@ -511,18 +539,18 @@ impl StatsForNerdsDialog {
 
         // Target baseline line (e.g. 20s buffer target, 60fps target)
         if let Some(target) = target_line {
-            let target_frac = ((target / max_val) as f32).clamp(0.0, 1.0);
+            let target_frac = ((target / max_val) as f32).clamp(0.08, 0.92);
             let y = rect.bottom() - rect.height() * target_frac;
             painter.line_segment(
-                [Pos2::new(rect.left() + 2.0, y), Pos2::new(rect.right() - 2.0, y)],
-                Stroke::new(1.0, Color32::from_rgba_premultiplied(200, 200, 255, 60)),
+                [Pos2::new(rect.left() + 2.0, y), Pos2::new(rect.right() - 56.0, y)],
+                Stroke::new(1.0, Color32::from_rgba_premultiplied(200, 200, 255, 45)),
             );
             painter.text(
-                Pos2::new(rect.right() - 4.0, y - 2.0),
-                egui::Align2::RIGHT_BOTTOM,
+                Pos2::new(rect.right() - 6.0, y),
+                egui::Align2::RIGHT_CENTER,
                 format!("{:.0} {}", target, unit),
-                FontId::monospace(9.5),
-                Color32::from_rgba_premultiplied(200, 200, 255, 80),
+                FontId::monospace(9.0),
+                Color32::from_rgba_premultiplied(200, 200, 255, 110),
             );
         }
 
@@ -579,18 +607,18 @@ impl StatsForNerdsDialog {
 
         // Min and Max scale markers
         painter.text(
-            Pos2::new(rect.left() + 4.0, rect.top() + 2.0),
+            Pos2::new(rect.left() + 6.0, rect.top() + 4.0),
             egui::Align2::LEFT_TOP,
             format!("{:.1} {}", max_val, unit),
             FontId::monospace(9.5),
-            Color32::from_white_alpha(100),
+            Color32::from_white_alpha(130),
         );
         painter.text(
-            Pos2::new(rect.left() + 4.0, rect.bottom() - 2.0),
+            Pos2::new(rect.left() + 6.0, rect.bottom() - 4.0),
             egui::Align2::LEFT_BOTTOM,
             format!("0.0 {}", unit),
             FontId::monospace(9.5),
-            Color32::from_white_alpha(70),
+            Color32::from_white_alpha(85),
         );
 
         // Hover interactive crosshair & tooltip

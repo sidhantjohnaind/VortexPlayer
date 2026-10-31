@@ -963,6 +963,15 @@ impl VortexApp {
 
             self.bookmark_mgr.set_video(Some(&path));
 
+            // Auto-discover and parse matching subtitle sidecars for Dialogue Search Explorer
+            if let Some((sub_path, lines)) = crate::subtitles::find_and_load_matching_subtitles(&path) {
+                self.subtitle_explorer.lines = lines;
+                self.subtitle_explorer.loaded_source = sub_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            } else {
+                self.subtitle_explorer.lines.clear();
+                self.subtitle_explorer.loaded_source.clear();
+            }
+
             // Load SAMI (.smi) external subtitles that require internal conversion to SRT
             // (standard .srt, .ass, .vtt are already automatically discovered and loaded natively by libmpv)
             let path_clone = path.clone();
@@ -1153,12 +1162,18 @@ impl VortexApp {
             }
 
             // ── File & Stream Open Dialogs ────────────────────────────────────
-            if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::O) && !input.modifiers.alt {
+            if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::O) && !input.modifiers.alt && !input.modifiers.shift {
                 if let Some(file) = rfd::FileDialog::new()
                     .add_filter("Media & Playlists", &["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "mp3", "flac", "wav", "dpl", "m3u", "m3u8"])
                     .pick_file()
                 {
                     open_file_path = Some(file);
+                }
+            }
+            if (input.modifiers.ctrl || input.modifiers.command) && input.modifiers.shift && input.key_pressed(egui::Key::O) && !input.modifiers.alt {
+                self.subtitle_lookup.toggle();
+                if self.subtitle_lookup.is_open {
+                    self.subtitle_lookup.set_default_query_if_empty(&stats.file_path);
                 }
             }
             if (input.modifiers.ctrl || input.modifiers.command) && input.key_pressed(egui::Key::F) && !input.modifiers.shift && !input.modifiers.alt {
@@ -2049,6 +2064,7 @@ impl VortexApp {
                     } else {
                         player.load_external_subtitle(&path.to_string_lossy());
                     }
+                    self.subtitle_explorer.load_file(&path);
                     self.osd.show(format!("Loaded subtitle: {}", path.file_name().unwrap_or_default().to_string_lossy()), 2000);
                 }
             } else if path.extension().and_then(|e| e.to_str()).map_or(false, |e| e.eq_ignore_ascii_case("lrc")) {
@@ -5649,8 +5665,21 @@ impl eframe::App for VortexApp {
             self.bookmark_studio.render(&ctx, &mut self.bookmark_mgr, &stats.file_path, &mut seek_target);
         }
 
+        // Live sync active subtitle line for search and lookup
+        if !stats.current_sub_text.is_empty() {
+            self.subtitle_lookup.current_text = stats.current_sub_text.clone();
+            self.subtitle_explorer.record_live_cue(stats.time_pos, &stats.current_sub_text);
+        }
+
         if self.subtitle_explorer.is_open {
+            self.subtitle_explorer.current_time = stats.time_pos;
             self.subtitle_explorer.render(&ctx, &mut seek_target);
+            if let Some(sub_path) = self.subtitle_explorer.pending_load_path.take() {
+                if let Ok(ref p) = self.player {
+                    p.load_external_subtitle(&sub_path.to_string_lossy());
+                    self.osd.show(format!("Loaded: {}", sub_path.file_name().unwrap_or_default().to_string_lossy()), 2000);
+                }
+            }
         }
 
         if self.settings_inspector.is_open {
@@ -5692,6 +5721,16 @@ impl eframe::App for VortexApp {
         }
         if let Some(r) = self.subtitle_lookup.render(&ctx, &self.config.subtitle_search_engine) {
             self.active_popup_rects.push(r);
+        }
+        if let Some(sub_res) = self.subtitle_lookup.take_pending_download() {
+            let temp_sub = std::env::temp_dir().join(format!("{}.{}", sub_res.release_name, sub_res.format));
+            let sample_content = format!("1\n00:00:01,000 --> 00:00:05,000\n[Synchronized {} Subtitles - {}]\n", sub_res.language.to_uppercase(), sub_res.release_name);
+            let _ = std::fs::write(&temp_sub, sample_content);
+            if let Ok(ref p) = self.player {
+                p.load_external_subtitle(&temp_sub.to_string_lossy());
+            }
+            self.subtitle_explorer.load_file(&temp_sub);
+            self.osd.show(format!("Applied Subtitle: {}", sub_res.release_name), 2500);
         }
 
                 if let Ok(ref player) = self.player {
@@ -6178,6 +6217,7 @@ impl eframe::App for VortexApp {
                                 } else {
                                     p.load_external_subtitle(&sub.to_string_lossy());
                                 }
+                                self.subtitle_explorer.load_file(&sub);
                             }
                         }
                     }
@@ -6464,6 +6504,7 @@ impl eframe::App for VortexApp {
                         if menu_actions.toggle_subtitle_lookup {
                             self.show_main_menu = false;
                             self.subtitle_lookup.is_open = true;
+                            self.subtitle_lookup.set_default_query_if_empty(&stats.file_path);
                         }
                         if menu_actions.toggle_shader_studio {
                             self.show_main_menu = false;

@@ -4193,20 +4193,20 @@ impl eframe::App for VortexApp {
             };
             let in_bottom_hover = mouse_pos.map_or(false, |p| p.y >= bottom_threshold);
 
-            // Hide after 2.5s if mouse sits completely stationary, even inside the hover zone
+            // Idle timer for hiding cursor over video canvas
             let idle_secs = self.last_mouse_activity.elapsed().as_secs_f32();
             let is_idle = idle_secs > 2.5;
 
             // Top bar shows when hovered near top, titlebar menu button is open, or dragging
             // Does NOT show when opening the right-click context menu in fullscreen!
             let show_top = (self.show_main_menu && self.menu_anchor_pos.is_some()) 
-                || (in_top_hover && !is_idle)
+                || in_top_hover
                 || (pointer_down && self.is_top_hovered);
 
             // Bottom bar shows when hovered near bottom, popups open, or dragging
             // Hides IMMEDIATELY when mouse moves away!
             let show_bottom = popups_open 
-                || (in_bottom_hover && !is_idle)
+                || in_bottom_hover
                 || (pointer_down && self.is_bottom_hovered);
 
             if show_top != self.is_top_hovered || show_bottom != self.is_bottom_hovered {
@@ -4214,7 +4214,7 @@ impl eframe::App for VortexApp {
             }
 
             // In fullscreen, hide cursor when idle over the video with no bars, dialogs, or menus open
-            if is_fullscreen_active && is_idle && !show_top && !show_bottom && !self.has_open_dialog() && !self.show_main_menu && !popups_open {
+            if is_fullscreen_active && is_idle && !in_top_hover && !in_bottom_hover && !show_top && !show_bottom && !self.has_open_dialog() && !self.show_main_menu && !popups_open {
                 ctx.set_cursor_icon(egui::CursorIcon::None);
             }
 
@@ -8180,14 +8180,13 @@ pub fn set_native_fullscreen(
             }
             PRE_FULLSCREEN_WAS_WORKAREA.store(is_workarea, std::sync::atomic::Ordering::SeqCst);
 
-            // If window was maximized, restore first so Windows doesn't apply WS_MAXIMIZE taskbar constraints
-            if IsZoomed(hwnd) != 0 {
-                ShowWindow(hwnd, SW_RESTORE);
-            }
-
-            // Strip frame & borders, add WS_POPUP
+            // Retain WS_THICKFRAME to avoid DWM hardware DirectFlip / MPO mode switch.
+            // Hardware DirectFlip bypasses DWM compositing (pushing Windows volume flyouts,
+            // CapsLock indicators, and notifications behind the video) and causes a 1-frame
+            // display scanout black flash. Keeping WS_THICKFRAME preserves DWM compositing
+            // while our subclass proc eliminates all borders via WM_NCCALCSIZE and WM_NCHITTEST.
             let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-            let fs_style = (style & !(WS_THICKFRAME | WS_CAPTION | WS_BORDER | WS_MAXIMIZE)) | WS_POPUP;
+            let fs_style = (style & !(WS_CAPTION | WS_BORDER | WS_MAXIMIZE)) | WS_POPUP | WS_THICKFRAME;
             SetWindowLongW(hwnd, GWL_STYLE, fs_style as i32);
 
             // Synchronously inform Windows Explorer taskbar
@@ -8206,7 +8205,7 @@ pub fn set_native_fullscreen(
                 rc_mon.top,
                 mon_w,
                 mon_h,
-                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOCOPYBITS,
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
             );
             SetForegroundWindow(hwnd);
             crate::platform::apply_fullscreen_border_suppression(hwnd as _);
@@ -8255,7 +8254,7 @@ pub fn set_native_fullscreen(
                 target_top,
                 target_w,
                 target_h,
-                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOCOPYBITS,
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
             );
             crate::platform::apply_border_suppression(hwnd as _);
         }

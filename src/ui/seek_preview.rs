@@ -98,6 +98,8 @@ impl Default for SeekPreviewEngine {
                             "1",
                             "-s",
                             "256x144",
+                            "-strict",
+                            "-1",
                             "-f",
                             "image2pipe",
                             "-vcodec",

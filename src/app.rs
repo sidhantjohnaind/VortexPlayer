@@ -8189,8 +8189,11 @@ pub fn set_native_fullscreen(
             let fs_style = (style & !(WS_CAPTION | WS_BORDER | WS_MAXIMIZE)) | WS_POPUP | WS_THICKFRAME;
             SetWindowLongW(hwnd, GWL_STYLE, fs_style as i32);
 
-            // Synchronously inform Windows Explorer taskbar
-            crate::platform::mark_fullscreen_window(hwnd as isize, true);
+            // Do NOT mark as an exclusive fullscreen surface to the Shell.
+            // Calling MarkFullscreenWindow(TRUE) commands the Shell to suppress the taskbar
+            // and fights with DWM when the user presses the Windows Key or adjusts volume,
+            // triggering an exclusive DirectFlip mode switch and a 1-frame black flash.
+            crate::platform::mark_fullscreen_window(hwnd as isize, false);
             crate::platform::apply_fullscreen_border_suppression(hwnd as _);
 
             // Respect Always-on-Top setting: standard fullscreen uses HWND_NOTOPMOST (-2)
@@ -8198,14 +8201,23 @@ pub fn set_native_fullscreen(
             // render on top of fullscreen video (matching VLC, MPC-HC, mpv behavior).
             // HWND_TOPMOST (-1) is only used when the user explicitly enabled Always on Top.
             let z_order = if always_on_top { -1 as isize as HWND } else { -2 as isize as HWND };
+
+            // Size +1 pixel taller than the monitor (invisible 1px extends off the bottom).
+            // This prevents Windows DWM from matching exact rcMonitor dimensions and promoting
+            // the window to DirectFlip / Independent Flip hardware scanout bypass.
+            // Keeping DWM in standard composed mode ensures that pressing the Windows key,
+            // opening the Start Menu / Taskbar, and Windows volume / media OSDs appear
+            // 100% smoothly with ZERO black flash!
+            let fs_h = mon_h + 1;
+
             SetWindowPos(
                 hwnd,
                 z_order,
                 rc_mon.left,
                 rc_mon.top,
                 mon_w,
-                mon_h,
-                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                fs_h,
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOOWNERZORDER,
             );
             SetForegroundWindow(hwnd);
             crate::platform::apply_fullscreen_border_suppression(hwnd as _);
@@ -8254,7 +8266,7 @@ pub fn set_native_fullscreen(
                 target_top,
                 target_w,
                 target_h,
-                SWP_FRAMECHANGED | SWP_SHOWWINDOW,
+                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOOWNERZORDER,
             );
             crate::platform::apply_border_suppression(hwnd as _);
         }
